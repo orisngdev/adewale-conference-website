@@ -20,17 +20,17 @@ const steps = [
   {
     num: "2",
     title: "Receive Confirmation",
-    desc: "You'll receive a confirmation email within 48 hours with your school's registration code and full competition guidelines.",
+    desc: "You'll receive an email confirmation after application review at close of registration with your school's registration code and full competition guidelines.",
   },
   {
     num: "3",
     title: "Prepare for Zonals",
-    desc: "The zonal stage runs June – July. Your supervising teacher will be sent the schedule and topic brief at least 3 weeks in advance.",
+    desc: "The zonal stage runs June – July. Your supervising teacher will be sent the schedule at least 2 weeks in advance.",
   },
   {
     num: "4",
     title: "Compete at the Grand Finale",
-    desc: "Qualifying schools advance to the October Grand Finale. Travel and accommodation for students are covered by the programme.",
+    desc: "Qualifying schools advance to the October Grand Finale. Feeding and accommodation for students are covered by the programme.",
   },
 ];
 

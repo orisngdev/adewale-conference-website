@@ -1,7 +1,7 @@
 const dateSteps = [
   {
     num: "01",
-    when: "May 18-31, 2026",
+    when: "May 25 - June 15, 2026",
     title: "School Registration",
     desc: "Schools submit their entries for the STEM Contest and Innovation Pitch. Registration is free. All public and private secondary schools in Ogun State are eligible. Deadline is strict don't wait.",
   },

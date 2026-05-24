@@ -136,7 +136,7 @@ export default function FooterSection() {
 
         <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-[rgba(250,247,240,0.4)]">
           <div>© 2026 Adewale Students Conference. All rights reserved.</div>
-          <div>An initiative of the Ogun Economic & Innovation Council</div>
+          <div>An Initiative of The Adewale Foundation</div>
         </div>
       </div>
     </footer>
