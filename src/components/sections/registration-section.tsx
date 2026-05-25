@@ -20,7 +20,7 @@ const steps = [
   {
     num: "2",
     title: "Receive Confirmation",
-    desc: "You'll receive an email confirmation after application review at close of registration with your school's registration code and full competition guidelines.",
+    desc: "You'll receive an email confirmation after application review at close of registration with the full competition guidelines.",
   },
   {
     num: "3",
