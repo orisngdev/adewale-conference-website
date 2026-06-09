@@ -14,6 +14,7 @@ import {
   YES_NO_OPTIONS,
   ZONAL_FINALS_OPTIONS,
 } from "@/lib/forms";
+import { buildRegistrationEmail, sendEmailSafely } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -250,6 +251,18 @@ export async function POST(request: Request) {
     await createAirtableRecord(
       getParticipantsTableId(),
       mapRegistrationFields(registration),
+    );
+
+    await sendEmailSafely(
+      buildRegistrationEmail({
+        schoolFullName: registration.schoolFullName,
+        schoolLGA: registration.schoolLGA,
+        zonalFinalsLocation: registration.zonalFinalsLocation,
+        principalFullName: registration.principalFullName,
+        principalEmail: registration.principalEmail,
+        teacherFullName: registration.teacherFullName,
+        teacherEmail: registration.teacherEmail,
+      }),
     );
 
     return NextResponse.json({ ok: true });

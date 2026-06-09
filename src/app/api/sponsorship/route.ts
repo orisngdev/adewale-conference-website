@@ -8,6 +8,7 @@ import {
   SPONSORSHIP_TIER_OPTIONS,
   type SponsorshipFormData,
 } from "@/lib/forms";
+import { buildSponsorshipEmail, sendEmailSafely } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -117,6 +118,15 @@ export async function POST(request: Request) {
     await createAirtableRecord(
       getSponsorshipTableId(),
       mapSponsorshipFields(sponsorship),
+    );
+
+    await sendEmailSafely(
+      buildSponsorshipEmail({
+        org: sponsorship.org,
+        contact: sponsorship.contact,
+        email: sponsorship.email,
+        tier: sponsorship.tier,
+      }),
     );
 
     return NextResponse.json({ ok: true });
