@@ -1,0 +1,26 @@
+"use client";
+
+import { useActionState } from "react";
+import { Button } from "@/components/ui/button";
+import { claimRegistration } from "@/app/(portal)/portal/school/actions";
+
+export default function ClaimForm() {
+  const [error, formAction, pending] = useActionState(claimRegistration, null);
+
+  return (
+    <form action={formAction} className="flex flex-col sm:flex-row gap-2">
+      <input
+        name="code"
+        required
+        placeholder="Enter your claim code"
+        className="flex-1 rounded-md border border-[#0A0F1E]/15 bg-white px-3 py-2 text-sm uppercase tracking-wide outline-none focus:border-[#E8A020]"
+      />
+      <Button type="submit" size="sm" disabled={pending}>
+        {pending ? "Claiming…" : "Claim school"}
+      </Button>
+      {error ? (
+        <p className="text-sm text-red-600 sm:self-center">{error}</p>
+      ) : null}
+    </form>
+  );
+}

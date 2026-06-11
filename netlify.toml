@@ -1,0 +1,13 @@
+# Netlify build config for the new platform branch (platform-v2).
+# Production stays on Vercel until we cut over; Vercel ignores this file.
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Official Next.js runtime — handles SSR/ISR, route handlers, and server
+# function bundling (respects next.config outputFileTracingIncludes, so the
+# email HTML templates ship with the registration/sponsorship functions).
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

@@ -45,8 +45,10 @@ it, and we set a fixed monthly budget cap before switching it on.
 
 ## What it costs, simply
 
-- **Stage 1: about zero in new costs.** We use free plans and tools we already pay for. The one
-  new tool (a content system that lets non-developers edit the site) is free to start.
+- **Stage 1: about zero in new costs.** We build the new site on a separate copy hosted on a free
+  plan (Netlify), so the **current live site keeps running untouched** until the new one is ready.
+  The one new tool (a content system that lets non-developers edit the site) is also free to start.
+  When we eventually switch the live site over, we'll pick the best-value host at that point.
 - **Stage 2: roughly $25/month**, fixed, once we pass the free allowance — for the accounts and
   database behind the logins.
 - **Stage 3: variable**, based on how much the AI is used. We'll set a monthly ceiling and limits

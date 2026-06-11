@@ -18,6 +18,9 @@ out/
 build
 dist
 
+# Sanity generated runtime
+.sanity/
+
 # Production
 *.local
 

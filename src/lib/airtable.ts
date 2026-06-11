@@ -34,6 +34,20 @@ function getAirtableApiToken() {
   );
 }
 
+// True only when a real Airtable PAT is present (not the .env placeholder).
+export function isAirtableConfigured() {
+  const token =
+    process.env.AIRTABLE_API_TOKEN ?? process.env.NEXT_PUBLIC_AIRTABLE_API_TOKEN;
+  return Boolean(token && token.startsWith("pat"));
+}
+
+// Whether to write records to Airtable. Enabled by default; set
+// AIRTABLE_WRITES_ENABLED=false to skip Airtable (e.g. while testing the portal
+// mirror) without polluting the real base.
+export function isAirtableWritesEnabled() {
+  return process.env.AIRTABLE_WRITES_ENABLED !== "false";
+}
+
 function getAirtableBaseId() {
   return getRequiredEnvValue(
     "AIRTABLE_BASE_ID",

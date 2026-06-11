@@ -4,6 +4,7 @@ import {
   getParticipantsTableId,
   getSchoolDatabaseTableId,
   findSchoolByNameCategoryLga,
+  isAirtableWritesEnabled,
 } from "@/lib/airtable";
 import {
   CLASS_OPTIONS,
@@ -15,6 +16,7 @@ import {
   ZONAL_FINALS_OPTIONS,
 } from "@/lib/forms";
 import { buildRegistrationEmail, sendEmailSafely } from "@/lib/email";
+import { mirrorRegistrationToSupabase } from "@/lib/portal-registration";
 
 export const runtime = "nodejs";
 
@@ -226,7 +228,10 @@ export async function POST(request: Request) {
     const payload = await request.json();
     const registration = sanitizeRegistrationPayload(payload);
 
-    if (registration.schoolSource === "new") {
+    const writeToAirtable = isAirtableWritesEnabled();
+
+    let airtableSchoolId: string | null = null;
+    if (writeToAirtable && registration.schoolSource === "new") {
       const schoolsTableId = getSchoolDatabaseTableId();
       const existingSchool = await findSchoolByNameCategoryLga(
         schoolsTableId,
@@ -235,8 +240,10 @@ export async function POST(request: Request) {
         registration.schoolLGA,
       );
 
-      if (!existingSchool) {
-        await createAirtableRecord(schoolsTableId, {
+      if (existingSchool) {
+        airtableSchoolId = existingSchool.id;
+      } else {
+        const createdSchool = await createAirtableRecord(schoolsTableId, {
           "School Name": registration.schoolFullName,
           "School Category": registration.schoolCategory,
           "School Local Government Area": registration.schoolLGA,
@@ -245,13 +252,33 @@ export async function POST(request: Request) {
             ? { "School Email": registration.schoolEmail }
             : {}),
         });
+        airtableSchoolId = createdSchool?.records?.[0]?.id ?? null;
       }
     }
 
-    await createAirtableRecord(
-      getParticipantsTableId(),
-      mapRegistrationFields(registration),
-    );
+    if (writeToAirtable) {
+      await createAirtableRecord(
+        getParticipantsTableId(),
+        mapRegistrationFields(registration),
+      );
+    } else {
+      console.info(
+        "Airtable writes disabled (AIRTABLE_WRITES_ENABLED=false) — skipping.",
+      );
+    }
+
+    // Mirror into Supabase for the portal (non-fatal — Airtable stays source of
+    // truth, so a mirror failure must never fail the registration). Runs before
+    // the email so the confirmation can carry the coordinator's claim code.
+    let claimCode: string | null = null;
+    try {
+      claimCode = await mirrorRegistrationToSupabase(
+        registration,
+        airtableSchoolId,
+      );
+    } catch (mirrorError) {
+      console.error("Supabase mirror failed (non-fatal):", mirrorError);
+    }
 
     await sendEmailSafely(
       buildRegistrationEmail({
@@ -262,6 +289,7 @@ export async function POST(request: Request) {
         principalEmail: registration.principalEmail,
         teacherFullName: registration.teacherFullName,
         teacherEmail: registration.teacherEmail,
+        claimCode,
       }),
     );
 

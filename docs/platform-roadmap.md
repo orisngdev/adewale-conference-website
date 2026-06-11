@@ -19,7 +19,7 @@ scales with usage, so deferring it keeps spend predictable until there's an audi
 
 | Milestone | Phases (in order) | New recurring cost |
 | --- | --- | --- |
-| **M1 — Public platform** | 0 → 1 → 2 → 3 → 4 | **~$0** — free tiers + tools already in use |
+| **M1 — Public platform** | 0 → 1 → 2 → 3 → 4 | **~$0** — Netlify free + tools already in use |
 | **M2 — Portals** | 5 → 6 → 7 → 8 | **~$25/mo fixed** (Supabase, once past free tier) |
 | **M3 — AI** | A1 → A2 → A3 | **Variable** — Claude per-token + embeddings; gate behind a budget ceiling |
 
@@ -27,11 +27,22 @@ Cost detail by tool (approximate — verify current pricing when you reach each 
 
 | Tool | M1 | Note |
 | --- | --- | --- |
-| Vercel hosting | $0 (already there) | ~$20/mo only if Pro is needed |
+| Netlify hosting (new build) | $0 | Free tier allows org repos + commercial use; runs our Node-runtime code |
 | Sanity CMS (new) | $0 | Free tier; paid only with many editors / heavy bandwidth |
 | Airtable, SendGrid | $0 new | Already in use |
 | Supabase (M2) | $0 → ~$25/mo | Free tier first; fixed cost when outgrown |
 | Claude + embeddings (M3) | usage-based | The only open-ended cost — set a monthly ceiling + per-student rate limits |
+
+### Hosting strategy
+
+- **New platform** is built on a separate branch (`platform-v2`) and deployed to **Netlify (free)**.
+  Vercel's Hobby plan refuses **org-owned** repos (`orisngdev/...`), so its only option is Pro
+  (~$20/mo); Netlify's free tier allows org repos and commercial use, runs our Node-runtime code
+  (server routes, `fs`-based email templates) with minimal change, and keeps the new build at **$0**.
+- **Production** (current single-page site) stays on **Vercel, unchanged**, until we're ready to cut over.
+- **At port time**, decide production hosting: keep Vercel (Pro, required for the org repo) or move prod
+  to Netlify. **Cloudflare** stays a later cost-optimizer — cheapest at scale but needs edge-runtime
+  porting of the `fs`-based template loading.
 
 **Start with Phase 0.** It's mostly routing + layout + a content-system scaffold, reuses every existing
 section, and unblocks everything else.
