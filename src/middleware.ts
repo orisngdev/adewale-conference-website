@@ -6,7 +6,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|studio|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
-  ],
+  // Only run auth on the portal — public pages skip the Supabase round-trip.
+  matcher: ["/portal/:path*"],
 };

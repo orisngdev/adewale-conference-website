@@ -7,7 +7,7 @@ export const client = createClient({
   projectId: projectId || "placeholder",
   dataset,
   apiVersion,
-  // Live content (SanityLive) needs fresh reads — the CDN serves stale results
-  // for ~60s after a publish/import, so disable it here.
-  useCdn: false,
+  // CDN in production (fast); origin in dev so content edits/imports show
+  // immediately while testing. SanityLive still pushes live updates either way.
+  useCdn: process.env.NODE_ENV === "production",
 });
