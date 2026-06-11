@@ -5,6 +5,12 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # Exempt only the PUBLIC / non-sensitive vars from secret scanning — they are
+  # public by design (NEXT_PUBLIC_* ship in the browser bundle; Sanity project id,
+  # Supabase publishable key, Airtable base/table IDs, and email addresses are not
+  # credentials). The real secrets (SUPABASE_SECRET_KEY, SENDGRID_API_KEY,
+  # AIRTABLE_API_TOKEN) are deliberately NOT listed, so they stay scanned.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SANITY_PROJECT_ID,NEXT_PUBLIC_SANITY_DATASET,NEXT_PUBLIC_SANITY_API_VERSION,NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,AIRTABLE_BASE_ID,AIRTABLE_PARTICIPANTS_TABLE_ID,AIRTABLE_SCHOOLS_TABLE_ID,AIRTABLE_SPONSORSHIP_TABLE_ID,ADEWALE_EMAIL_FROM_NAME,ADEWALE_REPLY_TO"
 
 # Official Next.js runtime — handles SSR/ISR, route handlers, and server
 # function bundling (respects next.config outputFileTracingIncludes, so the
