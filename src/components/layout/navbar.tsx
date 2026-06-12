@@ -1,14 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import MobileMenu from "./mobile-menu";
 import { MAIN_NAV, NAV_CTA } from "@/lib/site";
 
 export default function Navbar() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [open, setOpen] = useState(false);
   const pathname = usePathname();
+
+  // Close the menu whenever the route changes.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  // Lock body scroll while the menu is open.
+  useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
 
   return (
     <>
@@ -50,23 +63,35 @@ export default function Navbar() {
         </ul>
 
         <button
-          className="md:hidden flex flex-col gap-1.5 w-6 h-6"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-label="Toggle menu"
+          className="md:hidden relative w-6 h-6 z-110"
+          onClick={() => setOpen((v) => !v)}
+          aria-label={open ? "Close menu" : "Open menu"}
+          aria-expanded={open}
         >
-          <span className="w-full h-0.5 bg-white transition-transform duration-300"></span>
-          <span className="w-full h-0.5 bg-white transition-transform duration-300"></span>
-          <span className="w-full h-0.5 bg-white transition-transform duration-300"></span>
+          <span
+            className={`absolute left-0 top-1/2 w-6 h-0.5 bg-white transition-transform duration-300 ${
+              open ? "rotate-45" : "-translate-y-1.5"
+            }`}
+          />
+          <span
+            className={`absolute left-0 top-1/2 w-6 h-0.5 bg-white transition-opacity duration-200 ${
+              open ? "opacity-0" : "opacity-100"
+            }`}
+          />
+          <span
+            className={`absolute left-0 top-1/2 w-6 h-0.5 bg-white transition-transform duration-300 ${
+              open ? "-rotate-45" : "translate-y-1.5"
+            }`}
+          />
         </button>
       </nav>
 
-      {mobileMenuOpen && (
-        <MobileMenu
-          links={MAIN_NAV}
-          cta={NAV_CTA}
-          onClose={() => setMobileMenuOpen(false)}
-        />
-      )}
+      <MobileMenu
+        open={open}
+        links={MAIN_NAV}
+        cta={NAV_CTA}
+        onClose={() => setOpen(false)}
+      />
     </>
   );
 }
