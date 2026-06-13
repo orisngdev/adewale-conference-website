@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/ui/empty-state";
 import {
   Card,
@@ -7,8 +8,9 @@ import {
 } from "@/components/portal/ui";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
+import { approveMembership, rejectMembership } from "./actions";
 
-export const metadata = pageMetadata("Schools", "Schools registered in the portal.");
+export const metadata = pageMetadata("Schools", "Schools and access requests.");
 export const dynamic = "force-dynamic";
 
 interface SchoolRow {
@@ -19,21 +21,76 @@ interface SchoolRow {
   registrations: { count: number }[];
 }
 
+interface PendingMember {
+  id: string;
+  email: string;
+  schools: { name: string | null } | null;
+}
+
 export default async function AdminSchools() {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("schools")
-    .select("id, name, lga, category, registrations(count)")
-    .order("name", { ascending: true });
+  const [{ data: schoolData }, { data: pendingData }] = await Promise.all([
+    supabase
+      .from("schools")
+      .select("id, name, lga, category, registrations(count)")
+      .order("name", { ascending: true }),
+    supabase
+      .from("school_members")
+      .select("id, email, schools(name)")
+      .eq("status", "pending")
+      .order("created_at", { ascending: true }),
+  ]);
 
-  const schools = (data ?? []) as unknown as SchoolRow[];
+  const schools = (schoolData ?? []) as unknown as SchoolRow[];
+  const pending = (pendingData ?? []) as unknown as PendingMember[];
 
   return (
     <>
-      <PortalHeader title="Schools" subtitle="Schools created through portal registrations" />
+      <PortalHeader title="Schools" subtitle="Access requests and registered schools" />
       <PortalBody>
         <div>
-          <SectionHeading>{schools.length} school{schools.length === 1 ? "" : "s"}</SectionHeading>
+          <SectionHeading>
+            Pending access {pending.length > 0 ? `(${pending.length})` : ""}
+          </SectionHeading>
+          {pending.length === 0 ? (
+            <p className="serif-display italic text-[#4A4E5C]">
+              No access requests awaiting approval.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {pending.map((m) => (
+                <Card
+                  key={m.id}
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4"
+                >
+                  <div>
+                    <span className="font-medium text-[#0A0F1E]">
+                      {m.schools?.name ?? "Unknown school"}
+                    </span>
+                    <p className="text-sm text-[#4A4E5C]">{m.email}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <form action={approveMembership.bind(null, m.id)}>
+                      <Button type="submit" size="sm">
+                        Approve
+                      </Button>
+                    </form>
+                    <form action={rejectMembership.bind(null, m.id)}>
+                      <Button type="submit" size="sm" variant="outline">
+                        Reject
+                      </Button>
+                    </form>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div>
+          <SectionHeading>
+            {schools.length} school{schools.length === 1 ? "" : "s"}
+          </SectionHeading>
           {schools.length === 0 ? (
             <EmptyState title="No schools yet">
               Schools are created when registrations are linked in the portal.

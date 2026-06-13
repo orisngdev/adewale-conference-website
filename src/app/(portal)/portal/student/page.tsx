@@ -13,10 +13,17 @@ import {
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { isSupabaseConfigured } from "@/supabase/env";
-import type { RegistrationWithRelations } from "@/supabase/types";
+import type { Edition, RegistrationWithRelations } from "@/supabase/types";
+import { EditionStages, nextStage } from "@/components/portal/edition-stages";
+import { PortalResults } from "@/components/portal/portal-results";
+import { Notifications } from "@/components/portal/notifications";
 import { sanityFetch } from "@/sanity/lib/live";
-import { currentEditionQuery, resourcesQuery } from "@/sanity/lib/queries";
-import type { EditionListItem, ResourceListItem } from "@/sanity/types";
+import {
+  currentEditionQuery,
+  resultsBySchoolsQuery,
+  resourcesQuery,
+} from "@/sanity/lib/queries";
+import type { EditionListItem, ResourceListItem, ResultRow } from "@/sanity/types";
 
 export const metadata = pageMetadata(
   "Student dashboard",
@@ -58,20 +65,95 @@ export default async function StudentDashboard() {
     .flatMap((r) => r.certificates ?? [])
     .filter((c) => c.asset_url);
 
-  const [{ data: editionData }, { data: resourceData }] = await Promise.all([
-    sanityFetch({ query: currentEditionQuery, params: {} }),
-    sanityFetch({
-      query: resourcesQuery,
-      params: { type: "", subject: "", level: "" },
-    }),
-  ]);
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  // Code-provisioned students have a `students` record (no registrations of
+  // their own) — use it to greet them and scope results to their school.
+  const { data: studentRecord } = await supabase
+    .from("students")
+    .select("name, schools(name)")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+  const studentSchool = (
+    studentRecord?.schools as unknown as { name: string | null } | null
+  )?.name;
+
+  const schoolNames = [
+    ...new Set(
+      [
+        ...registrations.map((r) => r.schools?.name),
+        studentSchool,
+      ].filter(Boolean) as string[],
+    ),
+  ];
+
+  const [{ data: editionData }, { data: resourceData }, { data: resultData }] =
+    await Promise.all([
+      sanityFetch({ query: currentEditionQuery, params: {} }),
+      sanityFetch({
+        query: resourcesQuery,
+        params: { type: "", subject: "", level: "" },
+      }),
+      schoolNames.length
+        ? sanityFetch({
+            query: resultsBySchoolsQuery,
+            params: { schools: schoolNames },
+          })
+        : Promise.resolve({ data: [] }),
+    ]);
   const currentEdition = (editionData ?? null) as EditionListItem | null;
   const resources = ((resourceData ?? []) as ResourceListItem[]).slice(0, 6);
+  const results = (resultData ?? []) as ResultRow[];
+
+  const { data: opsEditionData } = await supabase
+    .from("editions")
+    .select("year, title, registration_open, stages, current_stage")
+    .order("year", { ascending: false });
+  const latest = ((opsEditionData ?? []) as Edition[])[0] ?? null;
+
+  // Published quizzes + this student's best score per quiz.
+  const [{ data: quizData }, { data: attemptData }] = await Promise.all([
+    supabase
+      .from("quizzes")
+      .select("id, title, subject, level")
+      .eq("published", true)
+      .order("created_at", { ascending: false }),
+    supabase.from("quiz_attempts").select("quiz_id, score, total"),
+  ]);
+  const quizzes = (quizData ?? []) as {
+    id: string;
+    title: string;
+    subject: string | null;
+    level: string | null;
+  }[];
+  const bestByQuiz = new Map<string, { score: number; total: number }>();
+  for (const a of (attemptData ?? []) as {
+    quiz_id: string;
+    score: number;
+    total: number;
+  }[]) {
+    const cur = bestByQuiz.get(a.quiz_id);
+    if (!cur || a.score > cur.score)
+      bestByQuiz.set(a.quiz_id, { score: a.score, total: a.total });
+  }
 
   return (
     <>
-      <PortalHeader title="Your dashboard" subtitle="Track your conference journey" />
+      <PortalHeader
+        title="Your dashboard"
+        subtitle={
+          studentRecord?.name
+            ? `${studentRecord.name}${studentSchool ? ` · ${studentSchool}` : ""}`
+            : "Track your conference journey"
+        }
+      />
       <PortalBody>
+        <Notifications />
+
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           <StatTile label="Registrations" value={registrations.length} />
           <StatTile label="Certificates" value={certificates.length} />
@@ -84,6 +166,24 @@ export default async function StudentDashboard() {
             value={registrations[0]?.status ?? "—"}
           />
         </div>
+
+        {latest ? (
+          <div>
+            <SectionHeading>{latest.year} edition</SectionHeading>
+            <Card className="p-5 md:p-6 space-y-3">
+              <EditionStages stages={latest.stages} current={latest.current_stage} />
+              <p className="text-sm text-[#4A4E5C]">
+                Current stage:{" "}
+                <span className="font-medium text-[#0A0F1E]">
+                  {latest.current_stage}
+                </span>
+                {nextStage(latest.stages, latest.current_stage) ? (
+                  <> · Next: {nextStage(latest.stages, latest.current_stage)}</>
+                ) : null}
+              </p>
+            </Card>
+          </div>
+        ) : null}
 
         <div>
           <SectionHeading>Your registration</SectionHeading>
@@ -139,6 +239,46 @@ export default async function StudentDashboard() {
             </p>
           )}
         </div>
+
+        <div>
+          <SectionHeading action={{ href: "/results", label: "Hall of Fame →" }}>
+            Your results
+          </SectionHeading>
+          <PortalResults results={results} highlightName={profile?.full_name} />
+        </div>
+
+        {quizzes.length > 0 ? (
+          <div>
+            <SectionHeading>Quizzes</SectionHeading>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {quizzes.map((quiz) => {
+                const best = bestByQuiz.get(quiz.id);
+                return (
+                  <Link
+                    key={quiz.id}
+                    href={`/portal/student/quiz/${quiz.id}`}
+                    className="block group"
+                  >
+                    <Card className="p-5 h-full group-hover:border-[#E8A020] transition-colors">
+                      <h4 className="font-bebas text-xl text-[#0A0F1E]">
+                        {quiz.title}
+                      </h4>
+                      <p className="text-sm text-[#4A4E5C] mt-1">
+                        {[quiz.subject, quiz.level].filter(Boolean).join(" · ") ||
+                          "Quiz"}
+                      </p>
+                      <p className="mt-3 text-xs uppercase tracking-[0.2em] text-[#E8A020]">
+                        {best
+                          ? `Best ${best.score}/${best.total} · Retake →`
+                          : "Take quiz →"}
+                      </p>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         <div>
           <SectionHeading action={{ href: "/resources", label: "All resources →" }}>

@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { claimRegistration } from "@/app/(portal)/portal/school/actions";
 
-export default function ClaimForm() {
+export default function ClaimForm({ defaultCode }: { defaultCode?: string }) {
   const [error, formAction, pending] = useActionState(claimRegistration, null);
 
   return (
@@ -12,6 +12,7 @@ export default function ClaimForm() {
       <input
         name="code"
         required
+        defaultValue={defaultCode}
         placeholder="Enter your claim code"
         className="flex-1 rounded-md border border-[#0A0F1E]/15 bg-white px-3 py-2 text-sm uppercase tracking-wide outline-none focus:border-[#E8A020]"
       />

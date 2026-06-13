@@ -46,6 +46,7 @@ export async function mirrorRegistrationToSupabase(
     .eq("category", input.schoolCategory)
     .maybeSingle();
 
+  let newSchool = false;
   if (existing) {
     schoolId = existing.id;
     if (airtableSchoolId) {
@@ -67,6 +68,7 @@ export async function mirrorRegistrationToSupabase(
       .select("id")
       .single();
     schoolId = created?.id ?? null;
+    newSchool = true;
   }
 
   const reps = [
@@ -75,19 +77,41 @@ export async function mirrorRegistrationToSupabase(
     { name: input.studentRep3FullName, level: input.studentRep3Class },
   ].filter((r) => r.name);
 
+  // The coordinating teacher is the intended portal user.
+  const contactEmail =
+    input.teacherEmail || input.principalEmail || input.schoolEmail || null;
+
   const claimCode = makeClaimCode();
-  await supabase.from("registrations").insert({
+  const { error: regError } = await supabase.from("registrations").insert({
     school_id: schoolId,
     owner_id: null,
     edition_year: EDITION_YEAR,
     status: "submitted",
     reps,
-    // The coordinating teacher is the intended portal user — match on them first
-    // so they auto-become a coordinator when they sign up with this email.
-    contact_email:
-      input.teacherEmail || input.principalEmail || input.schoolEmail || null,
+    contact_email: contactEmail,
     claim_code: claimCode,
   });
+  // Fail loudly — a silent failure here is what produced orphaned claim codes.
+  if (regError) {
+    throw new Error(`registration mirror insert failed: ${regError.message}`);
+  }
+
+  // Stage a school membership by email: approved if this is a brand-new school
+  // (the founding coordinator), otherwise pending an admin's approval. Access
+  // activates when this email signs in (linked via my_school_ids by email).
+  if (schoolId && contactEmail) {
+    const { error: memberError } = await supabase.from("school_members").upsert(
+      {
+        school_id: schoolId,
+        email: contactEmail.toLowerCase(),
+        status: newSchool ? "approved" : "pending",
+      },
+      { onConflict: "school_id,email", ignoreDuplicates: true },
+    );
+    if (memberError) {
+      console.error("school_members upsert failed:", memberError.message);
+    }
+  }
 
   return claimCode;
 }

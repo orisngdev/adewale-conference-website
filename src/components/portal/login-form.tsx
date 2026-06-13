@@ -1,60 +1,110 @@
 "use client";
 
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/supabase/client";
 import { Button } from "@/components/ui/button";
 
+type Mode = "password" | "signup" | "magic";
+
+const inputCls =
+  "w-full rounded-md border border-[#0A0F1E]/15 bg-white px-4 py-3 text-[#0A0F1E] outline-none focus:border-[#E8A020] focus:ring-2 focus:ring-[#E8A020]/20";
+
 export default function LoginForm() {
   const params = useSearchParams();
+  const router = useRouter();
   const redirectTo = params.get("redirectTo") || "/portal";
 
+  const [supabase] = useState(() => createClient());
+  // Arriving from a claim link → likely a new coordinator: default to sign-up so
+  // they set a password first, then get returned to /portal/claim.
+  const [mode, setMode] = useState<Mode>(
+    redirectTo.includes("/portal/claim") ? "signup" : "password",
+  );
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ type: "error" | "info"; text: string } | null>(
+    null,
+  );
+
+  const callbackUrl = (to: string) =>
+    `${location.origin}/portal/auth/callback?redirectTo=${encodeURIComponent(to)}`;
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    setMsg(null);
 
-    const supabase = createClient();
+    if (mode === "password") {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) setMsg({ type: "error", text: error.message });
+      else {
+        router.push(redirectTo);
+        router.refresh();
+      }
+      return;
+    }
+
+    if (mode === "signup") {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { emailRedirectTo: callbackUrl(redirectTo) },
+      });
+      setLoading(false);
+      if (error) setMsg({ type: "error", text: error.message });
+      else if (data.session) {
+        router.push(redirectTo);
+        router.refresh();
+      } else {
+        setMsg({
+          type: "info",
+          text: "Check your email to confirm your account, then sign in.",
+        });
+      }
+      return;
+    }
+
+    // magic link
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: {
-        emailRedirectTo: `${location.origin}/portal/auth/callback?redirectTo=${encodeURIComponent(
-          redirectTo,
-        )}`,
-      },
+      options: { emailRedirectTo: callbackUrl(redirectTo) },
     });
-
     setLoading(false);
-    if (error) setError(error.message);
-    else setSent(true);
+    if (error) setMsg({ type: "error", text: error.message });
+    else setMsg({ type: "info", text: `We sent a sign-in link to ${email}.` });
   }
 
-  if (sent) {
-    return (
-      <div className="border border-[#E8A020]/40 bg-[rgba(232,160,32,0.08)] p-5">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E8A020] mb-2">
-          Check your inbox
-        </p>
-        <p className="serif-display text-[#4A4E5C] leading-relaxed">
-          We sent a sign-in link to{" "}
-          <span className="text-[#0A0F1E] font-medium">{email}</span>. Click it
-          to continue — you can close this tab.
-        </p>
-        <button
-          type="button"
-          onClick={() => setSent(false)}
-          className="mt-4 text-xs uppercase tracking-[0.2em] text-[#E8A020] hover:underline"
-        >
-          Use a different email
-        </button>
-      </div>
-    );
+  async function onForgot() {
+    if (!email) {
+      setMsg({ type: "error", text: "Enter your email first." });
+      return;
+    }
+    setLoading(true);
+    setMsg(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: callbackUrl("/portal/reset"),
+    });
+    setLoading(false);
+    if (error) setMsg({ type: "error", text: error.message });
+    else
+      setMsg({ type: "info", text: `We sent a password reset link to ${email}.` });
   }
+
+  const submitLabel =
+    mode === "signup"
+      ? loading
+        ? "Creating…"
+        : "Create account"
+      : mode === "magic"
+        ? loading
+          ? "Sending…"
+          : "Send sign-in link"
+        : loading
+          ? "Signing in…"
+          : "Sign in";
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
@@ -73,25 +123,99 @@ export default function LoginForm() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="you@school.edu.ng"
-          className="w-full rounded-md border border-[#0A0F1E]/15 bg-white px-4 py-3 text-[#0A0F1E] outline-none focus:border-[#E8A020] focus:ring-2 focus:ring-[#E8A020]/20"
+          className={inputCls}
         />
       </div>
-      {error ? (
-        <p className="text-sm text-red-600" role="alert">
-          {error}
+
+      {mode !== "magic" ? (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label
+              htmlFor="password"
+              className="block text-xs font-bold uppercase tracking-[0.2em] text-[#4A4E5C]"
+            >
+              Password
+            </label>
+            {mode === "password" ? (
+              <button
+                type="button"
+                onClick={onForgot}
+                className="text-xs text-[#E8A020] hover:underline"
+              >
+                Forgot password?
+              </button>
+            ) : null}
+          </div>
+          <input
+            id="password"
+            type="password"
+            required
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            minLength={6}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={mode === "signup" ? "Choose a password" : "Your password"}
+            className={inputCls}
+          />
+        </div>
+      ) : null}
+
+      {msg ? (
+        <p
+          className={`text-sm ${msg.type === "error" ? "text-red-600" : "text-[#4A4E5C]"}`}
+          role={msg.type === "error" ? "alert" : undefined}
+        >
+          {msg.text}
         </p>
       ) : null}
-      <Button
-        type="submit"
-        size="lg"
-        disabled={loading || !email}
-        className="w-full"
-      >
-        {loading ? "Sending…" : "Send sign-in link"}
+
+      <Button type="submit" size="lg" disabled={loading || !email} className="w-full">
+        {submitLabel}
       </Button>
-      <p className="text-xs text-[#4A4E5C] text-center">
-        We&apos;ll email you a secure link — no password needed.
-      </p>
+
+      <div className="text-sm text-[#4A4E5C] space-y-2 pt-1">
+        {mode === "password" ? (
+          <p>
+            New here?{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setMode("signup");
+                setMsg(null);
+              }}
+              className="text-[#E8A020] hover:underline font-medium"
+            >
+              Create an account
+            </button>
+          </p>
+        ) : (
+          <p>
+            Already have an account?{" "}
+            <button
+              type="button"
+              onClick={() => {
+                setMode("password");
+                setMsg(null);
+              }}
+              className="text-[#E8A020] hover:underline font-medium"
+            >
+              Sign in
+            </button>
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setMode(mode === "magic" ? "password" : "magic");
+            setMsg(null);
+          }}
+          className="text-[#E8A020] hover:underline"
+        >
+          {mode === "magic"
+            ? "Use a password instead"
+            : "Email me a sign-in link instead"}
+        </button>
+      </div>
     </form>
   );
 }

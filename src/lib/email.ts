@@ -147,12 +147,15 @@ export interface RegistrationEmailData {
 // omits the section.
 function buildClaimBlock(claimCode?: string | null) {
   if (!claimCode) return "";
-  const portalUrl = `${SITE_URL}/portal`;
+  const claimUrl = `${SITE_URL}/portal/claim?code=${encodeURIComponent(claimCode)}`;
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:26px 0 0;background:#FBF3E2;border:1px solid #E8A020;">
   <tr><td style="padding:18px;">
     <p class="body-font" style="margin:0 0 8px;font-size:11px;font-weight:bold;letter-spacing:0.12em;text-transform:uppercase;color:#8a5e0e;">Manage your school online</p>
-    <p class="body-font" style="margin:0 0 12px;font-size:15px;line-height:24px;color:#4A4E5C;">Sign in at <a href="${portalUrl}" style="color:#8a5e0e;">${portalUrl}</a> and enter this claim code to track your status, manage representatives, and download certificates:</p>
-    <p style="margin:0;font-size:22px;font-weight:bold;letter-spacing:3px;font-family:monospace;color:#0A0F1E;">${escapeHtml(claimCode)}</p>
+    <p class="body-font" style="margin:0 0 14px;font-size:15px;line-height:24px;color:#4A4E5C;">Sign in to claim your school — track your status, manage representatives, and download certificates. Your claim code:</p>
+    <p style="margin:0 0 16px;font-size:22px;font-weight:bold;letter-spacing:3px;font-family:monospace;color:#0A0F1E;">${escapeHtml(claimCode)}</p>
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#E8A020;">
+      <a href="${claimUrl}" style="display:inline-block;padding:11px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#0A0F1E;text-decoration:none;">Claim your school →</a>
+    </td></tr></table>
   </td></tr>
 </table>`;
 }

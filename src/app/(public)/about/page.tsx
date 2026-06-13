@@ -1,5 +1,7 @@
 import PageHeader from "@/components/layout/page-header";
-import ComingSoon from "@/components/ui/coming-soon";
+import AboutSection from "@/components/sections/about-section";
+import ImpactSection from "@/components/sections/impact-section";
+import FounderSection from "@/components/sections/founder-section";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata(
@@ -15,9 +17,9 @@ export default function AboutPage() {
         title="About ASC"
         subtitle="Ogun State's most ambitious student STEM platform — building tomorrow's geniuses today."
       />
-      <ComingSoon>
-        Our full story, mission, impact, and the team behind the Conference will live here.
-      </ComingSoon>
+      <AboutSection />
+      <ImpactSection />
+      <FounderSection />
     </>
   );
 }

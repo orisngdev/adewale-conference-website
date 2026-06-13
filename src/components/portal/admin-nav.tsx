@@ -5,7 +5,9 @@ import { usePathname } from "next/navigation";
 
 const LINKS = [
   { href: "/portal/admin", label: "Overview", exact: true },
+  { href: "/portal/admin/editions", label: "Editions" },
   { href: "/portal/admin/registrations", label: "Registrations" },
+  { href: "/portal/admin/quizzes", label: "Quizzes" },
   { href: "/portal/admin/users", label: "Users" },
   { href: "/portal/admin/sponsors", label: "Sponsors" },
   { href: "/portal/admin/schools", label: "Schools" },

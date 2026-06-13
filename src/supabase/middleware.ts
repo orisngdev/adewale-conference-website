@@ -2,7 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { isSupabaseConfigured, supabasePublishableKey, supabaseUrl } from "./env";
 
-const PUBLIC_PORTAL_PATHS = ["/portal/login", "/portal/auth"];
+const PUBLIC_PORTAL_PATHS = [
+  "/portal/login",
+  "/portal/student-login",
+  "/portal/auth",
+];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -36,9 +40,13 @@ export async function updateSession(request: NextRequest) {
   const isPublicPortal = PUBLIC_PORTAL_PATHS.some((p) => path.startsWith(p));
 
   if (isPortal && !isPublicPortal && !user) {
+    // Preserve the full target (path + query, e.g. ?code=…) so the claim flow
+    // returns the user to exactly where they were headed.
+    const target = request.nextUrl.pathname + request.nextUrl.search;
     const url = request.nextUrl.clone();
     url.pathname = "/portal/login";
-    url.searchParams.set("redirectTo", path);
+    url.search = "";
+    url.searchParams.set("redirectTo", target);
     return NextResponse.redirect(url);
   }
 

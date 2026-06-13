@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import Link from "next/link";
 import LoginForm from "@/components/portal/login-form";
 import { isSupabaseConfigured } from "@/supabase/env";
 import { pageMetadata } from "@/lib/seo";
@@ -16,17 +17,28 @@ export default function LoginPage() {
           Portal
         </span>
         <h1 className="font-bebas text-5xl text-[#0A0F1E] leading-none">
-          Sign in
+          Portal access
         </h1>
         <p className="serif-display italic text-[#4A4E5C] mt-3 mb-8 leading-relaxed">
-          Schools, students, and staff — access your dashboard with a one-time
-          email link. No password to remember.
+          Schools, students, and staff — sign in with your email and password,
+          create an account, or use a one-time email link.
         </p>
 
         {isSupabaseConfigured ? (
-          <Suspense>
-            <LoginForm />
-          </Suspense>
+          <>
+            <Suspense>
+              <LoginForm />
+            </Suspense>
+            <p className="mt-6 text-sm text-[#4A4E5C]">
+              Student?{" "}
+              <Link
+                href="/portal/student-login"
+                className="text-[#E8A020] hover:underline font-medium"
+              >
+                Sign in with your access code
+              </Link>
+            </p>
+          </>
         ) : (
           <p className="serif-display italic text-[#4A4E5C]">
             The portal isn&apos;t connected yet — add your Supabase project keys
