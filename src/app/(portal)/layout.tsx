@@ -1,5 +1,7 @@
 import PortalNav, { type PortalTab } from "@/components/portal/portal-nav";
+import RegisterSW from "@/components/pwa/register-sw";
 import { createClient } from "@/supabase/server";
+import { getSessionUser, getUserRole } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
 
 export default async function PortalLayout({
@@ -9,20 +11,23 @@ export default async function PortalLayout({
 }) {
   let email: string | null = null;
   let role = "student";
+  let unread = 0;
 
   if (isSupabaseConfigured) {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getSessionUser();
     if (user) {
       email = user.email ?? null;
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (profile?.role) role = profile.role;
+      const supabase = await createClient();
+      // Role lookup and the unread count don't depend on each other — run together.
+      const [roleValue, notif] = await Promise.all([
+        getUserRole(),
+        supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("read", false),
+      ]);
+      role = roleValue ?? "student";
+      unread = notif.count ?? 0;
     }
   }
 
@@ -33,11 +38,13 @@ export default async function PortalLayout({
     else if (role === "coordinator")
       tabs.push({ href: "/portal/school", label: "My school" });
     else tabs.push({ href: "/portal/student", label: "My dashboard" });
+    tabs.push({ href: "/portal/settings", label: "Settings" });
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF7F0] flex flex-col">
-      <PortalNav email={email} tabs={tabs} />
+    <div className="min-h-screen bg-background flex flex-col">
+      <RegisterSW />
+      <PortalNav email={email} tabs={tabs} unread={unread} />
       <main className="flex-1">{children}</main>
     </div>
   );

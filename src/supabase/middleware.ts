@@ -31,9 +31,11 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT locally (ES256 + module-cached JWKS) instead of a
+  // ~500ms /auth/v1/user round-trip on every /portal request, and still refreshes
+  // the session (getSession under the hood) so the auth cookies rotate.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const user = claimsData?.claims ?? null;
 
   const path = request.nextUrl.pathname;
   const isPortal = path.startsWith("/portal");

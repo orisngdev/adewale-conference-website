@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, PortalBody, PortalHeader } from "@/components/portal/ui";
 import { createClient } from "@/supabase/server";
+import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
 
 export const dynamic = "force-dynamic";
@@ -36,9 +37,7 @@ export default async function PortalHome() {
   if (!isSupabaseConfigured) redirect("/portal/login");
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
   let role: Role = "student";
@@ -59,17 +58,17 @@ export default async function PortalHome() {
       />
       <PortalBody>
         <Link href={area.href} className="block group">
-          <Card className="p-7 md:p-8 group-hover:border-[#E8A020] transition-colors">
-            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#E8A020]">
+          <Card interactive className="p-7 md:p-8">
+            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary">
               {role}
             </span>
-            <h2 className="font-bebas text-4xl text-[#0A0F1E] mt-2">
+            <h2 className="font-bebas text-4xl text-foreground mt-2">
               {area.label}
             </h2>
-            <p className="serif-display italic text-[#4A4E5C] mt-1">
+            <p className="serif-display italic text-muted-foreground mt-1">
               {area.desc}
             </p>
-            <span className="inline-block mt-4 text-xs uppercase tracking-[0.2em] text-[#E8A020]">
+            <span className="inline-block mt-4 text-xs uppercase tracking-[0.2em] text-primary">
               Open →
             </span>
           </Card>
@@ -78,9 +77,9 @@ export default async function PortalHome() {
         <div className="grid gap-4 sm:grid-cols-3">
           {QUICK_LINKS.map((l) => (
             <Link key={l.href} href={l.href} className="block group">
-              <Card className="p-5 h-full group-hover:border-[#E8A020] transition-colors">
-                <h3 className="font-bebas text-xl text-[#0A0F1E]">{l.label}</h3>
-                <p className="text-sm text-[#4A4E5C] mt-1">{l.desc}</p>
+              <Card interactive className="p-5 h-full">
+                <h3 className="font-bebas text-xl text-foreground">{l.label}</h3>
+                <p className="text-sm text-muted-foreground mt-1">{l.desc}</p>
               </Card>
             </Link>
           ))}

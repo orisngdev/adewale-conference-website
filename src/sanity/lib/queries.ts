@@ -34,7 +34,8 @@ export const resourcesQuery = defineQuery(`
     && ($level == "" || level == $level)
   ] | order(title asc) {
     _id, title, "slug": slug.current, type, subject, level,
-    "hasFile": defined(file.asset), externalUrl
+    "hasFile": defined(file.asset), externalUrl,
+    "fileUrl": file.asset->url, "fileName": file.asset->originalFilename
   }
 `);
 

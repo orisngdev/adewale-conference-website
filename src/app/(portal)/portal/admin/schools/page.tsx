@@ -53,7 +53,7 @@ export default async function AdminSchools() {
             Pending access {pending.length > 0 ? `(${pending.length})` : ""}
           </SectionHeading>
           {pending.length === 0 ? (
-            <p className="serif-display italic text-[#4A4E5C]">
+            <p className="serif-display italic text-muted-foreground">
               No access requests awaiting approval.
             </p>
           ) : (
@@ -64,10 +64,10 @@ export default async function AdminSchools() {
                   className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4"
                 >
                   <div>
-                    <span className="font-medium text-[#0A0F1E]">
+                    <span className="font-medium text-foreground">
                       {m.schools?.name ?? "Unknown school"}
                     </span>
-                    <p className="text-sm text-[#4A4E5C]">{m.email}</p>
+                    <p className="text-sm text-muted-foreground">{m.email}</p>
                   </div>
                   <div className="flex gap-2">
                     <form action={approveMembership.bind(null, m.id)}>
@@ -96,19 +96,19 @@ export default async function AdminSchools() {
               Schools are created when registrations are linked in the portal.
             </EmptyState>
           ) : (
-            <Card className="divide-y divide-[#0A0F1E]/5">
+            <Card className="divide-y divide-foreground/5">
               {schools.map((s) => (
                 <div
                   key={s.id}
                   className="flex items-center justify-between gap-4 p-4"
                 >
                   <div>
-                    <span className="font-medium text-[#0A0F1E]">{s.name}</span>
-                    <p className="text-sm text-[#4A4E5C]">
+                    <span className="font-medium text-foreground">{s.name}</span>
+                    <p className="text-sm text-muted-foreground">
                       {[s.lga, s.category].filter(Boolean).join(" · ") || "—"}
                     </p>
                   </div>
-                  <span className="text-sm text-[#4A4E5C] whitespace-nowrap">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
                     {s.registrations?.[0]?.count ?? 0} registration
                     {(s.registrations?.[0]?.count ?? 0) === 1 ? "" : "s"}
                   </span>

@@ -44,7 +44,12 @@ export interface ResultRow {
   theme?: string;
 }
 
-export type ResourceType = "past-question" | "study-guide" | "syllabus" | "video";
+export type ResourceType =
+  | "past-question"
+  | "study-guide"
+  | "syllabus"
+  | "video"
+  | "external-link";
 
 export interface ResourceListItem {
   _id: string;
@@ -55,6 +60,8 @@ export interface ResourceListItem {
   level?: string;
   hasFile?: boolean;
   externalUrl?: string;
+  fileUrl?: string;
+  fileName?: string;
 }
 
 export interface Resource extends ResourceListItem {

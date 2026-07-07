@@ -22,7 +22,7 @@ export default function FounderSection() {
             />
           </div>
           <div className="bg-[#0A0F1E] border-t-2 border-[#E8A020] p-5">
-            <div className="font-bebas text-xl md:text-2xl text-[#E8A020] tracking-wide leading-tight">
+            <div className="font-bebas text-xl md:text-2xl text-primary tracking-wide leading-tight">
               Michael Adewale Adesanya
             </div>
             <div className="mt-2 text-[10px] md:text-xs font-medium tracking-[0.15em] uppercase text-[rgba(240,234,216,0.65)]">
@@ -34,17 +34,17 @@ export default function FounderSection() {
         <div className="md:col-span-3 flex flex-col">
           <div className="flex items-center gap-3 mb-6">
             <span className="block w-6 h-px bg-[#E8A020]" />
-            <span className="text-xs font-bold tracking-[0.3em] uppercase text-[#E8A020]">
+            <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
               The Founder
             </span>
           </div>
 
-          <h2 className="font-bebas text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-[#0A0F1E] mb-8">
+          <h2 className="font-bebas text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-foreground mb-8">
             <span className="block">Built From</span>
             <span className="block">Conviction.</span>
           </h2>
 
-          <blockquote className="serif-display italic text-base md:text-lg text-[#0A0F1E] leading-relaxed border-l-2 border-[#E8A020] pl-5 mb-8">
+          <blockquote className="serif-display italic text-base md:text-lg text-foreground leading-relaxed border-l-2 border-[#E8A020] pl-5 mb-8">
             &ldquo;I started this because I knew what it felt like to be the brightest person in the room with no room to grow. ASC is the room I wish I had.&rdquo;
           </blockquote>
 
@@ -64,7 +64,7 @@ export default function FounderSection() {
             {credentials.map((tag) => (
               <span
                 key={tag}
-                className="inline-block bg-[#0A0F1E] text-[#E8A020] px-2 py-1.5 md:px-3 md:py-2 text-[9px] md:text-xs font-bold tracking-widest md:tracking-[0.2em] uppercase"
+                className="inline-block bg-[#0A0F1E] text-primary px-2 py-1.5 md:px-3 md:py-2 text-[9px] md:text-xs font-bold tracking-widest md:tracking-[0.2em] uppercase"
               >
                 {tag}
               </span>

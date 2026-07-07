@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 type Mode = "password" | "signup" | "magic";
 
 const inputCls =
-  "w-full rounded-md border border-[#0A0F1E]/15 bg-white px-4 py-3 text-[#0A0F1E] outline-none focus:border-[#E8A020] focus:ring-2 focus:ring-[#E8A020]/20";
+  "w-full rounded-md border border-foreground/15 bg-card px-4 py-3 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
 
 export default function LoginForm() {
   const params = useSearchParams();
@@ -111,7 +111,7 @@ export default function LoginForm() {
       <div className="space-y-2">
         <label
           htmlFor="email"
-          className="block text-xs font-bold uppercase tracking-[0.2em] text-[#4A4E5C]"
+          className="block text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground"
         >
           Email address
         </label>
@@ -132,7 +132,7 @@ export default function LoginForm() {
           <div className="flex items-center justify-between">
             <label
               htmlFor="password"
-              className="block text-xs font-bold uppercase tracking-[0.2em] text-[#4A4E5C]"
+              className="block text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground"
             >
               Password
             </label>
@@ -140,7 +140,7 @@ export default function LoginForm() {
               <button
                 type="button"
                 onClick={onForgot}
-                className="text-xs text-[#E8A020] hover:underline"
+                className="text-xs text-primary hover:underline"
               >
                 Forgot password?
               </button>
@@ -162,7 +162,7 @@ export default function LoginForm() {
 
       {msg ? (
         <p
-          className={`text-sm ${msg.type === "error" ? "text-red-600" : "text-[#4A4E5C]"}`}
+          className={`text-sm ${msg.type === "error" ? "text-red-600" : "text-muted-foreground"}`}
           role={msg.type === "error" ? "alert" : undefined}
         >
           {msg.text}
@@ -173,7 +173,7 @@ export default function LoginForm() {
         {submitLabel}
       </Button>
 
-      <div className="text-sm text-[#4A4E5C] space-y-2 pt-1">
+      <div className="text-sm text-muted-foreground space-y-2 pt-1">
         {mode === "password" ? (
           <p>
             New here?{" "}
@@ -183,7 +183,7 @@ export default function LoginForm() {
                 setMode("signup");
                 setMsg(null);
               }}
-              className="text-[#E8A020] hover:underline font-medium"
+              className="text-primary hover:underline font-medium"
             >
               Create an account
             </button>
@@ -197,7 +197,7 @@ export default function LoginForm() {
                 setMode("password");
                 setMsg(null);
               }}
-              className="text-[#E8A020] hover:underline font-medium"
+              className="text-primary hover:underline font-medium"
             >
               Sign in
             </button>
@@ -209,7 +209,7 @@ export default function LoginForm() {
             setMode(mode === "magic" ? "password" : "magic");
             setMsg(null);
           }}
-          className="text-[#E8A020] hover:underline"
+          className="text-primary hover:underline"
         >
           {mode === "magic"
             ? "Use a password instead"

@@ -49,7 +49,7 @@ export default async function SponsorsPage() {
             <div className="space-y-12">
               {groups.map(([tier, list]) => (
                 <div key={tier}>
-                  <h2 className="font-bebas text-2xl text-[#0A0F1E] mb-4">{tier}</h2>
+                  <h2 className="font-bebas text-2xl text-foreground mb-4">{tier}</h2>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {list.map((sponsor) => (
                       <SponsorCard key={sponsor._id} sponsor={sponsor} />
@@ -61,12 +61,12 @@ export default async function SponsorsPage() {
           )}
 
           <div className="mt-16 border-t border-[rgba(10,15,30,0.12)] pt-10 text-center">
-            <p className="serif-display italic text-lg text-[#4A4E5C]">
+            <p className="serif-display italic text-lg text-muted-foreground">
               Interested in partnering with us?
             </p>
             <a
               href="mailto:partnerships@asc2026.ng"
-              className="inline-block mt-4 bg-[#E8A020] text-[#0A0F1E] text-xs font-bold tracking-[0.2em] uppercase px-6 py-3 hover:bg-[#F5C55A] transition-colors"
+              className="inline-block mt-4 bg-[#E8A020] text-foreground text-xs font-bold tracking-[0.2em] uppercase px-6 py-3 hover:bg-[#F5C55A] transition-colors"
             >
               Become a Sponsor
             </a>

@@ -55,14 +55,14 @@ export default async function ResourcePage({ params }: Params) {
               href={downloadHref}
               target={resource.fileUrl ? undefined : "_blank"}
               rel={resource.fileUrl ? undefined : "noopener noreferrer"}
-              className="inline-block bg-[#E8A020] text-[#0A0F1E] text-xs font-bold tracking-[0.2em] uppercase px-6 py-3 mb-10 hover:bg-[#F5C55A] transition-colors"
+              className="inline-block bg-[#E8A020] text-foreground text-xs font-bold tracking-[0.2em] uppercase px-6 py-3 mb-10 hover:bg-[#F5C55A] transition-colors"
             >
               {resource.fileUrl ? "Download" : "Open resource"}
             </a>
           ) : null}
 
           {resource.body ? (
-            <div className="prose-resource serif-display text-lg text-[#0A0F1E] leading-relaxed space-y-4">
+            <div className="prose-resource serif-display text-lg text-foreground leading-relaxed space-y-4">
               <PortableText value={resource.body} />
             </div>
           ) : null}

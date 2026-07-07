@@ -6,6 +6,8 @@
 
   --color-primary: #E8A020;
   --color-primary-foreground: #0A0F1E;
+  /* Deeper gold for text/icons on light surfaces — bright gold fails AA as text. */
+  --color-gold-ink: #8A5E0E;
 
   --color-secondary: #1C2540;
   --color-secondary-foreground: #F0EAD8;

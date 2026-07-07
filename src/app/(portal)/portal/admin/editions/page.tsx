@@ -15,7 +15,7 @@ export const metadata = pageMetadata("Editions", "Open registration and advance 
 export const dynamic = "force-dynamic";
 
 const inputCls =
-  "rounded-md border border-[#0A0F1E]/15 bg-white px-3 py-2 text-sm outline-none focus:border-[#E8A020]";
+  "rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
 
 export default async function AdminEditions() {
   const supabase = await createClient();
@@ -35,7 +35,7 @@ export default async function AdminEditions() {
         <div>
           <SectionHeading>Editions</SectionHeading>
           {editions.length === 0 ? (
-            <p className="serif-display italic text-[#4A4E5C]">
+            <p className="serif-display italic text-muted-foreground">
               No editions yet — add one below.
             </p>
           ) : (
@@ -44,11 +44,11 @@ export default async function AdminEditions() {
                 <Card key={e.year} className="p-5 md:p-6 space-y-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <span className="font-bebas text-2xl text-[#0A0F1E]">
+                      <span className="font-bebas text-2xl text-foreground">
                         {e.year}
                       </span>
                       {e.title ? (
-                        <p className="text-sm text-[#4A4E5C]">{e.title}</p>
+                        <p className="text-sm text-muted-foreground">{e.title}</p>
                       ) : null}
                     </div>
                     <form

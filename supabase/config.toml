@@ -1,0 +1,19 @@
+# Supabase CLI config. Bring up a fresh project with `npm run db:setup`.
+# Docs: https://supabase.com/docs/guides/cli/config
+project_id = "adewale-portal"
+
+[db]
+# Port for the local shadow/dev database (`supabase start` / `db reset`).
+port = 54322
+# Match your remote project's Postgres major version (new projects: 15 or 17).
+major_version = 15
+
+[db.seed]
+# `supabase db reset` (local) auto-runs this after migrations. Remote seeding
+# is done explicitly via `npm run db:seed`.
+enabled = true
+sql_paths = ["./seed-demo.sql"]
+
+[db.migrations]
+enabled = true
+schema_paths = []

@@ -13,7 +13,7 @@ export default function StudentLoginForm() {
         name="code"
         required
         placeholder="Enter your access code"
-        className="w-full rounded-md border border-[#0A0F1E]/15 bg-white px-4 py-3 text-[#0A0F1E] uppercase tracking-widest outline-none focus:border-[#E8A020] focus:ring-2 focus:ring-[#E8A020]/20"
+        className="w-full rounded-md border border-foreground/15 bg-card px-4 py-3 text-foreground uppercase tracking-widest outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
       />
       {error ? (
         <p className="text-sm text-red-600" role="alert">

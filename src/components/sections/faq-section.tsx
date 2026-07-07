@@ -36,11 +36,11 @@ export default function FaqSection() {
             <div className="mb-12 md:mb-16">
               <div className="flex items-center gap-3 mb-6">
                 <span className="block w-6 h-px bg-[#E8A020]" />
-                <span className="text-xs font-bold tracking-[0.3em] uppercase text-[#E8A020]">
+                <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
                   FAQs
                 </span>
               </div>
-              <h2 className="font-bebas text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-[#0A0F1E]">
+              <h2 className="font-bebas text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-foreground">
                 Questions Answered.
               </h2>
             </div>
@@ -48,7 +48,7 @@ export default function FaqSection() {
               Can't find what you're looking for? Email us at{" "}
               <a
                 href="mailto:adewaleconference@gmail.com"
-                className="font-bold text-[#0A0F1E] underline underline-offset-2 hover:text-[#E8A020] transition-colors"
+                className="font-bold text-foreground underline underline-offset-2 hover:text-primary transition-colors"
               >
                 adewaleconference@gmail.com
               </a>{" "}
@@ -66,11 +66,11 @@ export default function FaqSection() {
                   onClick={() => toggleFaq(idx)}
                   className="w-full flex items-center justify-between p-6 md:p-8 text-left hover:bg-[#FAF7F0] transition-colors duration-300"
                 >
-                  <span className="font-medium text-[#0A0F1E] text-base md:text-lg">
+                  <span className="font-medium text-foreground text-base md:text-lg">
                     {item.q}
                   </span>
                   <span
-                    className={`text-2xl text-[#E8A020] transition-transform duration-300 flex-shrink-0 ml-4 ${
+                    className={`text-2xl text-primary transition-transform duration-300 flex-shrink-0 ml-4 ${
                       openIndex === idx ? "rotate-45" : ""
                     }`}
                   >

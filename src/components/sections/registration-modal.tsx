@@ -47,7 +47,7 @@ function SectionHeader({ title }: { title: string }) {
   return (
     <div className="flex items-center gap-3 mb-5 mt-2">
       <span className="block w-6 h-px bg-[#E8A020]" />
-      <span className="font-bebas text-lg md:text-xl tracking-widest text-[#E8A020]">
+      <span className="font-bebas text-lg md:text-xl tracking-widest text-primary">
         {title}
       </span>
     </div>
@@ -382,7 +382,7 @@ export default function RegistrationModal({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="text-white/60 hover:text-[#E8A020] transition-colors -mt-1 -mr-1 p-2"
+            className="text-white/60 hover:text-primary transition-colors -mt-1 -mr-1 p-2"
           >
             <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
               <path
@@ -478,7 +478,7 @@ export default function RegistrationModal({
 
               {isRegisteredSchoolSelected ? (
                 <div className="sm:col-span-2 border border-[#E8A020]/30 bg-[#E8A020]/5 px-4 py-3">
-                  <span className="block text-[10px] font-bold tracking-widest uppercase text-[#E8A020]/80 mb-1">
+                  <span className="block text-[10px] font-bold tracking-widest uppercase text-primary/80 mb-1">
                     Registered School
                   </span>
                   <p className="text-white font-medium text-sm md:text-base">
@@ -754,7 +754,7 @@ export default function RegistrationModal({
             className={`w-full py-5 rounded-none font-bold text-xs tracking-[0.2em] uppercase transition-all duration-300 ${
               submitted
                 ? "bg-[#1A7A4A] text-white hover:bg-[#1A7A4A]"
-                : "bg-[#E8A020] text-[#0A0F1E] hover:bg-white"
+                : "bg-[#E8A020] text-foreground hover:bg-white"
             }`}
           >
             {submitted

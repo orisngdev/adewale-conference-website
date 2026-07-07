@@ -30,7 +30,7 @@ export default function Navbar() {
           href="/"
           className="font-bebas text-xl md:text-2xl text-white tracking-widest"
         >
-          ASC <span className="text-[#E8A020]">2026</span>
+          ASC <span className="text-primary">2026</span>
         </Link>
 
         <ul className="hidden md:flex items-center gap-9 list-none">
@@ -43,8 +43,8 @@ export default function Navbar() {
                   aria-current={active ? "page" : undefined}
                   className={`text-xs md:text-sm font-medium tracking-widest uppercase transition-colors duration-200 ${
                     active
-                      ? "text-[#E8A020]"
-                      : "text-[#F0EAD8] hover:text-[#E8A020]"
+                      ? "text-primary"
+                      : "text-[#F0EAD8] hover:text-primary"
                   }`}
                 >
                   {link.label}
@@ -55,7 +55,7 @@ export default function Navbar() {
           <li>
             <Link
               href={NAV_CTA.href}
-              className="text-xs md:text-sm font-bold tracking-widest uppercase bg-[#E8A020] text-[#0A0F1E] px-5 py-2 hover:bg-[#F5C55A] transition-colors duration-200"
+              className="text-xs md:text-sm font-bold tracking-widest uppercase bg-[#E8A020] text-foreground px-5 py-2 hover:bg-[#F5C55A] transition-colors duration-200"
             >
               {NAV_CTA.label}
             </Link>

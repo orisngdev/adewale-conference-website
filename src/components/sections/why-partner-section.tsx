@@ -38,11 +38,11 @@ export default function WhyPartnerSection() {
         <div className="mb-12 md:mb-16">
           <div className="flex items-center gap-3 mb-6">
             <span className="block w-6 h-px bg-[#E8A020]" />
-            <span className="text-xs font-bold tracking-[0.3em] uppercase text-[#E8A020]">
+            <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
               Why It Matters
             </span>
           </div>
-          <h2 className="font-bebas text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-[#0A0F1E]">
+          <h2 className="font-bebas text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-foreground">
             Why Partner With ASC?
           </h2>
         </div>
@@ -54,7 +54,7 @@ export default function WhyPartnerSection() {
               className="border-t-4 border-[#E8A020] pt-7 space-y-4"
             >
               <div className="text-3xl md:text-4xl">{card.icon}</div>
-              <h3 className="serif-display text-lg md:text-xl text-[#0A0F1E]">
+              <h3 className="serif-display text-lg md:text-xl text-foreground">
                 {card.title}
               </h3>
               <p className="text-sm md:text-base text-[#555870] leading-relaxed">

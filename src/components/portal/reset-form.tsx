@@ -30,7 +30,7 @@ export default function ResetForm() {
       <div className="space-y-2">
         <label
           htmlFor="password"
-          className="block text-xs font-bold uppercase tracking-[0.2em] text-[#4A4E5C]"
+          className="block text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground"
         >
           New password
         </label>
@@ -43,7 +43,7 @@ export default function ResetForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Choose a new password"
-          className="w-full rounded-md border border-[#0A0F1E]/15 bg-white px-4 py-3 text-[#0A0F1E] outline-none focus:border-[#E8A020] focus:ring-2 focus:ring-[#E8A020]/20"
+          className="w-full rounded-md border border-foreground/15 bg-card px-4 py-3 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
       </div>
       {error ? (

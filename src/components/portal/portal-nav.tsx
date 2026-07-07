@@ -12,9 +12,11 @@ export interface PortalTab {
 export default function PortalNav({
   email,
   tabs,
+  unread = 0,
 }: {
   email: string | null;
   tabs: PortalTab[];
+  unread?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -27,17 +29,25 @@ export default function PortalNav({
 
   return (
     <header>
-      <div className="bg-[#0A0F1E] px-6 md:px-12 py-4">
+      <div className="bg-foreground px-6 md:px-12 py-4">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
           <Link
             href="/"
             className="font-bebas text-2xl text-white tracking-wide"
           >
-            ASC <span className="text-[#E8A020]">Portal</span>
+            ASC <span className="text-primary">Portal</span>
           </Link>
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-4">
+            {email && unread > 0 ? (
+              <span
+                className="inline-flex items-center gap-1 text-xs font-bold text-primary"
+                title={`${unread} unread notification${unread === 1 ? "" : "s"}`}
+              >
+                🔔 {unread}
+              </span>
+            ) : null}
             {email ? (
-              <span className="hidden sm:block text-xs text-[rgba(250,247,240,0.6)]">
+              <span className="hidden sm:block text-xs text-background/60">
                 {email}
               </span>
             ) : null}
@@ -45,14 +55,14 @@ export default function PortalNav({
               <button
                 type="button"
                 onClick={signOut}
-                className="text-xs uppercase tracking-[0.2em] text-[#E8A020] hover:text-white transition-colors"
+                className="text-xs uppercase tracking-[0.2em] text-primary hover:text-white transition-colors"
               >
                 Sign out
               </button>
             ) : (
               <Link
                 href="/"
-                className="text-xs uppercase tracking-[0.2em] text-[rgba(250,247,240,0.7)] hover:text-white"
+                className="text-xs uppercase tracking-[0.2em] text-background/70 hover:text-white"
               >
                 ← Main site
               </Link>
@@ -62,7 +72,7 @@ export default function PortalNav({
       </div>
 
       {tabs.length > 0 ? (
-        <nav className="bg-white border-b border-[#0A0F1E]/10 px-6 md:px-12">
+        <nav className="bg-card border-b border-foreground/10 px-6 md:px-12">
           <div className="max-w-5xl mx-auto flex gap-6 overflow-x-auto">
             {tabs.map((t) => {
               const active =
@@ -75,8 +85,8 @@ export default function PortalNav({
                   href={t.href}
                   className={`py-4 text-sm tracking-wide border-b-2 -mb-px whitespace-nowrap transition-colors ${
                     active
-                      ? "border-[#E8A020] text-[#0A0F1E] font-medium"
-                      : "border-transparent text-[#4A4E5C] hover:text-[#0A0F1E]"
+                      ? "border-primary text-foreground font-medium"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   {t.label}

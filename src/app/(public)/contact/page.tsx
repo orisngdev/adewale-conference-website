@@ -24,12 +24,12 @@ export default function ContactPage() {
         <div className="max-w-3xl mx-auto grid gap-px bg-[rgba(10,15,30,0.1)] border border-[rgba(10,15,30,0.1)]">
           {CONTACTS.map((c) => (
             <div key={c.email} className="bg-white p-6 md:p-8">
-              <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#4A4E5C] mb-2">
+              <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-muted-foreground mb-2">
                 {c.label}
               </div>
               <a
                 href={`mailto:${c.email}`}
-                className="font-bebas text-2xl md:text-3xl text-[#0A0F1E] hover:text-[#E8A020] transition-colors"
+                className="font-bebas text-2xl md:text-3xl text-foreground hover:text-primary transition-colors"
               >
                 {c.email}
               </a>

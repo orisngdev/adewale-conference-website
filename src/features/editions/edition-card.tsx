@@ -25,17 +25,17 @@ export default function EditionCard({ edition }: { edition: EditionListItem }) {
             sizes="(max-width: 768px) 100vw, 33vw"
           />
         ) : null}
-        <span className="absolute top-3 left-3 font-bebas text-3xl text-[#E8A020] leading-none">
+        <span className="absolute top-3 left-3 font-bebas text-3xl text-primary leading-none">
           {edition.year}
         </span>
       </div>
       <div className="p-5">
         {edition.status ? (
-          <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#4A4E5C]">
+          <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-muted-foreground">
             {STATUS_LABEL[edition.status] ?? edition.status}
           </span>
         ) : null}
-        <h3 className="font-bebas text-2xl text-[#0A0F1E] leading-tight mt-1">
+        <h3 className="font-bebas text-2xl text-foreground leading-tight mt-1">
           {edition.theme}
         </h3>
       </div>

@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/supabase/server";
+import { getSessionUser } from "@/supabase/auth";
 import { createAdminClient } from "@/supabase/admin";
 import type { Rep } from "@/supabase/types";
 
@@ -15,33 +16,44 @@ function makeAccessCode() {
     .toUpperCase();
 }
 
+export type ProvisionResult = { code?: string; error?: string };
+
 // Provision a student for the coordinator's school: a Supabase auth user with a
 // synthetic email + the access code as password (so they log in with just the
-// code). Returns an error string for the UI, or null on success.
-export async function addStudent(
-  _prev: string | null,
-  formData: FormData,
-): Promise<string | null> {
-  const name = String(formData.get("name") ?? "").trim();
-  const level = String(formData.get("level") ?? "").trim();
-  if (!name) return "Enter the student's name.";
+// code). Returns the access code on success (or the existing one), or an error.
+async function createStudentRecord(
+  name: string,
+  level: string,
+): Promise<ProvisionResult> {
+  if (!name) return { error: "Enter the student's name." };
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return "Not authenticated.";
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated." };
 
-  // The coordinator's school (their approved membership; RLS scopes to own rows).
-  const { data: memberships } = await supabase
-    .from("school_members")
+  // The coordinator's school — from any registration they can access (owner OR
+  // approved member). Works even when their membership is still pending.
+  const { data: regs } = await supabase
+    .from("registrations")
     .select("school_id")
-    .eq("status", "approved");
-  const schoolId = (memberships ?? [])[0]?.school_id as string | undefined;
-  if (!schoolId) return "Link your school first before adding students.";
+    .order("edition_year", { ascending: false });
+  const schoolId = ((regs ?? []) as { school_id: string | null }[]).find(
+    (r) => r.school_id,
+  )?.school_id;
+  if (!schoolId)
+    return { error: "Register or link your school first." };
 
   const admin = createAdminClient();
-  if (!admin) return "Student access isn't configured on the server.";
+  if (!admin) return { error: "Student access isn't configured on the server." };
+
+  // Reuse the existing code for this name (no duplicate accounts).
+  const { data: existing } = await admin
+    .from("students")
+    .select("access_code")
+    .eq("school_id", schoolId)
+    .ilike("name", name)
+    .maybeSingle();
+  if (existing?.access_code) return { code: existing.access_code as string };
 
   const code = makeAccessCode();
   const authEmail = `student.${code.toLowerCase()}@students.adewaleconference.local`;
@@ -51,7 +63,10 @@ export async function addStudent(
     email_confirm: true,
     user_metadata: { full_name: name },
   });
-  if (cErr || !created.user) return "Could not create student access — try again.";
+  if (cErr || !created.user) {
+    console.error("createStudentRecord: createUser failed:", cErr?.message);
+    return { error: `Could not create access: ${cErr?.message ?? "unknown error"}` };
+  }
 
   const { error: sErr } = await admin.from("students").insert({
     school_id: schoolId,
@@ -61,16 +76,47 @@ export async function addStudent(
     auth_email: authEmail,
     auth_user_id: created.user.id,
   });
-  if (sErr) return "Could not save the student.";
+  if (sErr) {
+    console.error("createStudentRecord: students insert failed:", sErr.message);
+    return { error: `Could not save student: ${sErr.message}` };
+  }
 
-  revalidatePath("/portal/school");
-  return null;
+  revalidatePath("/portal/school", "layout");
+  return { code };
+}
+
+// Provision a rep → returns the code (or error) for inline display (useActionState).
+export async function provisionRep(
+  _prev: ProvisionResult | null,
+  formData: FormData,
+): Promise<ProvisionResult> {
+  return createStudentRecord(
+    String(formData.get("name") ?? "").trim(),
+    String(formData.get("level") ?? "").trim(),
+  );
 }
 
 // Update existing representatives in place (edit names/class) — coordinators can
 // correct details but not add or remove reps after submission. `count` is the
 // number of rep rows the form rendered.
 export async function updateReps(registrationId: string, formData: FormData) {
+  const supabase = await createClient();
+
+  // Reps are only editable while that edition's registration is open — past /
+  // closed editions are locked.
+  const { data: reg } = await supabase
+    .from("registrations")
+    .select("edition_year")
+    .eq("id", registrationId)
+    .maybeSingle();
+  if (!reg) return;
+  const { data: ed } = await supabase
+    .from("editions")
+    .select("registration_open")
+    .eq("year", reg.edition_year)
+    .maybeSingle();
+  if (!ed?.registration_open) return;
+
   const count = Number(formData.get("count") ?? 0);
   const reps: Rep[] = [];
   for (let i = 0; i < count; i++) {
@@ -79,10 +125,10 @@ export async function updateReps(registrationId: string, formData: FormData) {
     if (name) reps.push(level ? { name, level } : { name });
   }
 
-  const supabase = await createClient();
   // RLS (reg_owner_update / member) ensures only an authorised user can write.
   await supabase.from("registrations").update({ reps }).eq("id", registrationId);
   revalidatePath("/portal/school");
+  revalidatePath("/portal/school/registrations");
 }
 
 // Register the coordinator's school for an open edition — created owned by them,

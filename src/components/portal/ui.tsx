@@ -9,26 +9,24 @@ export function PortalHeader({
   subtitle?: string;
 }) {
   return (
-    <div className="px-6 md:px-12 pt-10 md:pt-14 pb-2">
-      <div className="max-w-5xl mx-auto">
-        <h1 className="font-bebas text-5xl md:text-6xl text-[#0A0F1E] leading-[0.95]">
+    <div className="px-5 md:px-10 pt-6 md:pt-8 pb-1">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="font-bebas text-4xl md:text-5xl text-foreground leading-[0.95]">
           {title}
         </h1>
         {subtitle ? (
-          <p className="serif-display italic text-[#4A4E5C] mt-2 text-lg">
-            {subtitle}
-          </p>
+          <p className="serif-display italic text-muted-foreground mt-1">{subtitle}</p>
         ) : null}
       </div>
     </div>
   );
 }
 
-/** Constrained content wrapper used by every portal screen body. */
+/** Constrained content wrapper used by top-level portal screens (admin, cbt). */
 export function PortalBody({ children }: { children: React.ReactNode }) {
   return (
-    <section className="px-6 md:px-12 py-10 md:py-12">
-      <div className="max-w-5xl mx-auto space-y-12">{children}</div>
+    <section className="px-5 md:px-10 py-6 md:py-8">
+      <div className="max-w-6xl mx-auto space-y-8">{children}</div>
     </section>
   );
 }
@@ -36,13 +34,20 @@ export function PortalBody({ children }: { children: React.ReactNode }) {
 export function Card({
   children,
   className = "",
+  interactive = false,
 }: {
   children: React.ReactNode;
   className?: string;
+  /** Adds a hover lift for cards that are themselves links/buttons. */
+  interactive?: boolean;
 }) {
   return (
     <div
-      className={`bg-white border border-[#0A0F1E]/10 shadow-[0_1px_3px_rgba(10,15,30,0.04)] ${className}`}
+      className={`bg-card shadow-[0_1px_3px_rgba(10,15,30,0.07)] ${
+        interactive
+          ? "transition-shadow hover:shadow-[0_10px_28px_-12px_rgba(10,15,30,0.20)]"
+          : ""
+      } ${className}`}
     >
       {children}
     </div>
@@ -57,11 +62,11 @@ export function StatTile({
   value: string | number;
 }) {
   return (
-    <Card className="p-5">
-      <div className="font-bebas text-4xl md:text-5xl text-[#0A0F1E] leading-none">
+    <Card className="p-5 min-w-0">
+      <div className="font-bebas text-3xl md:text-5xl text-foreground leading-none wrap-break-word">
         {value}
       </div>
-      <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#4A4E5C]">
+      <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
         {label}
       </div>
     </Card>
@@ -76,14 +81,14 @@ export function SectionHeading({
   action?: { href: string; label: string };
 }) {
   return (
-    <div className="flex items-baseline justify-between mb-5 border-b border-[#0A0F1E]/10 pb-3">
-      <h2 className="font-bebas text-2xl md:text-3xl text-[#0A0F1E] tracking-wide">
+    <div className="flex items-baseline justify-between mb-5 border-b border-border pb-3">
+      <h2 className="font-bebas text-2xl md:text-3xl text-foreground tracking-wide">
         {children}
       </h2>
       {action ? (
         <Link
           href={action.href}
-          className="text-xs uppercase tracking-[0.2em] text-[#E8A020] hover:underline shrink-0"
+          className="text-xs uppercase tracking-[0.2em] text-primary hover:underline shrink-0"
         >
           {action.label}
         </Link>
@@ -92,10 +97,67 @@ export function SectionHeading({
   );
 }
 
+/**
+ * Standard page scaffold for screens rendered INSIDE a sub-layout (school /
+ * student), which already provides the outer frame + sidebar. Gives every such
+ * page one consistent header (back link + title + actions) so there's a single
+ * way to build a page — no more double-wrapping with PortalHeader/PortalBody.
+ */
+export function PageShell({
+  title,
+  subtitle,
+  actions,
+  back,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+  back?: { href: string; label: string };
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-6">
+      {back ? (
+        <Link
+          href={back.href}
+          className="inline-block text-xs uppercase tracking-[0.2em] text-primary hover:underline"
+        >
+          ← {back.label}
+        </Link>
+      ) : null}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="font-bebas text-2xl md:text-3xl text-foreground leading-tight">{title}</h2>
+          {subtitle ? <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p> : null}
+        </div>
+        {actions ? <div className="flex flex-wrap gap-2 shrink-0">{actions}</div> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/** Consistent empty-state message + optional CTA. */
+export function EmptyState({
+  title,
+  children,
+}: {
+  title: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="text-center py-10 px-4">
+      <p className="serif-display italic text-muted-foreground">{title}</p>
+      {children ? <div className="mt-3 flex justify-center">{children}</div> : null}
+    </div>
+  );
+}
+
 const STATUS_STYLES: Record<string, string> = {
-  submitted: "bg-[#0A0F1E]/5 text-[#4A4E5C]",
+  submitted: "bg-foreground/5 text-muted-foreground",
   verified: "bg-blue-50 text-blue-700",
-  qualified: "bg-[rgba(232,160,32,0.14)] text-[#8a5e0e]",
+  qualified: "bg-primary/[0.14] text-gold-ink",
   finalist: "bg-green-50 text-green-700",
 };
 

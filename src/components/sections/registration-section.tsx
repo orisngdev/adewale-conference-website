@@ -43,7 +43,7 @@ export default function RegistrationSection() {
             <div className="mb-8 md:mb-8">
               <div className="flex items-center gap-3 mb-2">
                 <span className="block w-6 h-px bg-[#E8A020]" />
-                <span className="text-xs font-bold tracking-[0.3em] uppercase text-[#E8A020]">
+                <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
                   For Schools
                 </span>
               </div>
@@ -63,7 +63,7 @@ export default function RegistrationSection() {
               <ul className="space-y-4">
                 {eligibilityItems.map((item, idx) => (
                   <li key={idx} className="flex gap-4 text-sm md:text-base text-[rgba(250,247,240,0.65)]">
-                    <span className="text-[#E8A020] font-bold flex-shrink-0">✦</span>
+                    <span className="text-primary font-bold flex-shrink-0">✦</span>
                     <span>{item}</span>
                   </li>
                 ))}
@@ -80,7 +80,7 @@ export default function RegistrationSection() {
               {steps.map((step) => (
                 <div key={step.num} className="flex gap-6">
                   <div className="w-12 h-12 rounded-full bg-[#E8A020] flex items-center justify-center flex-shrink-0">
-                    <span className="font-bebas text-lg text-[#0A0F1E]">{step.num}</span>
+                    <span className="font-bebas text-lg text-foreground">{step.num}</span>
                   </div>
                   <div>
                     <h4 className="text-lg md:text-xl font-medium text-white mb-2">

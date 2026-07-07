@@ -69,7 +69,7 @@ export default function ImpactSection() {
           <div>
             <div className="flex items-center gap-3 mb-6">
               <span className="block w-6 h-px bg-[#E8A020]" />
-              <span className="text-xs font-bold tracking-[0.3em] uppercase text-[#E8A020]">
+              <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
                 By The Numbers
               </span>
             </div>
@@ -93,7 +93,7 @@ export default function ImpactSection() {
               tabIndex={0}
               className="bg-secondary p-7 md:p-8 border-t-2 border-transparent outline-none transition-colors duration-200 hover:bg-[#222B4A] hover:border-[#E8A020] focus:bg-[#222B4A] focus:border-[#E8A020]"
             >
-              <div className="font-bebas text-5xl md:text-6xl text-[#E8A020] leading-none mb-4">
+              <div className="font-bebas text-5xl md:text-6xl text-primary leading-none mb-4">
                 {s.num}
               </div>
               <div className="text-[11px] md:text-xs font-bold tracking-[0.2em] uppercase text-[rgba(250,247,240,0.55)] leading-snug">
@@ -125,7 +125,7 @@ export default function ImpactSection() {
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-px mb-14 md:mb-16">
           {timeline.map((t) => (
             <div key={t.year} className="bg-[#1C2540] p-5 md:p-6">
-              <div className="font-bebas text-2xl md:text-3xl text-[#E8A020] leading-none mb-2">
+              <div className="font-bebas text-2xl md:text-3xl text-primary leading-none mb-2">
                 {t.year}
               </div>
               <div className="text-[8px] font-bold tracking-[0.25em] uppercase text-[rgba(250,247,240,0.5)] mb-4">

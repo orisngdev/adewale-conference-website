@@ -1,11 +1,18 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "./providers";
 import { SITE_URL } from "@/lib/site";
-import { SanityLive } from "@/sanity/lib/live";
+
+export const viewport: Viewport = {
+  themeColor: "#0A0F1E",
+  // Let the PWA draw under the notch/home-indicator so safe-area insets apply.
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "ASC Portal", statusBarStyle: "default" },
   title: {
     default: "Adewale Students Conference",
     template: "%s | Adewale Students Conference",
@@ -28,7 +35,6 @@ export default function RootLayout({
     <html lang="en" data-scroll-behavior="smooth">
       <body>
         <Providers>{children}</Providers>
-        <SanityLive />
       </body>
     </html>
   );

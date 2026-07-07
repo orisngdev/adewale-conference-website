@@ -55,13 +55,13 @@ export default async function AdminSponsors() {
                       />
                     ) : null}
                     <div>
-                      <h3 className="font-bebas text-xl text-[#0A0F1E]">{s.name}</h3>
+                      <h3 className="font-bebas text-xl text-foreground">{s.name}</h3>
                       {s.url ? (
                         <a
                           href={s.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-[#E8A020] hover:underline"
+                          className="text-sm text-primary hover:underline"
                         >
                           Visit site →
                         </a>

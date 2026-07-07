@@ -6,7 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:link": "supabase link --project-ref \"$SUPABASE_PROJECT_REF\"",
+    "db:push": "supabase db push",
+    "db:seed": "bash scripts/db-seed.sh",
+    "db:seed:accounts": "node scripts/seed-test-accounts.mjs",
+    "db:setup": "npm run db:link && npm run db:push && npm run db:seed",
+    "db:reset": "supabase db reset",
+    "db:new": "supabase migration new",
+    "db:diff": "supabase db diff"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.4",
@@ -38,6 +46,7 @@
     "@types/react-dom": "^19.2.3",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.2.9",
+    "supabase": "^2.19.7",
     "typescript": "~5.6.0"
   }
 }

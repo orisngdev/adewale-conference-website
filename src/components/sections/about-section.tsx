@@ -42,19 +42,19 @@ export default function AboutSection() {
         <div className="flex flex-col">
           <div className="flex items-center gap-3 mb-6">
             <span className="block w-6 h-px bg-[#E8A020]" />
-            <span className="text-xs font-bold tracking-[0.3em] uppercase text-[#E8A020]">
+            <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
               About ASC
             </span>
           </div>
 
-          <h2 className="font-bebas text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-[#0A0F1E]">
+          <h2 className="font-bebas text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-foreground">
             <span className="block">Five Years.</span>
             <span className="block">One Mission.</span>
           </h2>
 
           <div className="flex items-center gap-4 mt-8 mb-8">
             <div className="inline-flex items-center bg-[#0A0F1E] px-5 py-2.5">
-              <span className="font-bebas text-lg tracking-widest text-[#E8A020]">
+              <span className="font-bebas text-lg tracking-widest text-primary">
                 2021 &mdash; 2026
               </span>
             </div>
@@ -77,8 +77,8 @@ export default function AboutSection() {
                 className="bg-white border-l-2 border-[#E8A020] p-5 hover:shadow-sm transition-shadow"
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <Icon className="w-4 h-4 text-[#E8A020]" />
-                  <h3 className="text-sm font-bold text-[#0A0F1E]">{title}</h3>
+                  <Icon className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-bold text-foreground">{title}</h3>
                 </div>
                 <p className="text-xs leading-relaxed text-[#555870]">{desc}</p>
               </div>

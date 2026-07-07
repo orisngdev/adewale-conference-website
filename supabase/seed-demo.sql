@@ -45,6 +45,50 @@ where s.name = '[DEMO] Remo Secondary School'
   and r.edition_year = 2024
   and not exists (select 1 from public.certificates c where c.registration_id = r.id);
 
--- ── CLEANUP — run these two lines to remove ALL demo data ────────────────────
+-- ── Demo assessments: a published practice drill + a mock exam ───────────────
+do $$
+declare v_a uuid; v_q uuid;
+begin
+  if not exists (select 1 from public.assessments where title = '[DEMO] Math Speed Drill') then
+    insert into public.assessments (title, subject, level, mode, published, time_limit_minutes)
+    values ('[DEMO] Math Speed Drill', 'Mathematics & Number Theory', 'SS2', 'practice', true, 10)
+    returning id into v_a;
+
+    insert into public.question_bank (mode, subject, level, difficulty, prompt, options, correct_index, explanation)
+    values ('practice','Mathematics & Number Theory','SS2','easy','What is 7 × 8?', '["54","56","48","64"]'::jsonb, 1, '7 × 8 = 56.')
+    returning id into v_q;
+    insert into public.assessment_questions (assessment_id, question_id, position) values (v_a, v_q, 0);
+
+    insert into public.question_bank (mode, subject, level, difficulty, prompt, options, correct_index, explanation)
+    values ('practice','Mathematics & Number Theory','SS2','medium','Convert 1010 (base 2) to base 10.', '["8","10","12","5"]'::jsonb, 1, '1010₂ = 8 + 0 + 2 + 0 = 10.')
+    returning id into v_q;
+    insert into public.assessment_questions (assessment_id, question_id, position) values (v_a, v_q, 1);
+
+    insert into public.question_bank (mode, subject, level, difficulty, prompt, options, correct_index, explanation)
+    values ('practice','Mathematics & Number Theory','SS2','hard','Solve for x: 2x + 3 = 11.', '["3","4","5","6"]'::jsonb, 1, '2x = 8, so x = 4.')
+    returning id into v_q;
+    insert into public.assessment_questions (assessment_id, question_id, position) values (v_a, v_q, 2);
+  end if;
+
+  if not exists (select 1 from public.assessments where title = '[DEMO] Physics Mock Exam') then
+    insert into public.assessments (title, subject, level, mode, published, time_limit_minutes, max_attempts)
+    values ('[DEMO] Physics Mock Exam', 'Mechanics & Physics', 'SS2', 'exam', true, 15, 2)
+    returning id into v_a;
+
+    insert into public.question_bank (mode, subject, level, difficulty, prompt, options, correct_index)
+    values ('exam','Mechanics & Physics','SS2','medium','The SI unit of force is the?', '["Joule","Newton","Watt","Pascal"]'::jsonb, 1)
+    returning id into v_q;
+    insert into public.assessment_questions (assessment_id, question_id, position) values (v_a, v_q, 0);
+
+    insert into public.question_bank (mode, subject, level, difficulty, prompt, options, correct_index)
+    values ('exam','Mechanics & Physics','SS2','easy','Acceleration due to gravity is approximately (m/s²)?', '["8.9","9.8","10.8","6.7"]'::jsonb, 1)
+    returning id into v_q;
+    insert into public.assessment_questions (assessment_id, question_id, position) values (v_a, v_q, 1);
+  end if;
+end $$;
+
+-- ── CLEANUP — run these lines to remove ALL demo data ────────────────────────
+-- delete from public.assessment_questions where assessment_id in (select id from public.assessments where title like '[DEMO]%');
+-- delete from public.assessments where title like '[DEMO]%';
 -- delete from public.registrations where school_id in (select id from public.schools where name like '[DEMO]%');
 -- delete from public.schools where name like '[DEMO]%';

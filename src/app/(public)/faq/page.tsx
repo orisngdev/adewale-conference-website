@@ -101,7 +101,7 @@ export default function FaqPage() {
             Still have a question? Email{" "}
             <a
               href="mailto:adewaleconference@gmail.com"
-              className="font-bold text-[#0A0F1E] underline underline-offset-2 hover:text-[#E8A020] transition-colors"
+              className="font-bold text-foreground underline underline-offset-2 hover:text-primary transition-colors"
             >
               adewaleconference@gmail.com
             </a>{" "}

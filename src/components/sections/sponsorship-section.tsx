@@ -105,15 +105,15 @@ export default function SponsorshipSection() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 md:gap-20 items-start">
           <div className="space-y-10">
             <div>
-              <div className="text-sm font-bold tracking-[0.2em] uppercase text-[#0A0F1E] mb-2">
+              <div className="text-sm font-bold tracking-[0.2em] uppercase text-foreground mb-2">
                 Sponsorship
               </div>
-              <h2 className="font-bebas text-5xl md:text-7xl text-[#0A0F1E] mb-8 leading-[0.95]">
+              <h2 className="font-bebas text-5xl md:text-7xl text-foreground mb-8 leading-[0.95]">
                 INVEST IN OGUN STATE'S
                 <br />
                 FUTURE.
               </h2>
-              <p className="text-base md:text-lg text-[#0A0F1E] opacity-90 max-w-lg leading-relaxed">
+              <p className="text-base md:text-lg text-foreground opacity-90 max-w-lg leading-relaxed">
                 ASC 2026 is our most significant edition yet. We seek partners
                 who believe investing in young people is the highest return
                 investment any organisation can make.
@@ -127,19 +127,19 @@ export default function SponsorshipSection() {
                   className="bg-[rgba(10,15,30,0.05)] p-5 md:p-6 flex items-center justify-between group transition-colors hover:bg-white/20"
                 >
                   <div className="flex items-center gap-6">
-                    <div className="font-bebas text-[11px] tracking-widest bg-[#0A0F1E] text-[#E8A020] px-4 py-2 min-w-[100px] text-center">
+                    <div className="font-bebas text-[11px] tracking-widest bg-[#0A0F1E] text-primary px-4 py-2 min-w-[100px] text-center">
                       {tier.badge}
                     </div>
                     <div>
-                      <h3 className="font-bold text-[#0A0F1E] text-sm mb-1">
+                      <h3 className="font-bold text-foreground text-sm mb-1">
                         {tier.name}
                       </h3>
-                      <p className="text-[11px] text-[#0A0F1E] opacity-60 leading-tight">
+                      <p className="text-[11px] text-foreground opacity-60 leading-tight">
                         {tier.desc}
                       </p>
                     </div>
                   </div>
-                  <div className="font-bebas text-xl md:text-2xl text-[#0A0F1E] whitespace-pre-line ml-4">
+                  <div className="font-bebas text-xl md:text-2xl text-foreground whitespace-pre-line ml-4">
                     {tier.amount}
                   </div>
                 </div>
@@ -247,7 +247,7 @@ export default function SponsorshipSection() {
                   className={`w-full py-5 font-bold text-xs tracking-[0.2em] uppercase transition-all duration-300 ${
                     submitted
                       ? "bg-[#1A7A4A] text-white"
-                      : "bg-[#E8A020] text-[#0A0F1E] hover:bg-white"
+                      : "bg-[#E8A020] text-foreground hover:bg-white"
                   }`}
                 >
                   {submitted

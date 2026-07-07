@@ -17,7 +17,7 @@ export const resource = defineType({
       name: "type",
       title: "Type",
       type: "string",
-      options: { list: ["past-question", "study-guide", "syllabus", "video"] },
+      options: { list: ["past-question", "study-guide", "syllabus", "video", "external-link"] },
     }),
     defineField({ name: "subject", title: "Subject", type: "string" }),
     defineField({

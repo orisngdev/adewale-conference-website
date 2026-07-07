@@ -1,0 +1,14 @@
+{
+  "name": "Adewale Resource Portal",
+  "short_name": "ASC Portal",
+  "description": "Offline-first STEM prep: practice drills, past questions, and study packs.",
+  "start_url": "/portal",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FAF7F0",
+  "theme_color": "#0A0F1E",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

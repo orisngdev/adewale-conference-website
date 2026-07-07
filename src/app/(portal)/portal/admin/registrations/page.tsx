@@ -12,6 +12,7 @@ import { createClient } from "@/supabase/server";
 import type {
   AdminRegistrationRow,
   RegistrationStatus,
+  Rep,
 } from "@/supabase/types";
 import { issueCertificate, setRegistrationStatus } from "../actions";
 
@@ -30,7 +31,7 @@ export default async function AdminRegistrations() {
   const { data: regData } = await supabase
     .from("registrations")
     .select(
-      "id, edition_year, status, claim_code, schools(name), profiles(email, full_name), certificates(id, type)",
+      "id, edition_year, status, claim_code, reps, schools(name), profiles(email, full_name), certificates(id, type)",
     )
     .order("edition_year", { ascending: false });
 
@@ -52,17 +53,17 @@ export default async function AdminRegistrations() {
                 <Card key={r.id} className="p-5 md:p-6 space-y-4">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <span className="font-bebas text-2xl text-[#0A0F1E]">
+                      <span className="font-bebas text-2xl text-foreground">
                         {r.schools?.name ?? "Unassigned school"}
                       </span>
-                      <p className="text-sm text-[#4A4E5C]">
+                      <p className="text-sm text-muted-foreground">
                         {r.edition_year} ·{" "}
                         {r.profiles?.full_name ?? r.profiles?.email ?? "Unclaimed"}
                       </p>
                       {!r.profiles && r.claim_code ? (
                         <p className="text-xs mt-1">
-                          <span className="text-[#4A4E5C]">Claim code: </span>
-                          <span className="font-mono font-bold tracking-wider text-[#0A0F1E] bg-[rgba(232,160,32,0.14)] px-2 py-0.5">
+                          <span className="text-muted-foreground">Claim code: </span>
+                          <span className="font-mono font-bold tracking-wider text-foreground bg-primary/[0.14] px-2 py-0.5">
                             {r.claim_code}
                           </span>
                         </p>
@@ -71,6 +72,19 @@ export default async function AdminRegistrations() {
                     <StatusBadge status={r.status} />
                   </div>
 
+                  {Array.isArray(r.reps) && (r.reps as Rep[]).length > 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      <span className="uppercase tracking-[0.15em] text-[11px] font-bold">
+                        Reps:{" "}
+                      </span>
+                      {(r.reps as Rep[])
+                        .map((rep) =>
+                          rep.level ? `${rep.name} (${rep.level})` : rep.name,
+                        )
+                        .join(", ")}
+                    </p>
+                  ) : null}
+
                   <form
                     action={setRegistrationStatus.bind(null, r.id)}
                     className="flex gap-2"
@@ -78,7 +92,7 @@ export default async function AdminRegistrations() {
                     <select
                       name="status"
                       defaultValue={r.status}
-                      className="rounded-md border border-[#0A0F1E]/15 bg-white px-3 py-2 text-sm outline-none focus:border-[#E8A020] capitalize"
+                      className="rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary capitalize"
                     >
                       {STATUSES.map((s) => (
                         <option key={s} value={s}>
@@ -91,8 +105,8 @@ export default async function AdminRegistrations() {
                     </Button>
                   </form>
 
-                  <div className="border-t border-[#0A0F1E]/5 pt-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-[#4A4E5C] mb-2">
+                  <div className="border-t border-foreground/5 pt-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-2">
                       Certificates
                       {r.certificates.length
                         ? `: ${r.certificates.map((c) => c.type ?? "—").join(", ")}`
@@ -106,12 +120,12 @@ export default async function AdminRegistrations() {
                         name="type"
                         required
                         placeholder="Certificate type (e.g. Finalist)"
-                        className="flex-1 rounded-md border border-[#0A0F1E]/15 bg-white px-3 py-2 text-sm outline-none focus:border-[#E8A020]"
+                        className="flex-1 rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary"
                       />
                       <input
                         name="asset_url"
                         placeholder="Asset URL (optional)"
-                        className="flex-1 rounded-md border border-[#0A0F1E]/15 bg-white px-3 py-2 text-sm outline-none focus:border-[#E8A020]"
+                        className="flex-1 rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary"
                       />
                       <Button type="submit" size="sm">
                         Issue

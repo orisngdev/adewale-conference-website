@@ -54,7 +54,7 @@ export default async function NewsArticlePage({ params }: Params) {
           ) : null}
 
           {post.body ? (
-            <div className="prose-news serif-display text-lg text-[#0A0F1E] leading-relaxed space-y-4">
+            <div className="prose-news serif-display text-lg text-foreground leading-relaxed space-y-4">
               <PortableText value={post.body} />
             </div>
           ) : null}
@@ -64,7 +64,7 @@ export default async function NewsArticlePage({ params }: Params) {
               {post.tags.map((tag) => (
                 <li
                   key={tag}
-                  className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#4A4E5C] border border-[rgba(10,15,30,0.2)] px-3 py-1"
+                  className="text-[11px] font-bold tracking-[0.14em] uppercase text-muted-foreground border border-[rgba(10,15,30,0.2)] px-3 py-1"
                 >
                   {tag}
                 </li>

@@ -25,15 +25,15 @@ export default function NewsCard({ post }: { post: NewsListItem }) {
       ) : null}
       <div className="p-5">
         {meta ? (
-          <div className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#4A4E5C]">
+          <div className="text-[11px] font-bold tracking-[0.14em] uppercase text-muted-foreground">
             {meta}
           </div>
         ) : null}
-        <h3 className="font-bebas text-2xl text-[#0A0F1E] leading-tight mt-1 group-hover:text-[#E8A020] transition-colors">
+        <h3 className="font-bebas text-2xl text-foreground leading-tight mt-1 group-hover:text-primary transition-colors">
           {post.title}
         </h3>
         {post.excerpt ? (
-          <p className="text-sm text-[#4A4E5C] mt-2 line-clamp-3">{post.excerpt}</p>
+          <p className="text-sm text-muted-foreground mt-2 line-clamp-3">{post.excerpt}</p>
         ) : null}
       </div>
     </Link>

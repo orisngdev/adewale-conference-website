@@ -78,30 +78,30 @@ export default async function SchoolsPage() {
             </EmptyState>
           ) : (
             <>
-              <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-[#4A4E5C] mb-8">
+              <p className="text-[11px] font-bold tracking-[0.18em] uppercase text-muted-foreground mb-8">
                 {total} school{total === 1 ? "" : "s"} across {groups.length} LGA
                 {groups.length === 1 ? "" : "s"}
               </p>
               <div className="space-y-10">
                 {groups.map(([lga, list]) => (
                   <div key={lga}>
-                    <h2 className="font-bebas text-2xl text-[#0A0F1E] mb-3">{lga}</h2>
+                    <h2 className="font-bebas text-2xl text-foreground mb-3">{lga}</h2>
                     <ul className="grid gap-px bg-[rgba(10,15,30,0.12)] border border-[rgba(10,15,30,0.12)] list-none">
                       {list.map((school) => (
                         <li
                           key={school.id}
                           className="bg-white p-4 flex flex-wrap items-baseline gap-x-3 gap-y-1"
                         >
-                          <span className="font-bold text-[#0A0F1E]">
+                          <span className="font-bold text-foreground">
                             {school.fields["School Name"]}
                           </span>
                           {school.fields["School Category"] ? (
-                            <span className="text-[11px] font-bold tracking-[0.14em] uppercase text-[#4A4E5C]">
+                            <span className="text-[11px] font-bold tracking-[0.14em] uppercase text-muted-foreground">
                               {school.fields["School Category"]}
                             </span>
                           ) : null}
                           {school.fields["School Address"] ? (
-                            <span className="text-sm text-[#4A4E5C] basis-full">
+                            <span className="text-sm text-muted-foreground basis-full">
                               {school.fields["School Address"]}
                             </span>
                           ) : null}

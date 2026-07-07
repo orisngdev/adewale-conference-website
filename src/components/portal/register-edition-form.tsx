@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { registerForEdition } from "@/app/(portal)/portal/school/actions";
 
 const inputCls =
-  "w-full rounded-md border border-[#0A0F1E]/15 bg-white px-3 py-2 text-sm outline-none focus:border-[#E8A020]";
+  "w-full rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
 
 export default function RegisterEditionForm({ year }: { year: number }) {
   const [error, formAction, pending] = useActionState(

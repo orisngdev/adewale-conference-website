@@ -33,7 +33,7 @@ export default function MobileMenu({ open, links, cta, onClose }: MobileMenuProp
             <Link
               key={link.href}
               href={link.href}
-              className="text-sm font-medium tracking-widest uppercase text-[#F0EAD8] hover:text-[#E8A020] hover:bg-white/5 transition-colors duration-200 px-3 py-3"
+              className="text-sm font-medium tracking-widest uppercase text-[#F0EAD8] hover:text-primary hover:bg-white/5 transition-colors duration-200 px-3 py-3"
               onClick={onClose}
             >
               {link.label}
@@ -41,7 +41,7 @@ export default function MobileMenu({ open, links, cta, onClose }: MobileMenuProp
           ))}
           <Link
             href={cta.href}
-            className="text-sm font-bold tracking-widest uppercase bg-[#E8A020] text-[#0A0F1E] px-5 py-3 text-center hover:bg-[#F5C55A] transition-colors duration-200 mt-2"
+            className="text-sm font-bold tracking-widest uppercase bg-[#E8A020] text-foreground px-5 py-3 text-center hover:bg-[#F5C55A] transition-colors duration-200 mt-2"
             onClick={onClose}
           >
             {cta.label}

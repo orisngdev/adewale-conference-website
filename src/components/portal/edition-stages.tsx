@@ -18,16 +18,16 @@ export function EditionStages({
             <span
               className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wide border ${
                 isCurrent
-                  ? "bg-[#E8A020] border-[#E8A020] text-[#0A0F1E]"
+                  ? "bg-primary border-primary text-foreground"
                   : done
-                    ? "bg-[#0A0F1E] border-[#0A0F1E] text-white"
-                    : "border-[#0A0F1E]/20 text-[#4A4E5C]"
+                    ? "bg-foreground border-foreground text-white"
+                    : "border-foreground/20 text-muted-foreground"
               }`}
             >
               {stage}
             </span>
             {i < stages.length - 1 ? (
-              <span className="text-[#0A0F1E]/25">→</span>
+              <span className="text-foreground/25">→</span>
             ) : null}
           </li>
         );

@@ -24,7 +24,7 @@ export default function DatesSection() {
     <section id="dates" className="bg-[#0A0F1E] py-14 md:py-16 px-6 md:px-12">
       <div className="max-w-7xl mx-auto">
         <div className="mb-12 md:mb-14">
-          <div className="text-xs md:text-sm font-bold tracking-widest uppercase mb-4 text-[#E8A020]">
+          <div className="text-xs md:text-sm font-bold tracking-widest uppercase mb-4 text-primary">
             2026 Calendar
           </div>
           <h2 className="font-bebas text-3xl md:text-4xl lg:text-5xl leading-tight text-white">
@@ -38,11 +38,11 @@ export default function DatesSection() {
 
           {dateSteps.map((step) => (
             <div key={step.num} className="relative z-10 md:pr-12 group">
-              <div className="w-14 h-14 rounded-full bg-[#E8A020] text-[#0A0F1E] font-bebas text-xl flex items-center justify-center mb-8 shadow-lg shadow-[rgba(232,160,32,0.2)] group-hover:scale-110 transition-transform duration-300">
+              <div className="w-14 h-14 rounded-full bg-[#E8A020] text-foreground font-bebas text-xl flex items-center justify-center mb-8 shadow-lg shadow-[rgba(232,160,32,0.2)] group-hover:scale-110 transition-transform duration-300">
                 {step.num}
               </div>
 
-              <div className="text-xs font-bold tracking-widest uppercase text-[#E8A020] mb-3">
+              <div className="text-xs font-bold tracking-widest uppercase text-primary mb-3">
                 {step.when}
               </div>
 

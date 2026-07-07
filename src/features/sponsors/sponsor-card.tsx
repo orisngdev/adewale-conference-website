@@ -14,7 +14,7 @@ export default function SponsorCard({ sponsor }: { sponsor: Sponsor }) {
           sizes="(max-width: 768px) 50vw, 25vw"
         />
       ) : (
-        <span className="font-bebas text-xl text-[#0A0F1E] text-center px-3">
+        <span className="font-bebas text-xl text-foreground text-center px-3">
           {sponsor.name}
         </span>
       )}

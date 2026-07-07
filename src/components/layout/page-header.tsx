@@ -10,7 +10,7 @@ export default function PageHeader({ kicker, title, subtitle }: PageHeaderProps)
     <header className="bg-[#0A0F1E] px-6 md:px-12 py-16 md:py-24">
       <div className="max-w-5xl mx-auto">
         {kicker ? (
-          <span className="inline-block border border-[#E8A020] bg-[rgba(232,160,32,0.08)] px-4 py-2 mb-6 text-[10px] md:text-xs font-bold tracking-[0.25em] uppercase text-[#E8A020]">
+          <span className="inline-block border border-[#E8A020] bg-[rgba(232,160,32,0.08)] px-4 py-2 mb-6 text-[10px] md:text-xs font-bold tracking-[0.25em] uppercase text-primary">
             {kicker}
           </span>
         ) : null}

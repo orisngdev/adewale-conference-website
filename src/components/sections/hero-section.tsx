@@ -26,15 +26,15 @@ export default function HeroSection() {
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2">
         <div className="flex flex-col justify-center px-6 sm:px-10 md:px-12 lg:px-16 py-12 md:py-16 relative z-10">
           <div className="inline-flex items-center gap-2 self-start border border-[#E8A020] bg-[rgba(232,160,32,0.08)] px-4 py-2 mb-10">
-            <Star className="w-3 h-3 fill-[#E8A020] text-[#E8A020]" />
-            <span className="text-[10px] md:text-xs font-bold tracking-[0.25em] uppercase text-[#E8A020]">
+            <Star className="w-3 h-3 fill-[#E8A020] text-primary" />
+            <span className="text-[10px] md:text-xs font-bold tracking-[0.25em] uppercase text-primary">
               Year Six · Ogun State · 2026
             </span>
           </div>
 
           <h1 className="font-bebas text-5xl sm:text-6xl md:text-6xl lg:text-7xl leading-[0.95] text-white">
             <span className="block">Building</span>
-            <span className="block text-[#E8A020]">Tomorrow's</span>
+            <span className="block text-primary">Tomorrow's</span>
             <span className="block mt-4 md:mt-5">Geniuses</span>
             <span className="block">Today.</span>
           </h1>
@@ -53,7 +53,7 @@ export default function HeroSection() {
             </Button>
             <Button
               variant="outline"
-              className="rounded-none h-12 px-6 text-xs font-bold tracking-[0.2em] uppercase !border-[#F0EAD8] text-[#F0EAD8] hover:border-[#E8A020] hover:text-[#E8A020]"
+              className="rounded-none h-12 px-6 text-xs font-bold tracking-[0.2em] uppercase !border-[#F0EAD8] text-[#F0EAD8] hover:border-[#E8A020] hover:text-primary"
               asChild
             >
               <a href="#register">Register Your School</a>
@@ -61,7 +61,7 @@ export default function HeroSection() {
           </div>
 
           <div className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 self-start border border-[rgba(232,160,32,0.35)] px-3 py-2.5 text-[8px] md:text-[10px] tracking-[0.2em]">
-            <span className="text-[rgba(250,247,240,0.55)]">An Initiative of <span className="text-[#E8A020] font-bold"> The Adewale Foundation</span></span>
+            <span className="text-[rgba(250,247,240,0.55)]">An Initiative of <span className="text-primary font-bold"> The Adewale Foundation</span></span>
 
           </div>
         </div>
@@ -77,7 +77,7 @@ export default function HeroSection() {
           <div className="absolute bottom-6 left-6 right-6 md:bottom-12 md:right-10 md:left-auto md:max-w-md grid grid-cols-2 gap-px bg-[rgba(232,160,32,0.2)]">
             {stats.map((s) => (
               <div key={s.label} className="bg-[#0A0F1E]/95 backdrop-blur-sm p-5 md:p-6">
-                <div className="font-bebas text-3xl md:text-4xl text-[#E8A020] leading-none mb-2">
+                <div className="font-bebas text-3xl md:text-4xl text-primary leading-none mb-2">
                   {s.num}
                 </div>
                 <div className="text-[10px] font-bold tracking-[0.2em] uppercase text-[rgba(250,247,240,0.55)] leading-snug">
@@ -100,10 +100,10 @@ export default function HeroSection() {
               {tickerItems.map((item) => (
                 <li
                   key={item}
-                  className="flex items-center gap-6 px-6 text-[11px] md:text-xs font-bold tracking-[0.25em] uppercase text-[#0A0F1E]"
+                  className="flex items-center gap-6 px-6 text-[11px] md:text-xs font-bold tracking-[0.25em] uppercase text-foreground"
                 >
                   <span>{item}</span>
-                  <Star className="w-3 h-3 fill-[#0A0F1E] text-[#0A0F1E]" />
+                  <Star className="w-3 h-3 fill-[#0A0F1E] text-foreground" />
                 </li>
               ))}
             </ul>

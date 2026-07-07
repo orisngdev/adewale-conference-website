@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
+import { getSessionUser } from "@/supabase/auth";
 import type { RegistrationStatus, UserRole } from "@/supabase/types";
 
 const STATUSES: RegistrationStatus[] = [
@@ -18,9 +19,7 @@ export async function setUserRole(userId: string, formData: FormData) {
   if (!ROLES.includes(role as UserRole)) return;
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
 
   // Guard: an admin can't strip their own admin role (prevents self-lockout).
   if (user?.id === userId && role !== "admin") return;
@@ -61,5 +60,22 @@ export async function issueCertificate(
     type,
     asset_url: assetUrl || null,
   });
+
+  // Notify the registration owner.
+  const { data: reg } = await supabase
+    .from("registrations")
+    .select("owner_id")
+    .eq("id", registrationId)
+    .maybeSingle();
+  const owner = (reg?.owner_id as string | null) ?? null;
+  if (owner) {
+    await supabase.from("notifications").insert({
+      profile_id: owner,
+      title: "Certificate issued",
+      body: `A "${type}" certificate is now available to download.`,
+      link: "/portal",
+    });
+  }
   revalidatePath("/portal/admin");
+  revalidatePath("/portal/admin/registrations");
 }

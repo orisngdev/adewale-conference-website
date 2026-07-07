@@ -20,7 +20,7 @@ export function PortalResults({
 }) {
   if (results.length === 0) {
     return (
-      <p className="serif-display italic text-[#4A4E5C]">
+      <p className="serif-display italic text-muted-foreground">
         No results published yet.
       </p>
     );
@@ -38,10 +38,10 @@ export function PortalResults({
     <div className="space-y-6">
       {years.map((year) => (
         <div key={year}>
-          <h4 className="font-bebas text-xl text-[#0A0F1E] mb-2">
+          <h4 className="font-bebas text-xl text-foreground mb-2">
             {year || "—"}
           </h4>
-          <Card className="divide-y divide-[#0A0F1E]/5">
+          <Card className="divide-y divide-foreground/5">
             {byYear.get(year)!.map((r) => {
               const mine =
                 hl && r.studentNames?.some((n) => n.toLowerCase() === hl);
@@ -49,22 +49,22 @@ export function PortalResults({
                 <div
                   key={r._id}
                   className={`flex items-center justify-between gap-4 p-4 ${
-                    mine ? "bg-[rgba(232,160,32,0.07)]" : ""
+                    mine ? "bg-primary/[0.07]" : ""
                   }`}
                 >
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="font-medium text-[#0A0F1E]">
+                      <span className="font-medium text-foreground">
                         {r.category}
                       </span>
                       {r.schoolName ? (
-                        <span className="text-sm text-[#4A4E5C]">
+                        <span className="text-sm text-muted-foreground">
                           · {r.schoolName}
                         </span>
                       ) : null}
                     </div>
                     {r.studentNames?.length ? (
-                      <p className="text-sm text-[#4A4E5C]">
+                      <p className="text-sm text-muted-foreground">
                         {r.studentNames.join(", ")}
                       </p>
                     ) : null}

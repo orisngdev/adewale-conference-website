@@ -54,11 +54,11 @@ export default function ProgrammeSection() {
           <div>
             <div className="flex items-center gap-3 mb-6">
               <span className="block w-6 h-px bg-[#E8A020]" />
-              <span className="text-xs font-bold tracking-[0.3em] uppercase text-[#E8A020]">
+              <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary">
                 What We Do
               </span>
             </div>
-            <h2 className="font-bebas text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-[#0A0F1E]">
+            <h2 className="font-bebas text-5xl md:text-6xl lg:text-7xl leading-[0.95] text-foreground">
               <span className="block">Four Pillars.</span>
               <span className="block">One Platform.</span>
             </h2>
@@ -81,11 +81,11 @@ export default function ProgrammeSection() {
               </div>
 
               <div className="w-12 h-12 bg-[#E8A020] flex items-center justify-center mb-8">
-                <Icon className="w-6 h-6 text-[#0A0F1E]" />
+                <Icon className="w-6 h-6 text-foreground" />
               </div>
 
               <div className="relative z-10">
-                <h3 className="font-bebas text-2xl text-[#0A0F1E] mb-4 group-hover:text-white transition-colors tracking-wide">
+                <h3 className="font-bebas text-2xl text-foreground mb-4 group-hover:text-white transition-colors tracking-wide">
                   {title}
                 </h3>
                 <p className="text-sm md:text-base text-[#555870] leading-relaxed group-hover:text-white/80 transition-colors">

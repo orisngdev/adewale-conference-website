@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { Card, PortalBody, PortalHeader } from "@/components/portal/ui";
 import ClaimForm from "@/components/portal/claim-form";
 import { pageMetadata } from "@/lib/seo";
-import { createClient } from "@/supabase/server";
+import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
 
 export const metadata = pageMetadata(
@@ -18,10 +18,7 @@ export default async function ClaimPage({
 }) {
   if (!isSupabaseConfigured) redirect("/portal/login");
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
   const { code } = await searchParams;
@@ -34,7 +31,7 @@ export default async function ClaimPage({
       />
       <PortalBody>
         <Card className="p-5 md:p-6 max-w-md">
-          <p className="serif-display italic text-[#4A4E5C] mb-4">
+          <p className="serif-display italic text-muted-foreground mb-4">
             Your claim code links this account to your school so you can track
             status, manage representatives, and download certificates.
           </p>

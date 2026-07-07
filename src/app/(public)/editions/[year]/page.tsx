@@ -66,10 +66,10 @@ export default async function EditionPage({ params }: Params) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[rgba(10,15,30,0.12)] mb-12">
               {edition.stats.map((stat, i) => (
                 <div key={i} className="bg-[#FAF7F0] p-5">
-                  <div className="font-bebas text-3xl md:text-4xl text-[#E8A020] leading-none">
+                  <div className="font-bebas text-3xl md:text-4xl text-primary leading-none">
                     {stat.value}
                   </div>
-                  <div className="text-[10px] font-bold tracking-[0.18em] uppercase text-[#4A4E5C] mt-2">
+                  <div className="text-[10px] font-bold tracking-[0.18em] uppercase text-muted-foreground mt-2">
                     {stat.label}
                   </div>
                 </div>
@@ -78,23 +78,23 @@ export default async function EditionPage({ params }: Params) {
           ) : null}
 
           {edition.summary ? (
-            <div className="prose-edition serif-display text-lg text-[#0A0F1E] leading-relaxed space-y-4">
+            <div className="prose-edition serif-display text-lg text-foreground leading-relaxed space-y-4">
               <PortableText value={edition.summary} />
             </div>
           ) : null}
 
           {edition.sponsors && edition.sponsors.length > 0 ? (
             <div className="mt-12 pt-12 border-t border-[rgba(10,15,30,0.12)]">
-              <h2 className="font-bebas text-2xl text-[#0A0F1E] mb-5">Sponsors</h2>
+              <h2 className="font-bebas text-2xl text-foreground mb-5">Sponsors</h2>
               <ul className="flex flex-wrap gap-3 list-none">
                 {edition.sponsors.map((sponsor) => (
                   <li
                     key={sponsor._id}
-                    className="border border-[rgba(10,15,30,0.12)] px-4 py-2 text-sm text-[#0A0F1E]"
+                    className="border border-[rgba(10,15,30,0.12)] px-4 py-2 text-sm text-foreground"
                   >
                     {sponsor.name}
                     {sponsor.tier ? (
-                      <span className="text-[#4A4E5C]"> · {sponsor.tier}</span>
+                      <span className="text-muted-foreground"> · {sponsor.tier}</span>
                     ) : null}
                   </li>
                 ))}

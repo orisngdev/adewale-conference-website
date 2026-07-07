@@ -66,7 +66,7 @@ export default async function AdminParticipants() {
               Submitted registrations from the public form will appear here.
             </EmptyState>
           ) : (
-            <Card className="divide-y divide-[#0A0F1E]/5">
+            <Card className="divide-y divide-foreground/5">
               {records.map((rec) => {
                 const f = rec.fields;
                 const reps = [
@@ -77,22 +77,22 @@ export default async function AdminParticipants() {
                 return (
                   <div key={rec.id} className="p-4">
                     <div className="flex items-center justify-between gap-4">
-                      <span className="font-medium text-[#0A0F1E]">
+                      <span className="font-medium text-foreground">
                         {f["School Full Name"] ?? "—"}
                       </span>
-                      <span className="text-sm text-[#4A4E5C] whitespace-nowrap">
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">
                         {[f["School LGA"], f["School Category"]]
                           .filter(Boolean)
                           .join(" · ")}
                       </span>
                     </div>
                     {reps.length ? (
-                      <p className="text-sm text-[#4A4E5C] mt-1">
+                      <p className="text-sm text-muted-foreground mt-1">
                         Reps: {reps.join(", ")}
                       </p>
                     ) : null}
                     {f["Principal Full Name"] ? (
-                      <p className="text-sm text-[#4A4E5C]">
+                      <p className="text-sm text-muted-foreground">
                         Principal: {f["Principal Full Name"]}
                         {f["Principal Email Address"]
                           ? ` · ${f["Principal Email Address"]}`

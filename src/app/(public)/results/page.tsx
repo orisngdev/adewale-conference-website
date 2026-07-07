@@ -86,16 +86,16 @@ function PodiumColumn({ row, rank }: { row: ResultRow; rank: 1 | 2 | 3 }) {
         >
           {m.name}
         </span>
-        <h4 className="font-bebas text-sm sm:text-2xl text-[#0A0F1E] mt-1 leading-tight break-words">
+        <h4 className="font-bebas text-sm sm:text-2xl text-foreground mt-1 leading-tight break-words">
           {row.schoolName}
         </h4>
         {row.studentNames?.length ? (
-          <p className="text-[11px] sm:text-sm text-[#4A4E5C] mt-1 leading-snug">
+          <p className="text-[11px] sm:text-sm text-muted-foreground mt-1 leading-snug">
             {row.studentNames.join(", ")}
           </p>
         ) : null}
         {row.zone ? (
-          <p className="hidden sm:block text-[10px] uppercase tracking-[0.15em] text-[#4A4E5C] mt-2">
+          <p className="hidden sm:block text-[10px] uppercase tracking-[0.15em] text-muted-foreground mt-2">
             {row.zone} zone
           </p>
         ) : null}
@@ -121,7 +121,7 @@ function CategoryPodium({ group }: { group: CategoryGroup }) {
   return (
     <div>
       <h3 className="flex items-center gap-3 mb-5">
-        <span className="font-bebas text-2xl text-[#0A0F1E] tracking-wide">
+        <span className="font-bebas text-2xl text-foreground tracking-wide">
           {group.category}
         </span>
         <span className="h-px flex-1 bg-[rgba(10,15,30,0.12)]" />
@@ -188,7 +188,7 @@ export default async function ResultsPage({ searchParams }: Props) {
           ★
         </div>
         <div className="max-w-5xl mx-auto relative">
-          <span className="inline-block border border-[#E8A020] bg-[rgba(232,160,32,0.08)] px-4 py-2 mb-6 text-[10px] md:text-xs font-bold tracking-[0.25em] uppercase text-[#E8A020]">
+          <span className="inline-block border border-[#E8A020] bg-[rgba(232,160,32,0.08)] px-4 py-2 mb-6 text-[10px] md:text-xs font-bold tracking-[0.25em] uppercase text-primary">
             The Champions
           </span>
           <h1 className="font-bebas text-6xl md:text-8xl leading-[0.9] text-white">
@@ -202,7 +202,7 @@ export default async function ResultsPage({ searchParams }: Props) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-px bg-[rgba(255,255,255,0.1)] border border-[rgba(255,255,255,0.1)] mt-10">
               {stats.map((s) => (
                 <div key={s.label} className="bg-[#0A0F1E] p-5">
-                  <div className="font-bebas text-4xl md:text-5xl text-[#E8A020] leading-none">
+                  <div className="font-bebas text-4xl md:text-5xl text-primary leading-none">
                     {s.value}
                   </div>
                   <div className="text-[10px] uppercase tracking-[0.2em] text-[rgba(250,247,240,0.6)] mt-2">
@@ -237,11 +237,11 @@ export default async function ResultsPage({ searchParams }: Props) {
                 <div key={edition.year}>
                   {/* Edition divider */}
                   <div className="flex items-end gap-4 border-b-2 border-[#0A0F1E] pb-3 mb-10">
-                    <span className="font-bebas text-6xl md:text-7xl leading-none text-[#0A0F1E]">
+                    <span className="font-bebas text-6xl md:text-7xl leading-none text-foreground">
                       {edition.year || "—"}
                     </span>
                     {edition.theme ? (
-                      <span className="serif-display italic text-base md:text-lg text-[#4A4E5C] mb-1">
+                      <span className="serif-display italic text-base md:text-lg text-muted-foreground mb-1">
                         {edition.theme}
                       </span>
                     ) : null}
@@ -256,7 +256,7 @@ export default async function ResultsPage({ searchParams }: Props) {
                   {/* Finalists */}
                   {edition.finalists.length > 0 ? (
                     <div className="mt-12">
-                      <h3 className="font-bebas text-2xl text-[#0A0F1E] mb-4">
+                      <h3 className="font-bebas text-2xl text-foreground mb-4">
                         Finalists
                       </h3>
                       <div className="flex flex-wrap gap-2">
@@ -265,11 +265,11 @@ export default async function ResultsPage({ searchParams }: Props) {
                             key={row._id}
                             className="inline-flex items-center gap-2 border border-[rgba(10,15,30,0.12)] bg-white px-3 py-2 text-sm"
                           >
-                            <span className="font-medium text-[#0A0F1E]">
+                            <span className="font-medium text-foreground">
                               {row.schoolName}
                             </span>
                             {row.category ? (
-                              <span className="text-[10px] uppercase tracking-[0.15em] text-[#4A4E5C]">
+                              <span className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground">
                                 {row.category}
                               </span>
                             ) : null}

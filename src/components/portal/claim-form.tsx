@@ -14,7 +14,7 @@ export default function ClaimForm({ defaultCode }: { defaultCode?: string }) {
         required
         defaultValue={defaultCode}
         placeholder="Enter your claim code"
-        className="flex-1 rounded-md border border-[#0A0F1E]/15 bg-white px-3 py-2 text-sm uppercase tracking-wide outline-none focus:border-[#E8A020]"
+        className="flex-1 rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm uppercase tracking-wide outline-none focus:border-primary"
       />
       <Button type="submit" size="sm" disabled={pending}>
         {pending ? "Claiming…" : "Claim school"}

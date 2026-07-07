@@ -1,0 +1,24 @@
+name: keep-alive
+
+# Provider-agnostic backstop: pings the deployed keep-alive endpoint every 3
+# days so the free-tier Supabase project doesn't auto-pause. Works regardless of
+# where the app is hosted (Vercel/Netlify). Set a repo *variable* KEEP_ALIVE_URL
+# to https://<your-deploy>/api/keep-alive (Settings → Secrets and variables →
+# Actions → Variables).
+on:
+  schedule:
+    - cron: "0 6 */3 * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping keep-alive
+        run: |
+          URL="${{ vars.KEEP_ALIVE_URL }}"
+          if [ -z "$URL" ]; then
+            echo "KEEP_ALIVE_URL repo variable not set — skipping."
+            exit 0
+          fi
+          curl -fsS "$URL" && echo " — ok"

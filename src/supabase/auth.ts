@@ -1,0 +1,37 @@
+import "server-only";
+import { cache } from "react";
+import { createClient } from "@/supabase/server";
+
+export type SessionUser = { id: string; email: string | null };
+
+// Request-scoped memoization. Nested layouts + pages all call getSessionUser, but
+// React `cache()` ensures it runs at most once per request.
+//
+// Uses `getClaims()` rather than `getUser()`: with the project's asymmetric (ES256)
+// signing keys, getClaims verifies the JWT signature LOCALLY against the JWKS
+// (cached module-globally across requests) — no /auth/v1/user round-trip. That
+// turns a ~500ms network validation into a ~0ms local one on every layout/page.
+// getClaims still refreshes the session via getSession() first, so cookie rotation
+// (handled in middleware) is unaffected.
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
+  const supabase = await createClient();
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
+  if (!claims?.sub) return null;
+  return {
+    id: claims.sub,
+    email: typeof claims.email === "string" ? claims.email : null,
+  };
+});
+
+export const getUserRole = cache(async () => {
+  const user = await getSessionUser();
+  if (!user) return null;
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  return (data?.role as string | undefined) ?? null;
+});

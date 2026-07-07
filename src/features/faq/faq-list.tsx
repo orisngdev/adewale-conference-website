@@ -18,7 +18,7 @@ export default function FaqList({ groups }: { groups: FaqGroup[] }) {
     <div className="space-y-12">
       {groups.map((group) => (
         <div key={group.title}>
-          <h2 className="font-bebas text-3xl text-[#0A0F1E] mb-5 flex items-center gap-3">
+          <h2 className="font-bebas text-3xl text-foreground mb-5 flex items-center gap-3">
             <span className="block w-6 h-px bg-[#E8A020]" />
             {group.title}
           </h2>
@@ -36,11 +36,11 @@ export default function FaqList({ groups }: { groups: FaqGroup[] }) {
                     aria-expanded={isOpen}
                     className="w-full flex items-center justify-between p-5 md:p-6 text-left hover:bg-[#FAF7F0] transition-colors duration-300"
                   >
-                    <span className="font-medium text-[#0A0F1E] text-base md:text-lg">
+                    <span className="font-medium text-foreground text-base md:text-lg">
                       {item.q}
                     </span>
                     <span
-                      className={`text-2xl text-[#E8A020] transition-transform duration-300 flex-shrink-0 ml-4 ${
+                      className={`text-2xl text-primary transition-transform duration-300 flex-shrink-0 ml-4 ${
                         isOpen ? "rotate-45" : ""
                       }`}
                     >

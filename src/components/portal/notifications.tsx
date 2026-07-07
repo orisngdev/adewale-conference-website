@@ -1,6 +1,9 @@
 import { Card } from "@/components/portal/ui";
 import { createClient } from "@/supabase/server";
-import { markAllNotificationsRead } from "./notification-actions";
+import {
+  markAllNotificationsRead,
+  markNotificationRead,
+} from "./notification-actions";
 
 interface NotificationRow {
   id: string;
@@ -26,29 +29,41 @@ export async function Notifications() {
   return (
     <div>
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-bebas text-2xl text-[#0A0F1E] tracking-wide">
+        <h2 className="font-bebas text-2xl text-foreground tracking-wide">
           Notifications{unread ? ` (${unread})` : ""}
         </h2>
         {unread ? (
           <form action={markAllNotificationsRead}>
             <button
               type="submit"
-              className="text-xs uppercase tracking-[0.2em] text-[#E8A020] hover:underline"
+              className="text-xs uppercase tracking-[0.2em] text-primary hover:underline"
             >
               Mark all read
             </button>
           </form>
         ) : null}
       </div>
-      <Card className="divide-y divide-[#0A0F1E]/5">
+      <Card className="divide-y divide-foreground/5">
         {items.map((n) => (
           <div
             key={n.id}
-            className={`p-4 ${!n.read ? "bg-[rgba(232,160,32,0.07)]" : ""}`}
+            className={`flex items-start justify-between gap-4 p-4 ${!n.read ? "bg-primary/[0.07]" : ""}`}
           >
-            <p className="font-medium text-[#0A0F1E]">{n.title}</p>
-            {n.body ? (
-              <p className="text-sm text-[#4A4E5C] mt-0.5">{n.body}</p>
+            <div>
+              <p className="font-medium text-foreground">{n.title}</p>
+              {n.body ? (
+                <p className="text-sm text-muted-foreground mt-0.5">{n.body}</p>
+              ) : null}
+            </div>
+            {!n.read ? (
+              <form action={markNotificationRead.bind(null, n.id)}>
+                <button
+                  type="submit"
+                  className="text-xs uppercase tracking-wide text-primary hover:underline shrink-0"
+                >
+                  Mark read
+                </button>
+              </form>
             ) : null}
           </div>
         ))}
