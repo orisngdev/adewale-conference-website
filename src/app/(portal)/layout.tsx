@@ -38,7 +38,7 @@ export default async function PortalLayout({
     else if (role === "coordinator")
       tabs.push({ href: "/portal/school", label: "My school" });
     else tabs.push({ href: "/portal/student", label: "My dashboard" });
-    tabs.push({ href: "/portal/settings", label: "Settings" });
+    // Settings lives in each role's sidebar, not up here.
   }
 
   return (

@@ -4,7 +4,8 @@ export type RegistrationStatus =
   | "submitted"
   | "verified"
   | "qualified"
-  | "finalist";
+  | "finalist"
+  | "declined";
 
 export interface Certificate {
   id: string;
@@ -80,6 +81,10 @@ export interface AdminRegistrationRow {
   edition_year: number;
   status: RegistrationStatus;
   claim_code: string | null;
+  contact_email: string | null;
+  contact_name: string | null;
+  onboarded_at: string | null;
+  provisioned_count: number | null;
   reps: unknown;
   schools: { name: string | null } | null;
   profiles: { email: string | null; full_name: string | null } | null;

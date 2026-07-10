@@ -27,6 +27,23 @@ export const resource = defineType({
       options: { list: ["SS1", "SS2"] },
     }),
     defineField({ name: "edition", title: "Edition", type: "reference", to: [{ type: "edition" }] }),
+    defineField({
+      name: "access",
+      title: "Who can access this",
+      description:
+        "Public = everyone (default). The other tiers unlock as a school progresses through the competition: Accepted (entry confirmed) → Qualified (past zonals) → Finalists. Locked resources are listed but their files are withheld.",
+      type: "string",
+      initialValue: "public",
+      options: {
+        list: [
+          { title: "Public — everyone", value: "public" },
+          { title: "Accepted schools", value: "accepted" },
+          { title: "Qualified schools (post-zonal)", value: "qualified" },
+          { title: "Finalists only", value: "finalist" },
+        ],
+        layout: "radio",
+      },
+    }),
     defineField({ name: "file", title: "File", type: "file" }),
     defineField({ name: "externalUrl", title: "External URL", type: "url" }),
     defineField({ name: "body", title: "Body", type: "array", of: [{ type: "block" }] }),

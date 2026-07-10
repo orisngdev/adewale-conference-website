@@ -97,9 +97,7 @@ export default async function StudentResults() {
       </div>
 
       <div>
-        <SectionHeading action={{ href: "/results", label: "Hall of Fame →" }}>
-          Conference results
-        </SectionHeading>
+        <SectionHeading>Conference results</SectionHeading>
         <PortalResults results={results} highlightName={profile?.full_name} />
       </div>
     </div>

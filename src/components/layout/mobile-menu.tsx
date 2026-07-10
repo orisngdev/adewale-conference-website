@@ -40,6 +40,13 @@ export default function MobileMenu({ open, links, cta, onClose }: MobileMenuProp
             </Link>
           ))}
           <Link
+            href="/portal"
+            className="text-sm font-bold tracking-widest uppercase border border-[#E8A020] text-primary px-5 py-3 text-center hover:bg-[#E8A020] hover:text-foreground transition-colors duration-200 mt-2"
+            onClick={onClose}
+          >
+            Portal
+          </Link>
+          <Link
             href={cta.href}
             className="text-sm font-bold tracking-widest uppercase bg-[#E8A020] text-foreground px-5 py-3 text-center hover:bg-[#F5C55A] transition-colors duration-200 mt-2"
             onClick={onClose}

@@ -17,6 +17,8 @@ import {
 } from "@/lib/forms";
 import { buildRegistrationEmail, sendEmailSafely } from "@/lib/email";
 import { mirrorRegistrationToSupabase } from "@/lib/portal-registration";
+import { rateLimit, requestIp } from "@/lib/rate-limit";
+import { createAdminClient } from "@/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -225,8 +227,43 @@ function mapRegistrationFields(data: RegistrationFormData) {
 
 export async function POST(request: Request) {
   try {
+    // This endpoint sends email and (via onboarding) leads to account creation —
+    // cap per-IP throughput. Best-effort in-memory limiter; see lib/rate-limit.
+    if (!rateLimit(`reg:${requestIp(request.headers)}`, { limit: 5, windowMs: 60_000 })) {
+      return NextResponse.json(
+        { error: "Too many attempts — please wait a minute and try again." },
+        { status: 429 },
+      );
+    }
+
     const payload = await request.json();
     const registration = sanitizeRegistrationPayload(payload);
+
+    // The public form is tied to the OPEN edition — the editions table (admin
+    // controls it from Portal → Editions) is the single source of truth. No open
+    // edition → registration is closed, and the submission is rejected before
+    // anything is written. Env fallback only when the portal bridge is off.
+    let editionYear = Number(process.env.ASC_EDITION_YEAR) || new Date().getFullYear();
+    const adminDb = createAdminClient();
+    if (adminDb) {
+      const { data: openEdition } = await adminDb
+        .from("editions")
+        .select("year")
+        .eq("registration_open", true)
+        .order("year", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!openEdition) {
+        return NextResponse.json(
+          {
+            error:
+              "Registration is currently closed. Follow our channels — we'll announce when the next edition opens.",
+          },
+          { status: 409 },
+        );
+      }
+      editionYear = openEdition.year as number;
+    }
 
     const writeToAirtable = isAirtableWritesEnabled();
 
@@ -269,13 +306,11 @@ export async function POST(request: Request) {
 
     // Mirror into Supabase for the portal (non-fatal — Airtable stays source of
     // truth, so a mirror failure must never fail the registration). Runs before
-    // the email so the confirmation can carry the coordinator's claim code.
-    let claimCode: string | null = null;
+    // the email so the confirmation can carry the coordinator's 30-day
+    // activation link (claim code remains the different-email fallback).
+    let mirror: Awaited<ReturnType<typeof mirrorRegistrationToSupabase>> = null;
     try {
-      claimCode = await mirrorRegistrationToSupabase(
-        registration,
-        airtableSchoolId,
-      );
+      mirror = await mirrorRegistrationToSupabase(registration, airtableSchoolId, editionYear);
     } catch (mirrorError) {
       console.error("Supabase mirror failed (non-fatal):", mirrorError);
     }
@@ -289,7 +324,8 @@ export async function POST(request: Request) {
         principalEmail: registration.principalEmail,
         teacherFullName: registration.teacherFullName,
         teacherEmail: registration.teacherEmail,
-        claimCode,
+        claimCode: mirror?.claimCode ?? null,
+        verifyToken: mirror?.verifyToken ?? null,
       }),
     );
 

@@ -2,7 +2,7 @@
 // Bump CACHE_VERSION on each release to purge old caches. Deliberately does NOT
 // cache authed HTML (network-first + offline fallback only) so shared devices
 // never serve one student's page to another. Never intercepts /api or auth.
-const CACHE_VERSION = "asc-cache-v2";
+const CACHE_VERSION = "asc-cache-v3";
 const PRECACHE = ["/portal/offline", "/manifest.webmanifest", "/favicon.svg"];
 
 self.addEventListener("install", (event) => {

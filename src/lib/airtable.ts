@@ -114,6 +114,9 @@ function buildAirtableUrl(tableId: string, params?: URLSearchParams) {
 async function airtableFetch(url: URL, init?: RequestInit) {
   const apiToken = getAirtableApiToken();
 
+  // Reads are cached for 60s (Airtable is a slow external hop, and the admin
+  // views tolerate a minute of staleness); writes are never cached.
+  const isRead = !init?.method || init.method.toUpperCase() === "GET";
   const response = await fetch(url, {
     ...init,
     headers: {
@@ -121,7 +124,7 @@ async function airtableFetch(url: URL, init?: RequestInit) {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),
     },
-    cache: "no-store",
+    ...(isRead ? { next: { revalidate: 60 } } : { cache: "no-store" as const }),
   });
 
   if (!response.ok) {

@@ -6,6 +6,7 @@ import { pageMetadata } from "@/lib/seo";
 import { sanityFetch } from "@/sanity/lib/live";
 import { resourcesQuery, resourceSubjectsQuery } from "@/sanity/lib/queries";
 import type { ResourceFilters, ResourceListItem } from "@/sanity/types";
+import { accessRank } from "@/lib/resource-access";
 
 export const metadata = pageMetadata(
   "Study Resources",
@@ -29,7 +30,11 @@ export default async function ResourcesPage({ searchParams }: Props) {
     sanityFetch({ query: resourceSubjectsQuery, params: {} }),
   ]);
 
-  const resources = (list ?? []) as ResourceListItem[];
+  // The public library shows public-tier resources only — competition-gated
+  // material lives behind the portal (and its files are withheld there too).
+  const resources = ((list ?? []) as ResourceListItem[]).filter(
+    (r) => accessRank(r.access) === 0,
+  );
   const subjects = [...new Set((subjectsRaw ?? []) as string[])].sort();
   const filtered = Boolean(filters.type || filters.subject || filters.level);
 

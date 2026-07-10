@@ -15,25 +15,26 @@ export default async function SchoolLayout({
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  // Prefer a registration's school; otherwise fall back to an approved membership.
-  const { data: reg } = await supabase
-    .from("registrations")
-    .select("schools(name)")
-    .order("edition_year", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  let schoolName =
-    (reg?.schools as unknown as { name: string | null } | null)?.name ?? null;
-  if (!schoolName) {
-    const { data: mem } = await supabase
+  // Prefer a registration's school; otherwise fall back to an approved
+  // membership — both fetched concurrently since either may win.
+  const [{ data: reg }, { data: mem }] = await Promise.all([
+    supabase
+      .from("registrations")
+      .select("schools(name)")
+      .order("edition_year", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
       .from("school_members")
       .select("schools(name)")
       .eq("status", "approved")
       .limit(1)
-      .maybeSingle();
-    schoolName =
-      (mem?.schools as unknown as { name: string | null } | null)?.name ?? null;
-  }
+      .maybeSingle(),
+  ]);
+  const schoolName =
+    (reg?.schools as unknown as { name: string | null } | null)?.name ??
+    (mem?.schools as unknown as { name: string | null } | null)?.name ??
+    null;
 
   return (
     <div className="px-4 md:px-6 py-6 md:py-8">

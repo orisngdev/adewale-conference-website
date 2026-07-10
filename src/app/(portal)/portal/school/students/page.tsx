@@ -16,15 +16,14 @@ export default async function SchoolStudents() {
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  const { data: regData } = await supabase
-    .from("registrations")
-    .select("id, edition_year, reps")
-    .order("edition_year", { ascending: false });
+  const [{ data: regData }, { data: studentData }] = await Promise.all([
+    supabase
+      .from("registrations")
+      .select("id, edition_year, reps")
+      .order("edition_year", { ascending: false }),
+    supabase.from("students").select("name, level, access_code"),
+  ]);
   const registrations = (regData ?? []) as unknown as RegistrationWithRelations[];
-
-  const { data: studentData } = await supabase
-    .from("students")
-    .select("name, level, access_code");
   const students = (studentData ?? []) as {
     name: string;
     level: string | null;
@@ -36,9 +35,10 @@ export default async function SchoolStudents() {
     <div>
       <SectionHeading>Students</SectionHeading>
       <p className="serif-display italic text-muted-foreground mb-5">
-        Each representative on a registration can get an access code — they sign
-        in to the portal with just the code (no email). Students are your
-        registered representatives; to change the team, edit the registration.
+        When you register, each representative is automatically given an access
+        code — hand each student their code to sign in (no email needed). To
+        change the team, edit the registration; use “Provision” below to issue a
+        code for any rep that doesn&apos;t have one yet.
       </p>
 
       {students.length > 0 ? (

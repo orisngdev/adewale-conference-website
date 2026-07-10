@@ -58,6 +58,8 @@ export interface ResourceListItem {
   type?: ResourceType;
   subject?: string;
   level?: string;
+  /** Minimum tier: public (default) | accepted | qualified | finalist. */
+  access?: string | null;
   hasFile?: boolean;
   externalUrl?: string;
   fileUrl?: string;

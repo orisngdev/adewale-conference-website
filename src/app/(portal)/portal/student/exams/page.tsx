@@ -15,7 +15,7 @@ export default async function StudentExams() {
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  const [{ data: examData }, { data: attemptData }] = await Promise.all([
+  const [{ data: examData }, { data: attemptData }, { data: schoolData }] = await Promise.all([
     supabase
       .from("assessments")
       .select("id, title, subject, level")
@@ -23,7 +23,39 @@ export default async function StudentExams() {
       .eq("mode", "exam")
       .order("created_at", { ascending: false }),
     supabase.from("assessment_attempts").select("assessment_id, score, total").eq("mode", "exam"),
+    supabase.rpc("get_my_school"),
   ]);
+
+  // Competition gate (UI half — start_exam_attempt enforces it server-side):
+  // graded exams open once the school's entry is accepted. Practice never locks.
+  const entryStatus =
+    ((schoolData as { registration?: { status?: string } | null } | null)?.registration
+      ?.status as string | undefined) ?? null;
+  if (entryStatus === "submitted" || entryStatus === "declined") {
+    return (
+      <div>
+        <SectionHeading>Exams</SectionHeading>
+        <Card className="p-6 border-l-4 border-l-primary">
+          <p className="font-bebas text-2xl text-foreground leading-tight">
+            {entryStatus === "submitted"
+              ? "Your school's entry is under review"
+              : "Exams are closed for your school this edition"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-xl">
+            {entryStatus === "submitted"
+              ? "Graded exams unlock once your school is confirmed for the competition — you'll be notified. Until then, every practice drill is open."
+              : "Your school wasn't selected this edition, but the whole prep portal stays open — practice drills, Tech Lab, and study packs."}
+          </p>
+          <Link
+            href="/portal/student/practice"
+            className="inline-block mt-4 text-xs uppercase tracking-[0.2em] text-primary hover:underline"
+          >
+            Go to practice drills →
+          </Link>
+        </Card>
+      </div>
+    );
+  }
   const exams = (examData ?? []) as {
     id: string;
     title: string;

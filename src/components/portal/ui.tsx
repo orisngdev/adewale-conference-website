@@ -159,6 +159,7 @@ const STATUS_STYLES: Record<string, string> = {
   verified: "bg-blue-50 text-blue-700",
   qualified: "bg-primary/[0.14] text-gold-ink",
   finalist: "bg-green-50 text-green-700",
+  declined: "bg-red-50 text-red-700",
 };
 
 export function StatusBadge({ status }: { status: string }) {

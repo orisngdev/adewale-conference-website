@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/ui/empty-state";
 import {
   Card,
@@ -10,12 +9,9 @@ import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import type { UserRole } from "@/supabase/types";
-import { setUserRole } from "../actions";
 
-export const metadata = pageMetadata("Users & roles", "Manage portal users and their roles.");
+export const metadata = pageMetadata("Users", "Everyone with a portal account.");
 export const dynamic = "force-dynamic";
-
-const ROLES: UserRole[] = ["student", "coordinator", "admin"];
 
 interface ProfileRow {
   id: string;
@@ -38,7 +34,10 @@ export default async function AdminUsers() {
 
   return (
     <>
-      <PortalHeader title="Users & roles" subtitle="Set who is an admin, coordinator, or student" />
+      <PortalHeader
+        title="Users"
+        subtitle="Everyone with a portal account. Invite admins from Settings."
+      />
       <PortalBody>
         <div>
           <SectionHeading>{profiles.length} user{profiles.length === 1 ? "" : "s"}</SectionHeading>
@@ -66,34 +65,14 @@ export default async function AdminUsers() {
                       <p className="text-sm text-muted-foreground">{p.email}</p>
                     ) : null}
                   </div>
-                  {p.id === user?.id ? (
-                    <span
-                      className="text-xs uppercase tracking-[0.2em] text-muted-foreground"
-                      title="You can't change your own role"
-                    >
-                      {p.role} · locked
+                  <div className="text-right">
+                    <span className="text-xs uppercase tracking-[0.2em] text-muted-foreground capitalize">
+                      {p.role}
                     </span>
-                  ) : (
-                    <form
-                      action={setUserRole.bind(null, p.id)}
-                      className="flex gap-2"
-                    >
-                      <select
-                        name="role"
-                        defaultValue={p.role}
-                        className="rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary capitalize"
-                      >
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>
-                            {r}
-                          </option>
-                        ))}
-                      </select>
-                      <Button type="submit" size="sm" variant="outline">
-                        Save
-                      </Button>
-                    </form>
-                  )}
+                    <p className="text-xs text-muted-foreground">
+                      Joined {new Date(p.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
                 </Card>
               ))}
             </div>

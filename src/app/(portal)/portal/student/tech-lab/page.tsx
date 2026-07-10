@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, SectionHeading } from "@/components/portal/ui";
 import TechLabProgress from "@/components/portal/tech-lab-progress";
@@ -30,6 +31,17 @@ export default async function TechLab() {
           From Scratch blocks to Python and data — build the skills behind AI and software engineering.
         </p>
       </div>
+
+      <Link href="/portal/student/challenges" className="block group">
+        <Card interactive className="p-5 flex items-center justify-between gap-4 border-l-4 border-l-primary">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">New · Data challenges</p>
+            <p className="font-bebas text-2xl text-foreground leading-tight">Compete on real datasets</p>
+            <p className="text-sm text-muted-foreground">Like Zindi &amp; Kaggle — download data, predict, and climb a live leaderboard.</p>
+          </div>
+          <span className="shrink-0 text-primary font-bold">Enter →</span>
+        </Card>
+      </Link>
 
       <TechLabProgress initialDone={done} />
 

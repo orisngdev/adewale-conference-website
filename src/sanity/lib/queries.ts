@@ -33,7 +33,7 @@ export const resourcesQuery = defineQuery(`
     && ($subject == "" || subject == $subject)
     && ($level == "" || level == $level)
   ] | order(title asc) {
-    _id, title, "slug": slug.current, type, subject, level,
+    _id, title, "slug": slug.current, type, subject, level, access,
     "hasFile": defined(file.asset), externalUrl,
     "fileUrl": file.asset->url, "fileName": file.asset->originalFilename
   }
@@ -49,7 +49,7 @@ export const resourceSlugsQuery = defineQuery(`
 
 export const resourceBySlugQuery = defineQuery(`
   *[_type == "resource" && slug.current == $slug][0] {
-    _id, title, "slug": slug.current, type, subject, level, body, externalUrl,
+    _id, title, "slug": slug.current, type, subject, level, access, body, externalUrl,
     "fileUrl": file.asset->url, "fileName": file.asset->originalFilename,
     "edition": edition->{ year, theme }
   }

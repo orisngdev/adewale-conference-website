@@ -1,0 +1,70 @@
+# Nightly Postgres backup → S3.
+#
+# Dumps the app data (public schema) AND auth users (auth schema — student/
+# coordinator logins live there) in pg_dump custom format, then uploads to S3
+# with server-side encryption. Retention: set an S3 lifecycle rule on the
+# bucket/prefix (e.g. expire after 30 days) rather than pruning here.
+#
+# Required repo secrets:
+#   SUPABASE_DB_URL        — the **Session pooler** URI (IPv4). The direct
+#                            connection is IPv6-only and fails from GitHub
+#                            runners; the transaction pooler breaks pg_dump.
+#   AWS_ACCESS_KEY_ID      — IAM user with s3:PutObject on the bucket
+#   AWS_SECRET_ACCESS_KEY
+#   AWS_REGION             — e.g. eu-west-1
+#   S3_BACKUP_BUCKET       — bucket name (no s3:// prefix)
+#
+# Restore (see docs/backups.md):
+#   pg_restore --clean --if-exists --no-owner --no-privileges \
+#     -d "$NEW_DB_URL" backup.dump
+
+name: Nightly DB backup
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 02:00 UTC nightly (03:00 WAT)
+  workflow_dispatch: {} # manual run button for testing
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install postgresql-client 17 (PGDG — dumps PG 15+ servers too)
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Dump database (public + auth schemas)
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          test -n "$SUPABASE_DB_URL" || { echo "SUPABASE_DB_URL secret is not set"; exit 1; }
+          /usr/lib/postgresql/17/bin/pg_dump "$SUPABASE_DB_URL" \
+            --format=custom \
+            --schema=public \
+            --schema=auth \
+            --no-owner \
+            --no-privileges \
+            --file=backup.dump
+          ls -lh backup.dump
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload to S3 (SSE encrypted)
+        env:
+          BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
+        run: |
+          STAMP="$(date -u +%Y-%m-%d)"
+          aws s3 cp backup.dump "s3://${BUCKET}/adewale-portal/${STAMP}.dump" --sse AES256
+          echo "Uploaded s3://${BUCKET}/adewale-portal/${STAMP}.dump"
+
+      - name: Verify the dump is restorable (lists archive contents)
+        run: /usr/lib/postgresql/17/bin/pg_restore --list backup.dump | head -20

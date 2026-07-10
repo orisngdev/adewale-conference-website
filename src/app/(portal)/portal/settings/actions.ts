@@ -14,6 +14,8 @@ export async function updateName(formData: FormData) {
     .from("profiles")
     .update({ full_name: name || null })
     .eq("id", user.id);
-  revalidatePath("/portal/settings");
+  revalidatePath("/portal/admin/settings");
+  revalidatePath("/portal/school/settings");
+  revalidatePath("/portal/student/settings");
   revalidatePath("/portal");
 }

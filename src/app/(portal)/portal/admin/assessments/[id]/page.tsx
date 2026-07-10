@@ -31,20 +31,21 @@ export default async function AssessmentEditor({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: assessment } = await supabase
-    .from("assessments")
-    .select("id, title, subject, level, mode, published, max_attempts, time_limit_minutes")
-    .eq("id", id)
-    .maybeSingle();
+  const [{ data: assessment }, { data: aqData }] = await Promise.all([
+    supabase
+      .from("assessments")
+      .select("id, title, subject, level, mode, published, max_attempts, time_limit_minutes")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase
+      .from("assessment_questions")
+      .select("position, question_bank(id, prompt, options, correct_index, explanation)")
+      .eq("assessment_id", id)
+      .order("position", { ascending: true }),
+  ]);
   if (!assessment) notFound();
   const a = assessment as Assessment;
   const isPractice = a.mode === "practice";
-
-  const { data: aqData } = await supabase
-    .from("assessment_questions")
-    .select("position, question_bank(id, prompt, options, correct_index, explanation)")
-    .eq("assessment_id", id)
-    .order("position", { ascending: true });
   const questions = ((aqData ?? []) as unknown as {
     position: number;
     question_bank: Question | null;

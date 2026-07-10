@@ -45,9 +45,53 @@ export default async function SchoolOverview() {
   const latest = editions[0] ?? null;
   const registeredYears = new Set(registrations.map((r) => r.edition_year));
 
+  const entry = registrations[0] ?? null;
+  const accepted =
+    entry && ["verified", "qualified", "finalist"].includes(entry.status);
+
   return (
     <>
       <Notifications />
+
+      {/* Competition-entry status — bold and unmissable. Review happens at close
+          of registration; portal/prep access is never gated by it. */}
+      {entry ? (
+        <Card
+          className={`p-5 border-l-4 ${
+            accepted
+              ? "border-l-green-600"
+              : entry.status === "declined"
+                ? "border-l-red-600"
+                : "border-l-primary"
+          }`}
+        >
+          <p
+            className={`text-[10px] font-bold uppercase tracking-[0.2em] ${
+              accepted
+                ? "text-green-700"
+                : entry.status === "declined"
+                  ? "text-red-700"
+                  : "text-gold-ink"
+            }`}
+          >
+            {entry.edition_year} competition entry
+          </p>
+          <p className="font-bebas text-2xl text-foreground leading-tight mt-1">
+            {accepted
+              ? `You're in the ${entry.edition_year} competition`
+              : entry.status === "declined"
+                ? "Not selected this edition"
+                : "Under review"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+            {accepted
+              ? "Your entry is confirmed — the guidelines are in your email, and your teacher will receive the zonal schedule at least two weeks ahead."
+              : entry.status === "declined"
+                ? "Your school wasn't selected this time. The prep portal stays open all year — practice, Tech Lab, plans and resources — and we'd love to see you register next edition."
+                : "You'll be emailed the full competition guidelines once schools are confirmed at close of registration. Meanwhile, everything here is open — prepare freely."}
+          </p>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
         <StatTile label="Registrations" value={registrations.length} />

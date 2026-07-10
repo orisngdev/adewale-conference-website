@@ -2,10 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  provisionRep,
-  type ProvisionResult,
-} from "@/app/(portal)/portal/school/actions";
+import { provisionRep } from "@/app/(portal)/portal/school/actions";
+import type { ProvisionResult } from "@/lib/provision-student";
 
 export default function ProvisionRepButton({
   name,

@@ -22,10 +22,16 @@ export default async function SchoolPlans() {
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  const { data } = await supabase
-    .from("learning_plans")
-    .select("id, title, subject, level, published")
-    .order("created_at", { ascending: false });
+  // A plan is only visible to students when published AND assigned to someone.
+  // Assignments are fetched unfiltered (RLS scopes them to this school) so both
+  // queries run concurrently.
+  const [{ data }, { data: asgData }] = await Promise.all([
+    supabase
+      .from("learning_plans")
+      .select("id, title, subject, level, published")
+      .order("created_at", { ascending: false }),
+    supabase.from("plan_assignments").select("plan_id"),
+  ]);
   const plans = (data ?? []) as {
     id: string;
     title: string;
@@ -33,11 +39,6 @@ export default async function SchoolPlans() {
     level: string | null;
     published: boolean;
   }[];
-
-  // A plan is only visible to students when published AND assigned to someone.
-  const { data: asgData } = plans.length
-    ? await supabase.from("plan_assignments").select("plan_id").in("plan_id", plans.map((p) => p.id))
-    : { data: [] };
   const assignedIds = new Set(((asgData ?? []) as { plan_id: string }[]).map((a) => a.plan_id));
   const planState = (p: { id: string; published: boolean }) =>
     !p.published ? "draft" : assignedIds.has(p.id) ? "live" : "unassigned";

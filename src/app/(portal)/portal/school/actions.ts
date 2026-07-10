@@ -1,22 +1,12 @@
 "use server";
 
-import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { createAdminClient } from "@/supabase/admin";
+import { provisionStudent, type ProvisionResult } from "@/lib/provision-student";
 import type { Rep } from "@/supabase/types";
-
-function makeAccessCode() {
-  return randomBytes(5)
-    .toString("base64")
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .slice(0, 6)
-    .toUpperCase();
-}
-
-export type ProvisionResult = { code?: string; error?: string };
 
 // Provision a student for the coordinator's school: a Supabase auth user with a
 // synthetic email + the access code as password (so they log in with just the
@@ -33,56 +23,32 @@ async function createStudentRecord(
 
   // The coordinator's school — from any registration they can access (owner OR
   // approved member). Works even when their membership is still pending.
+  // The coordinator's school + the edition they most recently registered for, so
+  // provisioned students carry that edition — edition-scoped plans/exams match on
+  // students.edition_year (untagged students are silently skipped).
   const { data: regs } = await supabase
     .from("registrations")
-    .select("school_id")
+    .select("school_id, edition_year")
     .order("edition_year", { ascending: false });
-  const schoolId = ((regs ?? []) as { school_id: string | null }[]).find(
-    (r) => r.school_id,
-  )?.school_id;
+  const reg = (
+    (regs ?? []) as { school_id: string | null; edition_year: number | null }[]
+  ).find((r) => r.school_id);
+  const schoolId = reg?.school_id;
   if (!schoolId)
     return { error: "Register or link your school first." };
+  const editionYear = reg?.edition_year ?? (Number(process.env.ASC_EDITION_YEAR) || 2026);
 
   const admin = createAdminClient();
   if (!admin) return { error: "Student access isn't configured on the server." };
 
-  // Reuse the existing code for this name (no duplicate accounts).
-  const { data: existing } = await admin
-    .from("students")
-    .select("access_code")
-    .eq("school_id", schoolId)
-    .ilike("name", name)
-    .maybeSingle();
-  if (existing?.access_code) return { code: existing.access_code as string };
-
-  const code = makeAccessCode();
-  const authEmail = `student.${code.toLowerCase()}@students.adewaleconference.local`;
-  const { data: created, error: cErr } = await admin.auth.admin.createUser({
-    email: authEmail,
-    password: code,
-    email_confirm: true,
-    user_metadata: { full_name: name },
-  });
-  if (cErr || !created.user) {
-    console.error("createStudentRecord: createUser failed:", cErr?.message);
-    return { error: `Could not create access: ${cErr?.message ?? "unknown error"}` };
-  }
-
-  const { error: sErr } = await admin.from("students").insert({
-    school_id: schoolId,
+  const result = await provisionStudent(admin, {
+    schoolId,
+    editionYear,
     name,
     level: level || null,
-    access_code: code,
-    auth_email: authEmail,
-    auth_user_id: created.user.id,
   });
-  if (sErr) {
-    console.error("createStudentRecord: students insert failed:", sErr.message);
-    return { error: `Could not save student: ${sErr.message}` };
-  }
-
-  revalidatePath("/portal/school", "layout");
-  return { code };
+  if (result.code) revalidatePath("/portal/school", "layout");
+  return result;
 }
 
 // Provision a rep → returns the code (or error) for inline display (useActionState).
@@ -159,6 +125,14 @@ export async function registerForEdition(
     p_reps: reps,
   });
   if (error) return "Could not register — registration may have closed. Try again.";
+
+  // Auto-provision each representative into a student login + access code, so the
+  // coordinator sees the codes to hand out immediately — no separate step. Best-effort:
+  // if the service key isn't configured this is skipped and reps can be provisioned
+  // manually later from the Students page.
+  for (const rep of reps) {
+    await createStudentRecord(rep.name, rep.level ?? "");
+  }
 
   revalidatePath("/portal/school");
   revalidatePath("/portal");

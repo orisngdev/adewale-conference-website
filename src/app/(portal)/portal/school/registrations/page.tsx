@@ -22,15 +22,14 @@ export default async function SchoolRegistrations() {
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  const { data } = await supabase
-    .from("registrations")
-    .select("id, edition_year, status, reps, schools(name)")
-    .order("edition_year", { ascending: false });
+  const [{ data }, { data: editionData }] = await Promise.all([
+    supabase
+      .from("registrations")
+      .select("id, edition_year, status, reps, schools(name)")
+      .order("edition_year", { ascending: false }),
+    supabase.from("editions").select("year, registration_open"),
+  ]);
   const registrations = (data ?? []) as unknown as RegistrationWithRelations[];
-
-  const { data: editionData } = await supabase
-    .from("editions")
-    .select("year, registration_open");
   const openYears = new Set(
     ((editionData ?? []) as { year: number; registration_open: boolean }[])
       .filter((e) => e.registration_open)

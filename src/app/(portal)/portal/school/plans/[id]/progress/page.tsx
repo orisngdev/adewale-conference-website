@@ -22,10 +22,11 @@ export default async function PlanProgress({ params }: { params: Promise<{ id: s
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  const { data: plan } = await supabase.from("learning_plans").select("id, title").eq("id", id).maybeSingle();
+  const [{ data: plan }, { data }] = await Promise.all([
+    supabase.from("learning_plans").select("id, title").eq("id", id).maybeSingle(),
+    supabase.rpc("get_class_plan_progress", { p_plan_id: id }),
+  ]);
   if (!plan) notFound();
-
-  const { data } = await supabase.rpc("get_class_plan_progress", { p_plan_id: id });
   const rows = (data ?? []) as Row[];
 
   return (

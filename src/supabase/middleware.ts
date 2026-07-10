@@ -6,6 +6,7 @@ const PUBLIC_PORTAL_PATHS = [
   "/portal/login",
   "/portal/student-login",
   "/portal/auth",
+  "/portal/onboard", // self-service activation from the registration email
 ];
 
 export async function updateSession(request: NextRequest) {

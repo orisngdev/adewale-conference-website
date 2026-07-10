@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/portal/ui";
 import { AssessmentNavigator, type NavQuestion } from "./assessment-navigator";
 
-type Phase = "intro" | "running" | "done" | "noattempts" | "error";
+type Phase = "intro" | "running" | "done" | "noattempts" | "locked" | "error";
 
 // Exam adapter: server-authoritative attempt lifecycle + proctoring. Answers are
 // never shipped here (get_assessment strips them); grading happens in the RPC.
@@ -28,6 +28,7 @@ export default function ExamRunner({
   const [deadlineAt, setDeadlineAt] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<{ score: number; total: number } | null>(null);
+  const [lockedReason, setLockedReason] = useState<string | null>(null);
 
   async function start() {
     const { data, error } = await supabase.rpc("start_exam_attempt", {
@@ -41,6 +42,10 @@ export default function ExamRunner({
       time_limit_minutes?: number | null;
     };
     if (d.error === "no_attempts") return setPhase("noattempts");
+    if (d.error === "under_review" || d.error === "not_accepted") {
+      setLockedReason(d.error);
+      return setPhase("locked");
+    }
     if (d.error || !d.attempt_id) return setPhase("error");
     setAttemptId(d.attempt_id);
     if (d.time_limit_minutes && d.started_at) {
@@ -71,6 +76,18 @@ export default function ExamRunner({
   if (phase === "noattempts") {
     return (
       <ResultCard title="No attempts left" body="You've used all your attempts for this exam." />
+    );
+  }
+  if (phase === "locked") {
+    return (
+      <ResultCard
+        title="Exams not open yet"
+        body={
+          lockedReason === "not_accepted"
+            ? "Your school wasn't selected for this edition's competition, so graded exams are closed — practice drills stay open all year."
+            : "Your school's competition entry is still under review. Graded exams unlock once it's accepted — keep practising in the meantime."
+        }
+      />
     );
   }
   if (phase === "error") {

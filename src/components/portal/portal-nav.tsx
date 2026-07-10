@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/supabase/client";
+import InstallAppButton from "@/components/pwa/install-app-button";
 
 export interface PortalTab {
   href: string;
@@ -38,6 +39,7 @@ export default function PortalNav({
             ASC <span className="text-primary">Portal</span>
           </Link>
           <div className="flex items-center gap-4">
+            <InstallAppButton />
             {email && unread > 0 ? (
               <span
                 className="inline-flex items-center gap-1 text-xs font-bold text-primary"

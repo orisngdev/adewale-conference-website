@@ -8,6 +8,8 @@ import { sanityFetch } from "@/sanity/lib/live";
 import { resourceBySlugQuery, resourceSlugsQuery } from "@/sanity/lib/queries";
 import { projectId } from "@/sanity/env";
 import type { Resource } from "@/sanity/types";
+import Link from "next/link";
+import { accessRank, lockHint } from "@/lib/resource-access";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -39,7 +41,14 @@ export default async function ResourcePage({ params }: Params) {
     .filter(Boolean)
     .join(" · ");
 
-  const downloadHref = resource.fileUrl ? `${resource.fileUrl}?dl=` : resource.externalUrl;
+  // Competition-gated resources never expose their file/body on the public
+  // site — schools access them through the portal once their tier unlocks.
+  const gated = accessRank(resource.access) > 0;
+  const downloadHref = gated
+    ? null
+    : resource.fileUrl
+      ? `${resource.fileUrl}?dl=`
+      : resource.externalUrl;
 
   return (
     <>
@@ -61,7 +70,28 @@ export default async function ResourcePage({ params }: Params) {
             </a>
           ) : null}
 
-          {resource.body ? (
+          {gated ? (
+            <div className="border border-dashed border-foreground/20 p-8 mb-10">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
+                Competition material
+              </p>
+              <p className="font-bebas text-2xl text-foreground mt-1">
+                This resource is for participating schools
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {lockHint(resource.access)}. Students and educators of participating
+                schools can access it from the portal.
+              </p>
+              <Link
+                href="/portal"
+                className="inline-block mt-4 text-xs uppercase tracking-[0.2em] text-primary hover:underline"
+              >
+                Go to the portal →
+              </Link>
+            </div>
+          ) : null}
+
+          {!gated && resource.body ? (
             <div className="prose-resource serif-display text-lg text-foreground leading-relaxed space-y-4">
               <PortableText value={resource.body} />
             </div>

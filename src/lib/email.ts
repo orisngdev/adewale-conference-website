@@ -140,11 +140,33 @@ export interface RegistrationEmailData {
   teacherFullName: string;
   teacherEmail: string;
   claimCode?: string | null;
+  verifyToken?: string | null;
 }
 
-// Pre-rendered HTML inviting the coordinator to claim their school in the portal.
-// Empty when no claim code (e.g. the Supabase mirror is off) so the email simply
-// omits the section.
+// Pre-rendered HTML inviting the coordinator to activate their portal account
+// (self-service onboarding — the link is valid for 30 days and replaces the old
+// claim-code flow; the claim code remains as a small different-email fallback).
+// Empty when the Supabase mirror is off, so the email simply omits the section.
+function buildActivateBlock(verifyToken?: string | null, claimCode?: string | null) {
+  if (!verifyToken) return buildClaimBlock(claimCode);
+  const activateUrl = `${SITE_URL}/portal/onboard?token=${encodeURIComponent(verifyToken)}`;
+  const claimFootnote = claimCode
+    ? `<p class="body-font" style="margin:14px 0 0;font-size:12px;line-height:18px;color:#8a8672;">Prefer a different email than this one? Sign up in the portal and use claim code <span style="font-family:monospace;font-weight:bold;color:#4A4E5C;">${escapeHtml(claimCode)}</span> at ${SITE_URL}/portal/claim.</p>`
+    : "";
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:26px 0 0;background:#FBF3E2;border:1px solid #E8A020;">
+  <tr><td style="padding:18px;">
+    <p class="body-font" style="margin:0 0 8px;font-size:11px;font-weight:bold;letter-spacing:0.12em;text-transform:uppercase;color:#8a5e0e;">Activate your school portal</p>
+    <p class="body-font" style="margin:0 0 14px;font-size:15px;line-height:24px;color:#4A4E5C;">Set your password to activate your coordinator account — your students' login codes will be ready inside, along with practice drills, learning plans, and your registration status. This link is valid for 30 days.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#E8A020;">
+      <a href="${activateUrl}" style="display:inline-block;padding:11px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#0A0F1E;text-decoration:none;">Activate your portal account →</a>
+    </td></tr></table>
+    ${claimFootnote}
+  </td></tr>
+</table>`;
+}
+
+// Legacy claim-code block — used only when the mirror produced a claim code but
+// no verify token (e.g. rows created before self-service onboarding).
 function buildClaimBlock(claimCode?: string | null) {
   if (!claimCode) return "";
   const claimUrl = `${SITE_URL}/portal/claim?code=${encodeURIComponent(claimCode)}`;
@@ -168,7 +190,7 @@ export function buildRegistrationEmail(data: RegistrationEmailData) {
     zonalFinalsLocation: data.zonalFinalsLocation,
     principalFullName: data.principalFullName,
     teacherFullName: data.teacherFullName,
-    claimBlock: buildClaimBlock(data.claimCode),
+    claimBlock: buildActivateBlock(data.verifyToken, data.claimCode),
   });
 
   const to: EmailRecipient[] = [
@@ -178,6 +200,101 @@ export function buildRegistrationEmail(data: RegistrationEmailData) {
 
   const notify = getNotifyRecipient();
   return { to, bcc: notify ? [notify] : undefined, subject, html };
+}
+
+/** Heads-up to the conference team when a new registration lands (awareness only). */
+export function buildAdminNewRegistrationEmail(data: {
+  recipients: EmailRecipient[];
+  schoolFullName: string;
+  schoolLGA: string;
+  teacherFullName: string;
+  contactEmail: string;
+  editionYear: number;
+  reps: string;
+}) {
+  const subject = `New registration — ${data.schoolFullName} (${data.editionYear})`;
+  const html = render("admin-new-registration", "New registration", {
+    schoolFullName: data.schoolFullName,
+    schoolLGA: data.schoolLGA,
+    teacherFullName: data.teacherFullName,
+    contactEmail: data.contactEmail,
+    editionYear: String(data.editionYear),
+    reps: data.reps || "—",
+    reviewUrl: `${SITE_URL}/portal/admin/registrations`,
+  });
+  return { to: data.recipients, subject, html };
+}
+
+/** Standalone activation (re)send — same 30-day link block as the confirmation. */
+export function buildActivationEmail(data: {
+  email: string;
+  name?: string | null;
+  schoolFullName: string;
+  verifyToken: string;
+  claimCode?: string | null;
+}) {
+  const subject = `Activate your ASC portal account — ${data.schoolFullName}`;
+  const html = render("activation", "Activate your account", {
+    schoolFullName: data.schoolFullName,
+    activateBlock: buildActivateBlock(data.verifyToken, data.claimCode),
+  });
+  const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
+  return { to, subject, html };
+}
+
+function getGuidelinesUrl() {
+  return process.env.ADEWALE_GUIDELINES_URL || `${SITE_URL}/faq`;
+}
+
+/** Official acceptance + competition guidelines (sent at close-of-registration review). */
+export function buildAcceptedEmail(data: {
+  email: string;
+  name?: string | null;
+  schoolFullName: string;
+  editionYear: number;
+}) {
+  const subject = `You're in — ${data.schoolFullName} is confirmed for ASC ${data.editionYear}`;
+  const html = render("accepted", "Entry confirmed", {
+    schoolFullName: data.schoolFullName,
+    editionYear: String(data.editionYear),
+    guidelinesUrl: getGuidelinesUrl(),
+  });
+  const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
+  return { to, subject, html };
+}
+
+/** Polite not-selected email (portal/prep access stays open). */
+export function buildDeclinedEmail(data: {
+  email: string;
+  name?: string | null;
+  schoolFullName: string;
+  editionYear: number;
+}) {
+  const subject = `Your ASC ${data.editionYear} entry — ${data.schoolFullName}`;
+  const html = render("declined", "Entry update", {
+    schoolFullName: data.schoolFullName,
+    editionYear: String(data.editionYear),
+  });
+  const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
+  return { to, subject, html };
+}
+
+/** Admin team invitation — invitee signs up with this email and the signup
+ * trigger assigns the invited role (no token; email ownership = Supabase auth). */
+export function buildTeamInviteEmail(data: {
+  email: string;
+  role: string;
+  invitedBy: string;
+}) {
+  const roleLabel = data.role === "admin" ? "an administrator" : "a coordinator";
+  const subject = "You're invited to the ASC portal team";
+  const html = render("team-invite", "Team invitation", {
+    invitedBy: data.invitedBy,
+    roleLabel,
+    email: data.email,
+    loginUrl: `${SITE_URL}/portal/login`,
+  });
+  return { to: [{ email: data.email }], subject, html };
 }
 
 export interface SponsorshipEmailData {

@@ -34,7 +34,11 @@ const steps = [
   },
 ];
 
-export default function RegistrationSection() {
+export default function RegistrationSection({
+  registrationOpen = true,
+}: {
+  registrationOpen?: boolean;
+}) {
   return (
     <section id="register" className="bg-[#0A0F1E] py-14 md:py-16 px-6 md:px-12">
       <div className="max-w-7xl mx-auto">
@@ -95,7 +99,24 @@ export default function RegistrationSection() {
             </div>
 
             <div className="flex flex-col gap-4">
-              <RegisterSchoolButton />
+              {registrationOpen ? (
+                <RegisterSchoolButton />
+              ) : (
+                <div className="border border-[#E8A020] bg-[#1C2540] p-6">
+                  <p className="text-xs font-bold tracking-[0.3em] uppercase text-primary mb-2">
+                    Registration closed
+                  </p>
+                  <p className="text-sm md:text-base text-[rgba(250,247,240,0.75)]">
+                    Registration for this edition has closed. Follow our channels —
+                    we&apos;ll announce when the next edition opens. Already
+                    registered? Your school&apos;s portal stays open:{" "}
+                    <a href="/portal" className="text-primary underline underline-offset-2">
+                      sign in here
+                    </a>
+                    .
+                  </p>
+                </div>
+              )}
               <Button variant="secondary" className="py-6" asChild>
                 <a href="mailto:adewaleconference@gmail.com?subject=ASC%202026%20Registration%20Question">
                   Have a question? Email Us

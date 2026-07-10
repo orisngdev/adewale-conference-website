@@ -54,6 +54,14 @@ export default function Navbar() {
           })}
           <li>
             <Link
+              href="/portal"
+              className="text-xs md:text-sm font-bold tracking-widest uppercase border border-[#E8A020] text-primary px-4 py-2 hover:bg-[#E8A020] hover:text-foreground transition-colors duration-200"
+            >
+              Portal
+            </Link>
+          </li>
+          <li>
+            <Link
               href={NAV_CTA.href}
               className="text-xs md:text-sm font-bold tracking-widest uppercase bg-[#E8A020] text-foreground px-5 py-2 hover:bg-[#F5C55A] transition-colors duration-200"
             >

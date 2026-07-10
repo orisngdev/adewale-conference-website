@@ -83,9 +83,7 @@ export default async function SchoolResults() {
   return (
     <>
       <div>
-        <SectionHeading action={{ href: "/results", label: "Hall of Fame →" }}>
-          School results
-        </SectionHeading>
+        <SectionHeading>School results</SectionHeading>
         <PortalResults results={results} />
       </div>
 
