@@ -9,6 +9,7 @@ import {
   buildActivationEmail,
   buildDeclinedEmail,
   buildTeamInviteEmail,
+  buildWaitlistOpenEmail,
   sendEmailSafely,
 } from "@/lib/email";
 import type { RegistrationStatus, UserRole } from "@/supabase/types";
@@ -138,6 +139,64 @@ export async function revokeTeamInvite(inviteId: string) {
   // RLS (team_invites_admin_all) restricts this to admins.
   await supabase.from("team_invites").delete().eq("id", inviteId).is("accepted_at", null);
   revalidatePath("/portal/admin/settings");
+}
+
+// ── Waitlist ─────────────────────────────────────────────────────────────────
+// Emails every un-notified waitlist entry that registration is open, then
+// stamps notified_at so re-running never double-sends. Uses the session client,
+// so RLS (waitlist is admin-only) is the permission gate.
+export async function inviteWaitlist() {
+  const user = await getSessionUser();
+  if (!user) return;
+  const supabase = await createClient();
+
+  const { data: openEdition } = await supabase
+    .from("editions")
+    .select("year")
+    .eq("registration_open", true)
+    .order("year", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let title = "Waitlist invited";
+  let body: string;
+  if (!openEdition) {
+    title = "Waitlist not invited";
+    body = "Open registration for an edition first (Editions page), then invite the waitlist.";
+  } else {
+    const { data: entries } = await supabase
+      .from("waitlist")
+      .select("id, school_name, contact_name, contact_email")
+      .is("notified_at", null);
+    const rows = entries ?? [];
+    for (const entry of rows) {
+      await sendEmailSafely(
+        buildWaitlistOpenEmail({
+          email: entry.contact_email,
+          name: entry.contact_name,
+          schoolName: entry.school_name,
+          editionYear: openEdition.year as number,
+        }),
+      );
+    }
+    if (rows.length > 0) {
+      await supabase
+        .from("waitlist")
+        .update({ notified_at: new Date().toISOString() })
+        .in("id", rows.map((r) => r.id));
+    }
+    body = rows.length
+      ? `${rows.length} school${rows.length === 1 ? "" : "s"} emailed the ASC ${openEdition.year} registration link.`
+      : "Every waitlist entry has already been notified.";
+  }
+
+  await supabase.from("notifications").insert({
+    profile_id: user.id,
+    title,
+    body,
+    link: "/portal/admin/waitlist",
+  });
+  revalidatePath("/portal/admin/waitlist");
 }
 
 // ── Airtable sync ────────────────────────────────────────────────────────────

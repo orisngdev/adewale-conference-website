@@ -1,5 +1,6 @@
 import { Button } from "../../components/ui/button";
 import RegisterSchoolButton from "./register-school-button";
+import WaitlistButton from "./waitlist-button";
 
 const eligibilityItems = [
   "Open to all public and private secondary schools in Ogun State",
@@ -107,14 +108,15 @@ export default function RegistrationSection({
                     Registration closed
                   </p>
                   <p className="text-sm md:text-base text-[rgba(250,247,240,0.75)]">
-                    Registration for this edition has closed. Follow our channels —
-                    we&apos;ll announce when the next edition opens. Already
+                    Registration for this edition has closed. Join the waitlist and
+                    we&apos;ll email you the moment the next edition opens. Already
                     registered? Your school&apos;s portal stays open:{" "}
                     <a href="/portal" className="text-primary underline underline-offset-2">
                       sign in here
                     </a>
                     .
                   </p>
+                  <WaitlistButton />
                 </div>
               )}
               <Button variant="secondary" className="py-6" asChild>

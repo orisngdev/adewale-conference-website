@@ -327,6 +327,37 @@ export function buildTeamInviteEmail(data: {
   return { to: [{ email: data.email }], subject, html };
 }
 
+/** Waitlist confirmation — sent when a school joins while registration is closed. */
+export function buildWaitlistEmail(data: {
+  email: string;
+  name?: string | null;
+  schoolName: string;
+}) {
+  const subject = `You're on the waitlist — ${data.schoolName}`;
+  const html = render("waitlist", "You're on the list", {
+    schoolName: data.schoolName,
+  });
+  const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
+  return { to, subject, html };
+}
+
+/** Registration-open announcement to a waitlisted school (admin-triggered). */
+export function buildWaitlistOpenEmail(data: {
+  email: string;
+  name?: string | null;
+  schoolName: string;
+  editionYear: number;
+}) {
+  const subject = `Registration is open — ASC ${data.editionYear}`;
+  const html = render("waitlist-open", "Registration is open", {
+    schoolName: data.schoolName,
+    editionYear: String(data.editionYear),
+    registerUrl: `${SITE_URL}/#register`,
+  });
+  const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
+  return { to, subject, html };
+}
+
 export interface SponsorshipEmailData {
   org: string;
   contact: string;
