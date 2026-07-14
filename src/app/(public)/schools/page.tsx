@@ -1,43 +1,44 @@
 import { unstable_cache } from "next/cache";
+import { createClient } from "@supabase/supabase-js";
 import PageHeader from "@/components/layout/page-header";
 import EmptyState from "@/components/ui/empty-state";
 import { pageMetadata } from "@/lib/seo";
-import {
-  type AirtableRecord,
-  getSchoolDatabaseTableId,
-  listAirtableRecords,
-  type SchoolRecordFields,
-} from "@/lib/airtable";
+import { isSupabaseConfigured, supabasePublishableKey, supabaseUrl } from "@/supabase/env";
 
 export const metadata = pageMetadata(
   "Participating Schools",
   "Schools competing in the Adewale Students Conference across Ogun State's local governments.",
 );
 
-// Source of truth is Airtable (same table the registration flow writes to).
-// Email is intentionally excluded from the public directory. The Airtable lib
-// fetches with no-store, so wrap the read in a 5-minute cache to keep the page
-// static-ish and avoid hitting Airtable on every request.
+interface SchoolRow {
+  id: string;
+  name: string;
+  lga: string | null;
+  category: string | null;
+  address: string | null;
+}
+
+// Reads the portal's schools table (kept complete by the Airtable sync) with
+// the public anon key. Email is intentionally excluded from the directory.
+// Cached for 5 minutes to keep the page static-ish.
 const loadSchools = unstable_cache(
-  async () => {
-    const params = new URLSearchParams();
-    for (const field of [
-      "School Name",
-      "School Category",
-      "School Local Government Area",
-      "School Address",
-    ]) {
-      params.append("fields[]", field);
-    }
-    params.set("sort[0][field]", "School Name");
-    params.set("sort[0][direction]", "asc");
-    return listAirtableRecords<SchoolRecordFields>(getSchoolDatabaseTableId(), params);
+  async (): Promise<SchoolRow[]> => {
+    if (!isSupabaseConfigured) return [];
+    const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await supabase
+      .from("schools")
+      .select("id, name, lga, category, address")
+      .order("name", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as SchoolRow[];
   },
   ["schools-directory"],
   { revalidate: 300 },
 );
 
-async function getSchools(): Promise<AirtableRecord<SchoolRecordFields>[]> {
+async function getSchools(): Promise<SchoolRow[]> {
   try {
     return await loadSchools();
   } catch (error) {
@@ -46,13 +47,13 @@ async function getSchools(): Promise<AirtableRecord<SchoolRecordFields>[]> {
   }
 }
 
-function groupByLga(records: AirtableRecord<SchoolRecordFields>[]) {
-  const map = new Map<string, AirtableRecord<SchoolRecordFields>[]>();
-  for (const record of records) {
-    if (!record.fields["School Name"]) continue;
-    const lga = record.fields["School Local Government Area"]?.trim() || "Other";
+function groupByLga(schools: SchoolRow[]) {
+  const map = new Map<string, SchoolRow[]>();
+  for (const school of schools) {
+    if (!school.name) continue;
+    const lga = school.lga?.trim() || "Other";
     const list = map.get(lga) ?? [];
-    list.push(record);
+    list.push(school);
     map.set(lga, list);
   }
   return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
@@ -92,17 +93,15 @@ export default async function SchoolsPage() {
                           key={school.id}
                           className="bg-white p-4 flex flex-wrap items-baseline gap-x-3 gap-y-1"
                         >
-                          <span className="font-bold text-foreground">
-                            {school.fields["School Name"]}
-                          </span>
-                          {school.fields["School Category"] ? (
+                          <span className="font-bold text-foreground">{school.name}</span>
+                          {school.category ? (
                             <span className="text-[11px] font-bold tracking-[0.14em] uppercase text-muted-foreground">
-                              {school.fields["School Category"]}
+                              {school.category}
                             </span>
                           ) : null}
-                          {school.fields["School Address"] ? (
+                          {school.address ? (
                             <span className="text-sm text-muted-foreground basis-full">
-                              {school.fields["School Address"]}
+                              {school.address}
                             </span>
                           ) : null}
                         </li>

@@ -19,6 +19,13 @@ export async function approveMembership(memberId: string) {
     .maybeSingle();
   const pid = (m?.profile_id as string | null) ?? null;
   if (pid) {
+    // Approved members are coordinators — same promotion the claim-code flow
+    // does (profiles_admin_update RLS lets admins do this).
+    await supabase
+      .from("profiles")
+      .update({ role: "coordinator" })
+      .eq("id", pid)
+      .eq("role", "student");
     const schoolName =
       (m?.schools as unknown as { name: string | null } | null)?.name ??
       "your school";

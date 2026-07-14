@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Card, PortalBody, PortalHeader } from "@/components/portal/ui";
 import ClaimForm from "@/components/portal/claim-form";
+import RequestAccessForm from "@/components/portal/request-access-form";
 import { pageMetadata } from "@/lib/seo";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
@@ -36,6 +37,17 @@ export default async function ClaimPage({
             status, manage representatives, and download certificates.
           </p>
           <ClaimForm defaultCode={code} />
+        </Card>
+
+        <Card className="p-5 md:p-6 max-w-md">
+          <p className="text-xs font-bold tracking-[0.2em] uppercase text-muted-foreground mb-2">
+            No claim code?
+          </p>
+          <p className="serif-display italic text-muted-foreground mb-4">
+            Find your school and request access — an admin reviews it and
+            you&apos;ll be notified once approved.
+          </p>
+          <RequestAccessForm />
         </Card>
       </PortalBody>
     </>

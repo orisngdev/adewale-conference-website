@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
-import {
-  getSchoolDatabaseTableId,
-  listAirtableRecords,
-  type SchoolRecordFields,
-} from "@/lib/airtable";
+import { createClient } from "@supabase/supabase-js";
 import { LGA_OPTIONS, SCHOOL_CATEGORY_OPTIONS } from "@/lib/forms";
+import { isSupabaseConfigured, supabasePublishableKey, supabaseUrl } from "@/supabase/env";
 
 export const runtime = "nodejs";
 
@@ -28,10 +25,9 @@ function requireOption<T extends readonly string[]>(
   return value as T[number];
 }
 
-function escapeFormulaValue(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-}
-
+// School lookup for the registration form's dropdown. Reads the portal's
+// schools table (kept complete by the Airtable sync) with the public anon
+// key — schools_read RLS is public, and no cookies keeps this cacheable.
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -42,35 +38,29 @@ export async function GET(request: Request) {
       "School Category",
     );
 
-    const params = new URLSearchParams();
-    params.append("fields[]", "School Name");
-    params.append("fields[]", "School Category");
-    params.append("fields[]", "School Local Government Area");
-    params.set(
-      "filterByFormula",
-      `AND({School Local Government Area}="${escapeFormulaValue(lga)}",{School Category}="${escapeFormulaValue(category)}")`,
-    );
-    params.set("sort[0][field]", "School Name");
-    params.set("sort[0][direction]", "asc");
+    if (!isSupabaseConfigured) {
+      return NextResponse.json({ schools: [] });
+    }
 
-    const records = await listAirtableRecords<SchoolRecordFields>(
-      getSchoolDatabaseTableId(),
-      params,
-    );
+    const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await supabase
+      .from("schools")
+      .select("id, name, category, lga")
+      .eq("lga", lga)
+      .eq("category", category)
+      .order("name", { ascending: true });
+    if (error) throw new Error(error.message);
 
-    const schools = records
-      .map((record) => ({
-        name: typeof record.fields["School Name"] === "string"
-          ? record.fields["School Name"].trim()
-          : "",
-        category: typeof record.fields["School Category"] === "string"
-          ? record.fields["School Category"].trim()
-          : "",
-        lga: typeof record.fields["School Local Government Area"] === "string"
-          ? record.fields["School Local Government Area"].trim()
-          : "",
+    const schools = (data ?? [])
+      .map((s) => ({
+        id: s.id as string,
+        name: (s.name ?? "").trim(),
+        category: (s.category ?? "").trim(),
+        lga: (s.lga ?? "").trim(),
       }))
-      .filter((school) => school.name);
+      .filter((s) => s.name);
 
     return NextResponse.json({ schools });
   } catch (error) {
