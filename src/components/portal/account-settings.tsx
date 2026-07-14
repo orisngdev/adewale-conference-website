@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { Card, SectionHeading } from "@/components/portal/ui";
 import ResetForm from "@/components/portal/reset-form";
 import { createClient } from "@/supabase/server";
@@ -38,9 +38,15 @@ export default async function AccountSettings({
             placeholder="Full name"
             className="flex-1 rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary"
           />
-          <Button type="submit" size="sm" variant="outline">
+          <ConfirmSubmitButton
+            size="sm"
+            variant="outline"
+            title="Update your name?"
+            description="This is the name shown across the portal."
+            confirmLabel="Yes, save"
+          >
             Save name
-          </Button>
+          </ConfirmSubmitButton>
         </form>
         <div className="max-w-md">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">

@@ -1,0 +1,49 @@
+# Weekly Supabase backup → S3. The free Supabase tier has no automated
+# backups, so this is the safety net for portal-native data (user accounts,
+# attempts, plans). Registrations/schools are additionally recoverable from
+# Airtable (source of truth) via /api/sync-airtable.
+#
+# Required repository secrets:
+#   BACKUP_DB_URL          — company prod pooler URL (postgresql://…pooler.supabase.com:5432/postgres)
+#   AWS_ACCESS_KEY_ID      — IAM user with s3:PutObject on the bucket
+#   AWS_SECRET_ACCESS_KEY
+#   AWS_REGION             — e.g. eu-west-3
+#   BACKUP_S3_BUCKET       — bucket name (retention is best handled by an S3
+#                            lifecycle rule, e.g. expire objects after 90 days)
+name: Weekly DB backup
+
+on:
+  schedule:
+    - cron: "0 3 * * 0" # Sundays 03:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      # The server runs Postgres 17; the runner's default client is older and
+      # pg_dump refuses version mismatches — install from the PGDG repo.
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /etc/apt/trusted.gpg.d/pgdg.asc > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Dump database (public + auth schemas)
+        env:
+          DB_URL: ${{ secrets.BACKUP_DB_URL }}
+        run: |
+          STAMP=$(date -u +%Y-%m-%dT%H%MZ)
+          /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" \
+            --no-owner --no-privileges \
+            --schema=public --schema=auth \
+            | gzip > "adewale-db-$STAMP.sql.gz"
+          ls -lh adewale-db-*.sql.gz
+
+      - name: Upload to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+        run: aws s3 cp adewale-db-*.sql.gz "s3://${{ secrets.BACKUP_S3_BUCKET }}/supabase/"

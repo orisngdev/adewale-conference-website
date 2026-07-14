@@ -8,7 +8,15 @@ import {
   SectionHeading,
   StatusBadge,
 } from "@/components/portal/ui";
-import { SubmitButton } from "@/components/portal/submit-button";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
+import { ConfirmDecisionButton } from "@/components/portal/confirm-decision-button";
+import { SelectAllCheckbox } from "@/components/portal/select-all-checkbox";
+import {
+  FilterBar,
+  Pagination,
+  filterSelectCls,
+  parsePage,
+} from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import type {
@@ -21,6 +29,7 @@ import {
   issueCertificate,
   resendActivation,
   setRegistrationStatus,
+  syncAirtableRegistrations,
 } from "../actions";
 
 export const metadata = pageMetadata("Registrations", "Review entries and issue certificates.");
@@ -41,27 +50,57 @@ const inputCls =
 // never nests inside the per-row status/certificate forms.
 const BULK_FORM_ID = "bulk-decisions";
 
+const PAGE_SIZE = 20;
+
 export default async function AdminRegistrations({
   searchParams,
 }: {
-  searchParams: Promise<{ edition?: string }>;
+  searchParams: Promise<{ edition?: string; q?: string; status?: string; page?: string }>;
 }) {
-  const { edition } = await searchParams;
+  const { edition, q, status, page: pageParam } = await searchParams;
   const supabase = await createClient();
   const { data: regData } = await supabase
     .from("registrations")
     .select(
       "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, schools(name), profiles(email, full_name), certificates(id, type)",
     )
-    .order("edition_year", { ascending: false });
+    .order("edition_year", { ascending: false })
+    .order("created_at", { ascending: false });
 
   const all = (regData ?? []) as unknown as AdminRegistrationRow[];
   const years = [...new Set(all.map((r) => r.edition_year))].sort((a, b) => b - a);
   // Default to the newest edition — the close-of-registration review works one
   // edition at a time.
   const activeYear = edition === "all" ? null : Number(edition) || years[0] || null;
-  const registrations = activeYear ? all.filter((r) => r.edition_year === activeYear) : all;
-  const underReview = registrations.filter((r) => r.status === "submitted").length;
+  const inEdition = activeYear ? all.filter((r) => r.edition_year === activeYear) : all;
+  const underReview = inEdition.filter((r) => r.status === "submitted").length;
+
+  // Search matches school, contact, coordinator, and reps; status narrows the
+  // review queue. Both apply within the active edition tab.
+  const needle = (q ?? "").trim().toLowerCase();
+  const filtered = inEdition.filter((r) => {
+    if (status && r.status !== status) return false;
+    if (!needle) return true;
+    const haystack = [
+      r.schools?.name,
+      r.contact_email,
+      r.contact_name,
+      r.profiles?.email,
+      r.profiles?.full_name,
+      r.claim_code,
+      ...(Array.isArray(r.reps) ? (r.reps as Rep[]).map((rep) => rep.name) : []),
+    ];
+    return haystack.some((v) => v?.toLowerCase().includes(needle));
+  });
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const page = Math.min(parsePage(pageParam), pageCount);
+  const registrations = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const listParams = {
+    edition,
+    q,
+    status,
+  };
 
   return (
     <>
@@ -72,6 +111,19 @@ export default async function AdminRegistrations({
             <SectionHeading>
               {activeYear ? `${activeYear} edition` : "All editions"}
             </SectionHeading>
+            {/* Airtable stays source of truth — this pulls its rows into the
+                portal (idempotent; result arrives as a notification). */}
+            <form action={syncAirtableRegistrations}>
+              <ConfirmSubmitButton
+                size="sm"
+                variant="outline"
+                title="Sync from Airtable?"
+                description="Pulls every school and registration from Airtable into the portal — new rows are added, edited rows refreshed. No emails are sent. The result arrives as a notification."
+                confirmLabel="Yes, sync"
+              >
+                Sync from Airtable
+              </ConfirmSubmitButton>
+            </form>
           </div>
 
           {years.length > 1 || edition === "all" ? (
@@ -102,27 +154,62 @@ export default async function AdminRegistrations({
             </div>
           ) : null}
 
+          <FilterBar
+            q={q}
+            placeholder="Search school, contact, rep, or claim code…"
+            preserve={{ edition }}
+          >
+            <select name="status" defaultValue={status ?? ""} className={filterSelectCls}>
+              <option value="">Any status</option>
+              {STATUSES.map((s) => (
+                <option key={s} value={s} className="capitalize">
+                  {s}
+                </option>
+              ))}
+            </select>
+          </FilterBar>
+
           {/* Close-of-registration review: tick schools, then approve or decline
               the selection. Approve sends the guidelines email; decline sends a
               polite not-selected email. Neither touches portal access. */}
           <form id={BULK_FORM_ID} action={bulkRegistrationDecision}>
             <Card className="p-4 mb-6 flex flex-wrap items-center gap-3">
+              <SelectAllCheckbox formId={BULK_FORM_ID} targetName="ids" />
               <p className="text-sm text-muted-foreground flex-1 min-w-40">
                 <span className="font-bold text-foreground">{underReview}</span> under
-                review — select schools below, then:
+                review · <span className="font-bold text-foreground">{filtered.length}</span>{" "}
+                match{filtered.length === 1 ? "" : "es"} — select schools below, then:
               </p>
-              <SubmitButton name="decision" value="approve" size="sm" pendingText="Approving…">
+              <ConfirmDecisionButton
+                name="decision"
+                value="approve"
+                size="sm"
+                title="Approve selected schools?"
+                description="Every ticked school is approved and sent the guidelines email."
+                confirmLabel="Yes, approve"
+              >
                 Approve selected
-              </SubmitButton>
-              <SubmitButton name="decision" value="decline" size="sm" variant="outline" pendingText="Declining…">
+              </ConfirmDecisionButton>
+              <ConfirmDecisionButton
+                name="decision"
+                value="decline"
+                size="sm"
+                variant="outline"
+                destructive
+                title="Decline selected schools?"
+                description="Every ticked school is declined and sent a polite not-selected email."
+                confirmLabel="Yes, decline"
+              >
                 Decline selected
-              </SubmitButton>
+              </ConfirmDecisionButton>
             </Card>
           </form>
 
           {registrations.length === 0 ? (
-            <EmptyState title="No registrations yet">
-              Submitted registrations will appear here for review.
+            <EmptyState title={needle || status ? "No matches" : "No registrations yet"}>
+              {needle || status
+                ? "No registrations match the current search or filter."
+                : "Submitted registrations will appear here for review."}
             </EmptyState>
           ) : (
             <div className="space-y-6">
@@ -188,9 +275,15 @@ export default async function AdminRegistrations({
                           </option>
                         ))}
                       </select>
-                      <Button type="submit" size="sm" variant="outline">
+                      <ConfirmSubmitButton
+                        size="sm"
+                        variant="outline"
+                        title="Change registration status?"
+                        description="The school will be emailed if this moves to verified or declined."
+                        confirmLabel="Yes, update"
+                      >
                         Update status
-                      </Button>
+                      </ConfirmSubmitButton>
                     </form>
 
                     {/* Resend / correct-email — only while the coordinator hasn't
@@ -208,9 +301,15 @@ export default async function AdminRegistrations({
                           placeholder="coordinator@school.edu"
                           className={`${inputCls} w-64`}
                         />
-                        <SubmitButton size="sm" variant="outline" pendingText="Sending…">
+                        <ConfirmSubmitButton
+                          size="sm"
+                          variant="outline"
+                          title="Send activation link?"
+                          description="Regenerates the 30-day activation link and emails it to the address entered — the old link stops working."
+                          confirmLabel="Yes, send"
+                        >
                           Send activation link
-                        </SubmitButton>
+                        </ConfirmSubmitButton>
                       </form>
                     ) : null}
                   </div>
@@ -246,6 +345,13 @@ export default async function AdminRegistrations({
               ))}
             </div>
           )}
+
+          <Pagination
+            page={page}
+            pageCount={pageCount}
+            path="/portal/admin/registrations"
+            params={listParams}
+          />
         </div>
       </PortalBody>
     </>

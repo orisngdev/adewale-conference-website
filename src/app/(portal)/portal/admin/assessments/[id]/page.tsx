@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import {
   Card,
   PortalBody,
@@ -69,12 +70,31 @@ export default async function AssessmentEditor({
 
         <div className="flex flex-wrap items-center gap-2">
           <form action={toggleAssessmentPublished.bind(null, a.id, !a.published)}>
-            <Button type="submit" size="sm" variant={a.published ? "outline" : "default"}>
+            <ConfirmSubmitButton
+              size="sm"
+              variant={a.published ? "outline" : "default"}
+              title={a.published ? "Unpublish this assessment?" : "Publish this assessment?"}
+              description={
+                a.published
+                  ? "Students lose access to it immediately."
+                  : "It becomes visible to students right away."
+              }
+              confirmLabel={a.published ? "Yes, unpublish" : "Yes, publish"}
+            >
               {a.published ? "Published — unpublish" : "Publish"}
-            </Button>
+            </ConfirmSubmitButton>
           </form>
           <form action={deleteAssessment.bind(null, a.id)}>
-            <Button type="submit" size="sm" variant="outline">Delete</Button>
+            <ConfirmSubmitButton
+              size="sm"
+              variant="outline"
+              destructive
+              title="Delete this assessment?"
+              description="The assessment and its question list are removed permanently."
+              confirmLabel="Yes, delete"
+            >
+              Delete
+            </ConfirmSubmitButton>
           </form>
         </div>
 
@@ -109,7 +129,15 @@ export default async function AssessmentEditor({
                   className={`mt-1 block ${inputCls} sm:w-64`}
                 />
               </label>
-              <Button type="submit" size="sm" variant="outline">Save</Button>
+              <ConfirmSubmitButton
+                size="sm"
+                variant="outline"
+                title={isPractice ? "Save timing?" : "Save exam settings?"}
+                description="The change applies to students immediately."
+                confirmLabel="Yes, save"
+              >
+                Save
+              </ConfirmSubmitButton>
             </form>
           </Card>
         </div>
@@ -133,12 +161,17 @@ export default async function AssessmentEditor({
                   <div className="flex justify-between gap-4">
                     <p className="font-medium text-foreground">{i + 1}. {q.prompt}</p>
                     <form action={deleteQuestion.bind(null, q.id, a.id)}>
-                      <button
-                        type="submit"
-                        className="text-xs uppercase tracking-wide text-red-600 hover:underline shrink-0"
+                      <ConfirmSubmitButton
+                        size="sm"
+                        variant="ghost"
+                        className="h-auto p-0 text-xs uppercase tracking-wide text-red-600 hover:text-red-600 hover:underline hover:bg-transparent shrink-0"
+                        destructive
+                        title="Delete this question?"
+                        description="It's removed from this assessment permanently."
+                        confirmLabel="Yes, delete"
                       >
                         Delete
-                      </button>
+                      </ConfirmSubmitButton>
                     </form>
                   </div>
                   <ul className="text-sm space-y-1">

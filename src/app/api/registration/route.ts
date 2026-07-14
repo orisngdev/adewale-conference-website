@@ -263,6 +263,38 @@ export async function POST(request: Request) {
         );
       }
       editionYear = openEdition.year as number;
+
+      // One registration per school per edition. Punctuation-insensitive
+      // natural-key match against the portal mirror, which the Airtable sync
+      // keeps complete — so this also catches schools that registered before
+      // the portal existed (and re-tries like "St Marys" vs "St. Mary's").
+      const normalize = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const { data: lgaSchools } = await adminDb
+        .from("schools")
+        .select("id, name")
+        .eq("lga", registration.schoolLGA)
+        .eq("category", registration.schoolCategory);
+      const existingSchool = (lgaSchools ?? []).find(
+        (s) => normalize(s.name ?? "") === normalize(registration.schoolFullName),
+      );
+      if (existingSchool) {
+        const { data: existingReg } = await adminDb
+          .from("registrations")
+          .select("id")
+          .eq("school_id", existingSchool.id)
+          .eq("edition_year", editionYear)
+          .limit(1)
+          .maybeSingle();
+        if (existingReg) {
+          return NextResponse.json(
+            {
+              error: `${registration.schoolFullName} is already registered for the ${editionYear} edition. Check your email for the confirmation — or contact the ASC team if you need to correct your entry.`,
+              code: "duplicate",
+            },
+            { status: 409 },
+          );
+        }
+      }
     }
 
     const writeToAirtable = isAirtableWritesEnabled();

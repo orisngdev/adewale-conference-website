@@ -1,4 +1,6 @@
-import "server-only";
+// No "server-only" marker: this module is also used by the Airtable sync,
+// which runs from standalone scripts. The service-role admin client parameter
+// is the actual server gate — it can't be constructed in the browser.
 import { randomBytes } from "crypto";
 import { createAdminClient } from "@/supabase/admin";
 
@@ -11,7 +13,7 @@ import { createAdminClient } from "@/supabase/admin";
 
 export type AdminClient = NonNullable<ReturnType<typeof createAdminClient>>;
 
-export type ProvisionResult = { code?: string; error?: string };
+export type ProvisionResult = { code?: string; error?: string; created?: boolean };
 
 export function makeAccessCode() {
   return randomBytes(5)
@@ -35,18 +37,19 @@ export async function provisionStudent(
 
   // Returning student (same name, same school): keep the code, re-tag to the
   // current edition so this edition's plans/exams reach them.
-  const { data: existing } = await admin
+  const { data: existingRows } = await admin
     .from("students")
     .select("id, access_code")
     .eq("school_id", schoolId)
     .ilike("name", trimmed)
-    .maybeSingle();
+    .limit(1);
+  const existing = existingRows?.[0];
   if (existing?.access_code) {
     await admin
       .from("students")
       .update({ edition_year: editionYear, level: level || null })
       .eq("id", existing.id);
-    return { code: existing.access_code as string };
+    return { code: existing.access_code as string, created: false };
   }
 
   const code = makeAccessCode();
@@ -76,5 +79,5 @@ export async function provisionStudent(
     return { error: `Could not save student: ${sErr.message}` };
   }
 
-  return { code };
+  return { code, created: true };
 }

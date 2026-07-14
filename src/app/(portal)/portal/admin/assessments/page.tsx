@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import {
   Card,
   PortalBody,
@@ -99,13 +100,19 @@ export default async function AdminAssessments() {
                   </div>
                   <div className="flex gap-2">
                     <form action={toggleAssessmentPublished.bind(null, a.id, !a.published)}>
-                      <Button
-                        type="submit"
+                      <ConfirmSubmitButton
                         size="sm"
                         variant={a.published ? "outline" : "default"}
+                        title={a.published ? "Unpublish this assessment?" : "Publish this assessment?"}
+                        description={
+                          a.published
+                            ? "Students lose access to it immediately."
+                            : "It becomes visible to students right away."
+                        }
+                        confirmLabel={a.published ? "Yes, unpublish" : "Yes, publish"}
                       >
                         {a.published ? "Unpublish" : "Publish"}
-                      </Button>
+                      </ConfirmSubmitButton>
                     </form>
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/portal/admin/assessments/${a.id}`}>Edit</Link>

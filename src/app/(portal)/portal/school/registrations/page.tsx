@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import EmptyState from "@/components/ui/empty-state";
 import { Card, SectionHeading, StatusBadge } from "@/components/portal/ui";
 import { pageMetadata } from "@/lib/seo";
@@ -90,9 +91,15 @@ export default async function SchoolRegistrations() {
                       </div>
                     ))}
                     <div>
-                      <Button type="submit" size="sm" variant="outline">
+                      <ConfirmSubmitButton
+                        size="sm"
+                        variant="outline"
+                        title="Save representative changes?"
+                        description="Updates the names and classes on this registration."
+                        confirmLabel="Yes, save"
+                      >
                         Save changes
-                      </Button>
+                      </ConfirmSubmitButton>
                     </div>
                   </form>
                 ) : (

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import {
   initialRegistrationFormData,
   LGA_OPTIONS,
@@ -26,6 +25,85 @@ interface SchoolOption {
   name: string;
   category: string;
   lga: string;
+}
+
+interface SubmitResult {
+  kind: "success" | "warning" | "error";
+  title: string;
+  message: string;
+}
+
+const RESULT_STYLES: Record<
+  SubmitResult["kind"],
+  { ring: string; icon: string; path: string }
+> = {
+  success: {
+    ring: "border-[#1A7A4A]/50 bg-[#1A7A4A]/15 text-[#4ADE80]",
+    icon: "text-[#4ADE80]",
+    path: "M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+  warning: {
+    ring: "border-[#E8A020]/50 bg-[#E8A020]/15 text-[#E8A020]",
+    icon: "text-[#E8A020]",
+    path: "M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z",
+  },
+  error: {
+    ring: "border-red-500/50 bg-red-500/15 text-red-300",
+    icon: "text-red-400",
+    path: "M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  },
+};
+
+// Full-panel result dialog — replaces the old toasts so the outcome can't be
+// missed (success, duplicate-school warning, or error).
+function ResultDialog({
+  result,
+  onDismiss,
+}: {
+  result: SubmitResult;
+  onDismiss: () => void;
+}) {
+  const style = RESULT_STYLES[result.kind];
+  return (
+    <div
+      className="absolute inset-0 z-10 flex items-center justify-center bg-[#0A0F1E]/95 p-6"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="registration-result-title"
+    >
+      <div className="w-full max-w-md text-center">
+        <div
+          className={`mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full border ${style.ring}`}
+        >
+          <svg
+            className={`h-8 w-8 ${style.icon}`}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d={style.path} />
+          </svg>
+        </div>
+        <h4
+          id="registration-result-title"
+          className="font-bebas text-2xl md:text-3xl text-white tracking-tight"
+        >
+          {result.title}
+        </h4>
+        <p className="mt-3 text-sm leading-relaxed text-white/60">{result.message}</p>
+        <Button
+          type="button"
+          onClick={onDismiss}
+          className="mt-8 w-full rounded-none bg-[#E8A020] py-5 text-xs font-bold uppercase tracking-[0.2em] text-foreground hover:bg-white"
+        >
+          {result.kind === "success" ? "Done" : "Back to form"}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function Field({
@@ -194,7 +272,7 @@ export default function RegistrationModal({
   const [schoolLookupError, setSchoolLookupError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState("");
+  const [result, setResult] = useState<SubmitResult | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -305,7 +383,7 @@ export default function RegistrationModal({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setSubmitError("");
+    setResult(null);
 
     try {
       const response = await fetch("/api/registration", {
@@ -317,34 +395,56 @@ export default function RegistrationModal({
       });
 
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string }
+        | { error?: string; code?: string }
         | null;
 
       if (!response.ok) {
+        // Duplicate school is a warning, not a failure — the school is
+        // already in for this edition.
+        if (response.status === 409 && payload?.code === "duplicate") {
+          setResult({
+            kind: "warning",
+            title: "Already registered",
+            message: payload.error ?? "This school is already registered for this edition.",
+          });
+          return;
+        }
         throw new Error(payload?.error || "Unable to submit registration right now.");
       }
 
       setSubmitted(true);
-      toast.success("Registration submitted successfully.");
-
-      setTimeout(() => {
-        setSubmitted(false);
-        setFormData(initialRegistrationFormData);
-        setSchoolSelection("");
-        setSchoolOptions([]);
-        setSchoolLookupError("");
-        setSubmitError("");
-        onClose();
-      }, 2000);
+      setResult({
+        kind: "success",
+        title: "Registration received",
+        message:
+          "Thank you! A confirmation with your portal activation link has been sent to the principal and coordinating teacher's email.",
+      });
     } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Unable to submit registration right now.";
-      setSubmitError(message);
-      toast.error(message);
+      setResult({
+        kind: "error",
+        title: "Submission failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to submit registration right now.",
+      });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Success dismiss = reset everything and close; warning/error return to the
+  // form with the entered data intact.
+  const handleResultDismiss = () => {
+    const wasSuccess = result?.kind === "success";
+    setResult(null);
+    if (wasSuccess) {
+      setSubmitted(false);
+      setFormData(initialRegistrationFormData);
+      setSchoolSelection("");
+      setSchoolOptions([]);
+      setSchoolLookupError("");
+      onClose();
     }
   };
 
@@ -741,12 +841,9 @@ export default function RegistrationModal({
           </div>
         </form>
 
+        {result ? <ResultDialog result={result} onDismiss={handleResultDismiss} /> : null}
+
         <div className="border-t border-white/10 p-4 md:p-4 shrink-0 bg-[#0A0F1E]">
-          {submitError ? (
-            <p className="mb-4 border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {submitError}
-            </p>
-          ) : null}
           <Button
             type="submit"
             form="registration-form"

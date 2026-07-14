@@ -12,6 +12,7 @@ import {
   sendEmailSafely,
 } from "@/lib/email";
 import type { RegistrationStatus, UserRole } from "@/supabase/types";
+import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 
 const STATUSES: RegistrationStatus[] = [
   "submitted",
@@ -24,9 +25,10 @@ const STATUSES: RegistrationStatus[] = [
 // ── Team invitations ─────────────────────────────────────────────────────────
 // An admin invites a teammate (always as an admin — educators and students have
 // their own onboarding flows). If the email already has a profile we promote it
-// on the spot; otherwise we store a pending invite (consumed by the signup
-// trigger when they create an account with that email) and send the invitation
-// email. No token flow — email ownership is proven by Supabase auth.
+// on the spot; otherwise we store a pending invite with a single-use 256-bit
+// token and email a link to /portal/team-invite where the invitee sets their
+// password — the account is created pre-verified. The signup trigger remains a
+// fallback (signing up normally with the invited email still grants the role).
 export async function inviteTeamMember(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role: UserRole = "admin";
@@ -59,37 +61,76 @@ export async function inviteTeamMember(formData: FormData) {
   }
 
   // RLS (team_invites_admin_all with is_admin()) restricts this to admins.
-  // Refresh any pending invite for the same email (new role, new 30-day window).
+  // Refresh any pending invite for the same email (fresh token, new 30-day window).
   const { data: pending } = await supabase
     .from("team_invites")
     .select("id")
     .ilike("email", email)
     .is("accepted_at", null)
     .maybeSingle();
+  const verifyToken = randomBytes(32).toString("hex");
   const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   const { error } = pending
     ? await supabase
         .from("team_invites")
-        .update({ role, invited_by: user.id, expires_at: expires })
+        .update({ role, invited_by: user.id, expires_at: expires, verify_token: verifyToken })
         .eq("id", pending.id)
     : await supabase
         .from("team_invites")
-        .insert({ email, role, invited_by: user.id, expires_at: expires });
+        .insert({ email, role, invited_by: user.id, expires_at: expires, verify_token: verifyToken });
   if (error) return;
 
-  const { data: me } = await supabase
-    .from("profiles")
-    .select("full_name, email")
-    .eq("id", user.id)
-    .maybeSingle();
   await sendEmailSafely(
     buildTeamInviteEmail({
       email,
-      role,
-      invitedBy: me?.full_name ?? me?.email ?? "The ASC team",
+      invitedBy: await inviterName(user.id),
+      verifyToken,
     }),
   );
   revalidatePath("/portal/admin/settings");
+}
+
+// Regenerates the token (fresh 30-day window) and re-sends the invitation email.
+export async function resendTeamInvite(inviteId: string) {
+  const supabase = await createClient();
+  const user = await getSessionUser();
+  if (!user) return;
+
+  const { data: invite } = await supabase
+    .from("team_invites")
+    .select("id, email")
+    .eq("id", inviteId)
+    .is("accepted_at", null)
+    .maybeSingle();
+  if (!invite) return;
+
+  const verifyToken = randomBytes(32).toString("hex");
+  const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  // RLS (team_invites_admin_all) restricts this to admins.
+  const { error } = await supabase
+    .from("team_invites")
+    .update({ verify_token: verifyToken, expires_at: expires, invited_by: user.id })
+    .eq("id", invite.id);
+  if (error) return;
+
+  await sendEmailSafely(
+    buildTeamInviteEmail({
+      email: invite.email,
+      invitedBy: await inviterName(user.id),
+      verifyToken,
+    }),
+  );
+  revalidatePath("/portal/admin/settings");
+}
+
+async function inviterName(userId: string) {
+  const supabase = await createClient();
+  const { data: me } = await supabase
+    .from("profiles")
+    .select("full_name, email")
+    .eq("id", userId)
+    .maybeSingle();
+  return me?.full_name ?? me?.email ?? "The ASC team";
 }
 
 export async function revokeTeamInvite(inviteId: string) {
@@ -97,6 +138,39 @@ export async function revokeTeamInvite(inviteId: string) {
   // RLS (team_invites_admin_all) restricts this to admins.
   await supabase.from("team_invites").delete().eq("id", inviteId).is("accepted_at", null);
   revalidatePath("/portal/admin/settings");
+}
+
+// ── Airtable sync ────────────────────────────────────────────────────────────
+// Pulls every school + registration from Airtable (source of truth) into the
+// portal mirror — idempotent, sends no email. The sync runs with the service
+// role (RLS can't gate it), so the caller's admin role is checked explicitly.
+// The outcome lands as a notification for the acting admin.
+export async function syncAirtableRegistrations() {
+  const user = await getSessionUser();
+  if (!user) return;
+  const supabase = await createClient();
+  const { data: me } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (me?.role !== "admin") return;
+
+  let title = "Airtable sync complete";
+  let body: string;
+  try {
+    body = describeSyncSummary(await syncAirtableToPortal());
+  } catch (error) {
+    title = "Airtable sync failed";
+    body = error instanceof Error ? error.message : String(error);
+  }
+  await supabase.from("notifications").insert({
+    profile_id: user.id,
+    title,
+    body,
+    link: "/portal/admin/registrations",
+  });
+  revalidatePath("/portal/admin/registrations");
 }
 
 export async function setRegistrationStatus(
@@ -107,12 +181,59 @@ export async function setRegistrationStatus(
   if (!STATUSES.includes(status as RegistrationStatus)) return;
 
   const supabase = await createClient();
+  const { data: before } = await supabase
+    .from("registrations")
+    .select("status, edition_year, contact_email, contact_name, owner_id, schools(name)")
+    .eq("id", registrationId)
+    .maybeSingle();
+
   // RLS (reg_owner_update with is_admin()) restricts this to admins.
-  await supabase
+  const { error } = await supabase
     .from("registrations")
     .update({ status })
     .eq("id", registrationId);
+
+  // Same emails as the bulk review, but only on an actual TRANSITION into
+  // verified/declined — re-saving the same status never re-sends.
+  const notify =
+    !error &&
+    before &&
+    before.status !== status &&
+    (status === "verified" || status === "declined");
+  if (notify) {
+    const schoolName =
+      ((before.schools as unknown as { name: string | null } | null)?.name) ?? "Your school";
+    if (before.contact_email) {
+      await sendEmailSafely(
+        status === "verified"
+          ? buildAcceptedEmail({
+              email: before.contact_email,
+              name: before.contact_name,
+              schoolFullName: schoolName,
+              editionYear: before.edition_year,
+            })
+          : buildDeclinedEmail({
+              email: before.contact_email,
+              name: before.contact_name,
+              schoolFullName: schoolName,
+              editionYear: before.edition_year,
+            }),
+      );
+    }
+    if (before.owner_id) {
+      await supabase.from("notifications").insert({
+        profile_id: before.owner_id,
+        title: status === "verified" ? "Entry confirmed" : "Entry update",
+        body:
+          status === "verified"
+            ? `${schoolName} is confirmed for the ${before.edition_year} competition — guidelines are in your email.`
+            : `${schoolName} wasn't selected for the ${before.edition_year} competition. Portal access stays open.`,
+        link: "/portal/school",
+      });
+    }
+  }
   revalidatePath("/portal/admin");
+  revalidatePath("/portal/admin/registrations");
 }
 
 // ── Close-of-registration review: bulk approve / decline ─────────────────────

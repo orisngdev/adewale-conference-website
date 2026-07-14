@@ -49,3 +49,4 @@ next-env.d.ts
 # Supabase CLI local state — holds the project ref and a pooler URL WITH the DB password.
 supabase/.temp/
 supabase/.branches/
+.env.prod

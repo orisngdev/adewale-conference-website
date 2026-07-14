@@ -62,6 +62,10 @@ export async function sendEmail({ to, subject, html, bcc }: SendEmailInput): Pro
 
   sendgrid.setApiKey(apiKey);
 
+  // Spam filters score HTML-only mail worse — always include a text/plain
+  // alternative derived from the HTML.
+  const text = htmlToText(html);
+
   const replyTo = getReplyTo();
   const mail: MailDataRequired = {
     from: { email: getSenderAddress(), name: getSenderName() },
@@ -73,7 +77,10 @@ export async function sendEmail({ to, subject, html, bcc }: SendEmailInput): Pro
       },
     ],
     subject,
-    content: [{ type: "text/html", value: html }],
+    content: [
+      { type: "text/plain", value: text },
+      { type: "text/html", value: html },
+    ],
   };
 
   const [response] = await sendgrid.send(mail);
@@ -90,6 +97,30 @@ export async function sendEmailSafely(input: SendEmailInput): Promise<void> {
   } catch (error) {
     console.error("Email send failed:", error);
   }
+}
+
+// Rough plain-text rendering of an email body: links become "label (url)",
+// block boundaries become newlines, entities are decoded.
+function htmlToText(html: string) {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<a\b[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => {
+      const cleanLabel = label.replace(/<[^>]+>/g, "").trim();
+      return cleanLabel ? `${cleanLabel} (${href})` : href;
+    })
+    .replace(/<\/(p|div|tr|table|h[1-6]|li)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function escapeHtml(value: string) {
@@ -279,20 +310,19 @@ export function buildDeclinedEmail(data: {
   return { to, subject, html };
 }
 
-/** Admin team invitation — invitee signs up with this email and the signup
- * trigger assigns the invited role (no token; email ownership = Supabase auth). */
+/** Admin team invitation — the emailed single-use token link lands on a
+ * set-password page; the account is created pre-verified (clicking the link
+ * proves address ownership). */
 export function buildTeamInviteEmail(data: {
   email: string;
-  role: string;
   invitedBy: string;
+  verifyToken: string;
 }) {
-  const roleLabel = data.role === "admin" ? "an administrator" : "a coordinator";
   const subject = "You're invited to the ASC portal team";
   const html = render("team-invite", "Team invitation", {
     invitedBy: data.invitedBy,
-    roleLabel,
     email: data.email,
-    loginUrl: `${SITE_URL}/portal/login`,
+    inviteUrl: `${SITE_URL}/portal/team-invite?token=${encodeURIComponent(data.verifyToken)}`,
   });
   return { to: [{ email: data.email }], subject, html };
 }

@@ -1,6 +1,13 @@
-import { Button } from "@/components/ui/button";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { Card, PortalBody, PortalHeader, SectionHeading } from "@/components/portal/ui";
 import BulkImport from "@/components/portal/bulk-import";
+import {
+  FilterBar,
+  Pagination,
+  filterSelectCls,
+  pageBounds,
+  parsePage,
+} from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { SUBJECTS, LEVELS } from "@/lib/assessments";
@@ -10,26 +17,41 @@ import { deleteBankQuestion } from "./actions";
 export const metadata = pageMetadata("Question bank", "Import and manage questions.");
 export const dynamic = "force-dynamic";
 
-const selCls =
-  "rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary";
+const PAGE_SIZE = 30;
 
 export default async function QuestionBank({
   searchParams,
 }: {
-  searchParams: Promise<{ subject?: string; level?: string; mode?: string }>;
+  searchParams: Promise<{
+    subject?: string;
+    level?: string;
+    mode?: string;
+    q?: string;
+    page?: string;
+  }>;
 }) {
   const sp = await searchParams;
+  const page = parsePage(sp.page);
+  const { from, to } = pageBounds(page, PAGE_SIZE);
   const supabase = await createClient();
   let query = supabase
     .from("question_bank")
-    .select("id, prompt, options, correct_index, mode, subject, level, topic, difficulty")
+    .select("id, prompt, options, correct_index, mode, subject, level, topic, difficulty", {
+      count: "exact",
+    })
     .order("created_at", { ascending: false })
-    .limit(300);
+    .range(from, to);
   if (sp.subject) query = query.eq("subject", sp.subject);
   if (sp.level) query = query.eq("level", sp.level);
   if (sp.mode) query = query.eq("mode", sp.mode);
-  const { data } = await query;
+  if (sp.q?.trim()) {
+    const escaped = sp.q.trim().replace(/[%_\\]/g, (m) => `\\${m}`);
+    query = query.or(`prompt.ilike.%${escaped}%,topic.ilike.%${escaped}%`);
+  }
+  const { data, count } = await query;
   const questions = (data ?? []) as Question[];
+  const total = count ?? questions.length;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <>
@@ -41,29 +63,22 @@ export default async function QuestionBank({
         </div>
 
         <div>
-          <SectionHeading>Filter</SectionHeading>
-          <Card className="p-4">
-            <form method="get" className="flex flex-wrap items-center gap-2">
-              <select name="mode" defaultValue={sp.mode ?? ""} className={selCls}>
-                <option value="">Any pool</option>
-                <option value="practice">Practice</option>
-                <option value="exam">Exam</option>
-              </select>
-              <select name="subject" defaultValue={sp.subject ?? ""} className={selCls}>
-                <option value="">Any subject</option>
-                {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-              <select name="level" defaultValue={sp.level ?? ""} className={selCls}>
-                <option value="">Any level</option>
-                {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-              </select>
-              <Button type="submit" size="sm" variant="outline">Apply</Button>
-            </form>
-          </Card>
-        </div>
-
-        <div>
-          <SectionHeading>{questions.length} question{questions.length === 1 ? "" : "s"}{questions.length === 300 ? " (showing first 300)" : ""}</SectionHeading>
+          <SectionHeading>{total} question{total === 1 ? "" : "s"}</SectionHeading>
+          <FilterBar q={sp.q} placeholder="Search prompt or topic…">
+            <select name="mode" defaultValue={sp.mode ?? ""} className={filterSelectCls}>
+              <option value="">Any pool</option>
+              <option value="practice">Practice</option>
+              <option value="exam">Exam</option>
+            </select>
+            <select name="subject" defaultValue={sp.subject ?? ""} className={filterSelectCls}>
+              <option value="">Any subject</option>
+              {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <select name="level" defaultValue={sp.level ?? ""} className={filterSelectCls}>
+              <option value="">Any level</option>
+              {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </FilterBar>
           {questions.length === 0 ? (
             <p className="serif-display italic text-muted-foreground">No questions match — import some above.</p>
           ) : (
@@ -79,12 +94,28 @@ export default async function QuestionBank({
                     </p>
                   </div>
                   <form action={deleteBankQuestion.bind(null, q.id)}>
-                    <button type="submit" className="text-xs uppercase tracking-wide text-red-600 hover:underline shrink-0">Delete</button>
+                    <ConfirmSubmitButton
+                      size="sm"
+                      variant="ghost"
+                      className="h-auto p-0 text-xs uppercase tracking-wide text-red-600 hover:text-red-600 hover:underline hover:bg-transparent shrink-0"
+                      destructive
+                      title="Delete this question?"
+                      description="It's removed from the question bank permanently."
+                      confirmLabel="Yes, delete"
+                    >
+                      Delete
+                    </ConfirmSubmitButton>
                   </form>
                 </Card>
               ))}
             </div>
           )}
+          <Pagination
+            page={page}
+            pageCount={pageCount}
+            path="/portal/admin/question-bank"
+            params={{ q: sp.q, mode: sp.mode, subject: sp.subject, level: sp.level }}
+          />
         </div>
       </PortalBody>
     </>

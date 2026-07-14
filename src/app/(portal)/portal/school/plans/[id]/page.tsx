@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { Card, SectionHeading } from "@/components/portal/ui";
 import { SubmitButton } from "@/components/portal/submit-button";
 import PlanItemForm from "@/components/portal/plan-item-form";
@@ -128,13 +129,32 @@ export default async function PlanBuilder({ params }: { params: Promise<{ id: st
       })()}
       <div className="flex flex-wrap gap-2">
           <form action={togglePlanPublished.bind(null, plan.id, !plan.published)}>
-            <SubmitButton size="sm" variant={plan.published ? "outline" : "default"}>
+            <ConfirmSubmitButton
+              size="sm"
+              variant={plan.published ? "outline" : "default"}
+              title={plan.published ? "Unpublish this plan?" : "Publish this plan?"}
+              description={
+                plan.published
+                  ? "Assigned students lose sight of it immediately."
+                  : "Assigned students can see it right away."
+              }
+              confirmLabel={plan.published ? "Yes, unpublish" : "Yes, publish"}
+            >
               {plan.published ? "Published — unpublish" : "Publish to students"}
-            </SubmitButton>
+            </ConfirmSubmitButton>
           </form>
           <Button asChild size="sm" variant="outline"><Link href={`/portal/school/plans/${plan.id}/progress`}>View progress</Link></Button>
           <form action={deletePlan.bind(null, plan.id)}>
-            <Button type="submit" size="sm" variant="outline">Delete</Button>
+            <ConfirmSubmitButton
+              size="sm"
+              variant="outline"
+              destructive
+              title="Delete this plan?"
+              description="Its modules, items, and assignments are removed permanently."
+              confirmLabel="Yes, delete"
+            >
+              Delete
+            </ConfirmSubmitButton>
           </form>
         </div>
 
@@ -173,7 +193,17 @@ export default async function PlanBuilder({ params }: { params: Promise<{ id: st
                       {a.assignee_type === "level" ? `All ${a.level ?? "levels"}` : studentName(a.student_id)}
                     </span>
                     <form action={removeAssignment.bind(null, a.id, plan.id)}>
-                      <button type="submit" className="text-xs text-red-600 hover:underline">remove</button>
+                      <ConfirmSubmitButton
+                        size="sm"
+                        variant="ghost"
+                        className="h-auto p-0 text-xs font-normal text-red-600 hover:text-red-600 hover:underline hover:bg-transparent"
+                        destructive
+                        title="Remove this assignment?"
+                        description="These students lose access to the plan."
+                        confirmLabel="Yes, remove"
+                      >
+                        remove
+                      </ConfirmSubmitButton>
                     </form>
                   </li>
                 ))}
@@ -194,7 +224,17 @@ export default async function PlanBuilder({ params }: { params: Promise<{ id: st
                     {m.due_date ? <span className="ml-2 text-xs text-muted-foreground">due {m.due_date}</span> : null}
                   </p>
                   <form action={deleteModule.bind(null, m.id, plan.id)}>
-                    <button type="submit" className="text-xs text-red-600 hover:underline">delete module</button>
+                    <ConfirmSubmitButton
+                      size="sm"
+                      variant="ghost"
+                      className="h-auto p-0 text-xs font-normal text-red-600 hover:text-red-600 hover:underline hover:bg-transparent"
+                      destructive
+                      title="Delete this module?"
+                      description="Every item inside it is removed permanently."
+                      confirmLabel="Yes, delete"
+                    >
+                      delete module
+                    </ConfirmSubmitButton>
                   </form>
                 </div>
 
@@ -208,7 +248,17 @@ export default async function PlanBuilder({ params }: { params: Promise<{ id: st
                           {it.required ? "" : <span className="ml-1 text-muted-foreground">(optional)</span>}
                         </span>
                         <form action={deleteItem.bind(null, it.id, plan.id)}>
-                          <button type="submit" className="text-xs text-red-600 hover:underline">×</button>
+                          <ConfirmSubmitButton
+                            size="sm"
+                            variant="ghost"
+                            className="h-auto p-0 text-xs font-normal text-red-600 hover:text-red-600 hover:underline hover:bg-transparent"
+                            destructive
+                            title="Remove this item?"
+                            description="It's removed from the module; student progress on it no longer counts."
+                            confirmLabel="Yes, remove"
+                          >
+                            ×
+                          </ConfirmSubmitButton>
                         </form>
                       </li>
                     ))}

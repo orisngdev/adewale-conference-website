@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { Card, PortalBody, PortalHeader } from "@/components/portal/ui";
 import AccountSettings from "@/components/portal/account-settings";
 import SettingsTabs from "@/components/portal/settings-tabs";
@@ -7,7 +8,7 @@ import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import type { UserRole } from "@/supabase/types";
 import { extractYouTubeId, youTubeEmbedUrl } from "@/lib/youtube";
-import { inviteTeamMember, revokeTeamInvite } from "../actions";
+import { inviteTeamMember, resendTeamInvite, revokeTeamInvite } from "../actions";
 import { setHomeVideo } from "./actions";
 
 export const metadata = pageMetadata("Settings", "Your account, site settings, and team.");
@@ -61,9 +62,15 @@ export default async function AdminSettings() {
           placeholder="https://www.youtube.com/watch?v=…"
           className={inputCls}
         />
-        <Button type="submit" size="sm" variant="outline">
+        <ConfirmSubmitButton
+          size="sm"
+          variant="outline"
+          title="Save home page video?"
+          description="This changes (or removes) the video every portal user sees on their home page."
+          confirmLabel="Yes, save"
+        >
           Save
-        </Button>
+        </ConfirmSubmitButton>
       </form>
       {videoId ? (
         <div className="aspect-video w-full max-w-xl overflow-hidden rounded-md">
@@ -88,10 +95,10 @@ export default async function AdminSettings() {
     <div className="space-y-4">
       <Card className="p-5 space-y-3">
         <p className="text-sm text-muted-foreground">
-          Invite a teammate as an admin. They&apos;ll get an email inviting them to
-          create a portal account with this address — admin access is set up
-          automatically when they sign up. If the email already has an account,
-          it&apos;s upgraded right away.
+          Invite a teammate as an admin. They&apos;ll get an email with a secure
+          link where they set their password — the account is verified
+          automatically and they land straight in the admin console. If the email
+          already has an account, it&apos;s upgraded right away.
         </p>
         <form action={inviteTeamMember} className="flex flex-col sm:flex-row gap-2">
           <input
@@ -123,11 +130,31 @@ export default async function AdminSettings() {
                   {inv.role} · expires {new Date(inv.expires_at).toLocaleDateString()}
                 </p>
               </div>
-              <form action={revokeTeamInvite.bind(null, inv.id)}>
-                <Button type="submit" size="sm" variant="outline">
-                  Revoke
-                </Button>
-              </form>
+              <div className="flex gap-2">
+                <form action={resendTeamInvite.bind(null, inv.id)}>
+                  <ConfirmSubmitButton
+                    size="sm"
+                    variant="outline"
+                    title="Resend this invite?"
+                    description={`A fresh invite link is generated and emailed to ${inv.email}. The old link stops working.`}
+                    confirmLabel="Yes, resend"
+                  >
+                    Resend
+                  </ConfirmSubmitButton>
+                </form>
+                <form action={revokeTeamInvite.bind(null, inv.id)}>
+                  <ConfirmSubmitButton
+                    size="sm"
+                    variant="outline"
+                    destructive
+                    title="Revoke this invite?"
+                    description={`${inv.email} will no longer be able to join with this link.`}
+                    confirmLabel="Yes, revoke"
+                  >
+                    Revoke
+                  </ConfirmSubmitButton>
+                </form>
+              </div>
             </Card>
           ))}
         </div>

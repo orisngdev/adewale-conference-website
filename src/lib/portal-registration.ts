@@ -65,7 +65,6 @@ export async function mirrorRegistrationToSupabase(
     .eq("category", input.schoolCategory)
     .maybeSingle();
 
-  let newSchool = false;
   if (existing) {
     schoolId = existing.id;
     if (airtableSchoolId) {
@@ -87,7 +86,6 @@ export async function mirrorRegistrationToSupabase(
       .select("id")
       .single();
     schoolId = created?.id ?? null;
-    newSchool = true;
   }
 
   const reps = [
@@ -127,10 +125,12 @@ export async function mirrorRegistrationToSupabase(
   }
 
   // Stage school memberships by email — the coordinating teacher AND the
-  // principal are both educators for the school: approved if this is a brand-new
-  // school (founding members), otherwise pending an admin's approval. Access
-  // activates when either email signs in (my_school_ids matches by email, and
-  // handle_new_user grants the coordinator role on a membership match).
+  // principal are both educators for the school. Registration contacts are
+  // trusted by definition (they submitted the entry), so both are approved
+  // outright; the manual admin-approval queue is only for outsiders asking to
+  // join a school they didn't register. Access activates when either email
+  // signs in (my_school_ids matches by email, and handle_new_user grants the
+  // coordinator role on a membership match).
   const teacherLower = contactEmail?.toLowerCase() ?? null;
   const principalLower = input.principalEmail?.toLowerCase() || null;
   const members = [
@@ -146,7 +146,7 @@ export async function mirrorRegistrationToSupabase(
         school_id: schoolId,
         email: m.email,
         full_name: m.full_name,
-        status: newSchool ? "approved" : "pending",
+        status: "approved",
       })),
       { onConflict: "school_id,email", ignoreDuplicates: true },
     );

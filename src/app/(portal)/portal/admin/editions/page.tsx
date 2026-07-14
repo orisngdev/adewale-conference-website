@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import {
   Card,
   PortalBody,
@@ -94,13 +94,23 @@ export default async function AdminEditions() {
                     {current.registration_open ? "Registration open" : "Registration closed"}
                   </span>
                   <form action={toggleRegistration.bind(null, current.year, !current.registration_open)}>
-                    <SubmitButton
+                    <ConfirmSubmitButton
                       size="sm"
                       variant={current.registration_open ? "outline" : "default"}
-                      pendingText="Saving…"
+                      title={
+                        current.registration_open
+                          ? `Close ${current.year} registration?`
+                          : `Open ${current.year} registration?`
+                      }
+                      description={
+                        current.registration_open
+                          ? "New registrations are rejected everywhere, public form included."
+                          : "The public form and in-portal registration start accepting schools."
+                      }
+                      confirmLabel={current.registration_open ? "Yes, close" : "Yes, open"}
                     >
                       {current.registration_open ? "Close registration" : "Open registration"}
-                    </SubmitButton>
+                    </ConfirmSubmitButton>
                   </form>
                 </div>
               </div>
@@ -130,9 +140,14 @@ export default async function AdminEditions() {
                 <div className="flex flex-wrap items-center gap-2">
                   {nextStage(current.stages, current.current_stage) ? (
                     <form action={advanceEditionStage.bind(null, current.year)}>
-                      <SubmitButton size="sm" pendingText="Advancing…">
+                      <ConfirmSubmitButton
+                        size="sm"
+                        title={`Advance to ${nextStage(current.stages, current.current_stage)}?`}
+                        description="Every registered school and student is notified in the portal."
+                        confirmLabel="Yes, advance"
+                      >
                         Advance to {nextStage(current.stages, current.current_stage)} →
-                      </SubmitButton>
+                      </ConfirmSubmitButton>
                     </form>
                   ) : (
                     <span className="text-sm text-muted-foreground">Final stage reached.</span>
@@ -147,7 +162,15 @@ export default async function AdminEditions() {
                           <option key={s} value={s}>{s}</option>
                         ))}
                       </select>
-                      <Button type="submit" size="sm" variant="outline">Set stage</Button>
+                      <ConfirmSubmitButton
+                        size="sm"
+                        variant="outline"
+                        title="Jump to this stage?"
+                        description="Changing the stage notifies every registered school and student in the portal."
+                        confirmLabel="Yes, set stage"
+                      >
+                        Set stage
+                      </ConfirmSubmitButton>
                     </form>
                   </details>
                 </div>
@@ -185,9 +208,23 @@ export default async function AdminEditions() {
                     </summary>
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <form action={toggleRegistration.bind(null, e.year, !e.registration_open)}>
-                        <Button type="submit" size="sm" variant="outline">
+                        <ConfirmSubmitButton
+                          size="sm"
+                          variant="outline"
+                          title={
+                            e.registration_open
+                              ? `Close ${e.year} registration?`
+                              : `Reopen ${e.year} registration?`
+                          }
+                          description={
+                            e.registration_open
+                              ? "New registrations for this past edition are rejected everywhere."
+                              : "Schools can register for this past edition again, public form included."
+                          }
+                          confirmLabel={e.registration_open ? "Yes, close" : "Yes, reopen"}
+                        >
                           {e.registration_open ? "Close registration" : "Reopen registration"}
-                        </Button>
+                        </ConfirmSubmitButton>
                       </form>
                       <form action={setEditionStage.bind(null, e.year)} className="flex gap-2">
                         <select name="stage" defaultValue={e.current_stage} className={inputCls}>
@@ -195,7 +232,15 @@ export default async function AdminEditions() {
                             <option key={st} value={st}>{st}</option>
                           ))}
                         </select>
-                        <Button type="submit" size="sm" variant="outline">Set stage</Button>
+                        <ConfirmSubmitButton
+                          size="sm"
+                          variant="outline"
+                          title={`Change the ${e.year} stage?`}
+                          description="Changing the stage notifies every registered school and student in the portal."
+                          confirmLabel="Yes, set stage"
+                        >
+                          Set stage
+                        </ConfirmSubmitButton>
                       </form>
                     </div>
                   </details>
