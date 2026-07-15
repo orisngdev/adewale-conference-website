@@ -1,0 +1,23 @@
+# Scheduled Airtable → portal sync. Doubles as the free-tier keep-alive:
+# every run hits Supabase through the live site, resetting the 7-day
+# inactivity pause clock. Same idempotent sync as the admin button.
+#
+# Required repository secret:
+#   SYNC_SECRET — must match the SYNC_SECRET env var on the Netlify site.
+name: Airtable sync
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # every 6 hours
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger sync
+        run: |
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer ${{ secrets.SYNC_SECRET }}" \
+            --max-time 600 \
+            https://adewale-conf.netlify.app/api/sync-airtable
