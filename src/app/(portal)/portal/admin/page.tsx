@@ -16,7 +16,7 @@ const SECTIONS = [
   { href: "/portal/admin/participants", label: "Participants", desc: "Airtable registrations" },
 ];
 
-const STATUSES = ["submitted", "verified", "qualified", "finalist"] as const;
+const STATUSES = ["submitted", "verified", "declined"] as const;
 
 type RegRow = { status: string; edition_year: number; certificates: { id: string }[] };
 type AttemptRow = { score: number; total: number; violations: number };

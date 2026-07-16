@@ -1,10 +1,11 @@
 export type UserRole = "student" | "coordinator" | "admin";
 
+// Registration status records ONLY the acceptance decision. Competition
+// progress (past-zonals, finalist) lives in the stage-results tables and, for
+// resource unlocks, is derived from stage advancement — see resource-access.ts.
 export type RegistrationStatus =
   | "submitted"
   | "verified"
-  | "qualified"
-  | "finalist"
   | "declined";
 
 // How a school fared at a single competition stage (the edition moves everyone
@@ -14,6 +15,16 @@ export type StageOutcome = "pending" | "advanced" | "eliminated";
 export interface StageResult {
   id: string;
   registration_id: string;
+  stage: string;
+  outcome: StageOutcome;
+  score: number | null;
+  note: string | null;
+}
+
+// The per-STUDENT mirror of StageResult — how one rep fared at a stage.
+export interface StudentStageResult {
+  id: string;
+  student_id: string;
   stage: string;
   outcome: StageOutcome;
   score: number | null;

@@ -13,6 +13,7 @@ import type {
   Rep,
   RegistrationWithRelations,
   StageResult,
+  StudentStageResult,
 } from "@/supabase/types";
 
 export const metadata = pageMetadata("School dashboard", "Your school overview.");
@@ -28,7 +29,7 @@ export default async function SchoolOverview() {
     await Promise.all([
       supabase
         .from("registrations")
-        .select("id, edition_year, status, reps, schools(name)")
+        .select("id, edition_year, status, reps, school_id, schools(name)")
         .order("edition_year", { ascending: false }),
       supabase.from("school_members").select("status, schools(name)"),
       supabase
@@ -60,8 +61,7 @@ export default async function SchoolOverview() {
   const registeredYears = new Set(registrations.map((r) => r.edition_year));
 
   const entry = registrations[0] ?? null;
-  const accepted =
-    entry && ["verified", "qualified", "finalist"].includes(entry.status);
+  const accepted = entry?.status === "verified";
 
   // Pick the guideline for this school's edition, else one with no edition set,
   // else the newest. Downloaded through the tier-gated resource route.
@@ -85,6 +85,44 @@ export default async function SchoolOverview() {
   const entryEdition = entry
     ? editions.find((e) => e.year === entry.edition_year) ?? latest
     : null;
+
+  // Each rep's individual progress + certificates (coordinator view). The roster
+  // is materialised at approval; empty until then or until "Sync roster".
+  const schoolId = (entry as { school_id?: string | null } | null)?.school_id ?? null;
+  let roster: { id: string; name: string; level: string | null }[] = [];
+  const repResultsById: Record<string, StudentStageResult[]> = {};
+  const repCertsById: Record<string, { id: string; type: string | null; asset_url: string | null }[]> = {};
+  if (schoolId) {
+    const { data: studentRows } = await supabase
+      .from("students")
+      .select("id, name, level")
+      .eq("school_id", schoolId)
+      .is("deactivated_at", null)
+      .order("name");
+    roster = (studentRows ?? []) as { id: string; name: string; level: string | null }[];
+    const ids = roster.map((s) => s.id);
+    if (ids.length) {
+      const [{ data: ssr }, { data: certs }] = await Promise.all([
+        supabase
+          .from("student_stage_results")
+          .select("id, student_id, stage, outcome, score, note")
+          .in("student_id", ids),
+        supabase.from("certificates").select("id, student_id, type, asset_url").in("student_id", ids),
+      ]);
+      for (const r of (ssr ?? []) as StudentStageResult[]) (repResultsById[r.student_id] ??= []).push(r);
+      for (const c of (certs ?? []) as {
+        id: string;
+        student_id: string | null;
+        type: string | null;
+        asset_url: string | null;
+      }[]) {
+        if (c.student_id) (repCertsById[c.student_id] ??= []).push(c);
+      }
+    }
+  }
+  const rosterHasProgress = roster.some(
+    (s) => (repResultsById[s.id]?.length ?? 0) > 0 || (repCertsById[s.id]?.length ?? 0) > 0,
+  );
 
   return (
     <>
@@ -151,6 +189,49 @@ export default async function SchoolOverview() {
         <StatTile label="Representatives" value={totalReps} />
         <StatTile label="Latest status" value={registrations[0]?.status ?? "—"} />
       </div>
+
+      {roster.length > 0 && (accepted || rosterHasProgress) ? (
+        <div>
+          <SectionHeading>Representatives&apos; progress</SectionHeading>
+          <div className="space-y-3">
+            {roster.map((s) => {
+              const results = repResultsById[s.id] ?? [];
+              const certs = (repCertsById[s.id] ?? []).filter((c) => c.asset_url);
+              return (
+                <Card key={s.id} className="p-4 space-y-2">
+                  <span className="font-medium text-foreground">
+                    {s.name}
+                    {s.level ? <span className="text-muted-foreground"> · {s.level}</span> : null}
+                  </span>
+                  {results.length ? (
+                    <StageResults
+                      stages={entryEdition?.stages ?? latest?.stages ?? []}
+                      results={results as unknown as StageResult[]}
+                    />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">No stage results yet.</p>
+                  )}
+                  {certs.length ? (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {certs.map((c) => (
+                        <a
+                          key={c.id}
+                          href={c.asset_url ?? "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 border border-foreground/15 px-2.5 py-1 text-xs hover:bg-foreground/5"
+                        >
+                          {c.type ?? "Certificate"} ↓
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
 
       {pendingMemberships.length > 0 ? (
         <Card className="p-5 md:p-6 border-l-4 border-l-primary">

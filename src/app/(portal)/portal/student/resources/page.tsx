@@ -8,7 +8,7 @@ import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
 import { SUBJECTS, LEVELS } from "@/lib/assessments";
-import { canAccess, lockHint } from "@/lib/resource-access";
+import { canAccess, tierRank, lockHint } from "@/lib/resource-access";
 import {
   RESOURCE_COLUMNS,
   RESOURCE_TYPES,
@@ -58,12 +58,19 @@ export default async function StudentResources({
     query,
     supabase.rpc("get_my_school"),
   ]);
-  const status =
-    ((schoolData as { registration?: { status?: string } | null } | null)?.registration
-      ?.status as string | undefined) ?? null;
+  // Unlock tier is derived from competition progress (stage advancement), not a
+  // status flag — see tierRank.
+  const registration =
+    (schoolData as {
+      registration?: {
+        status?: string;
+        stage_results?: { stage: string; outcome: string | null }[];
+      } | null;
+    } | null)?.registration ?? null;
+  const tier = tierRank(registration?.status ?? null, registration?.stage_results);
 
   const resources = ((data ?? []) as unknown as ResourceRow[]).map(mapResource);
-  const withLock = (r: (typeof resources)[number]) => ({ r, locked: !canAccess(r.access, status) });
+  const withLock = (r: (typeof resources)[number]) => ({ r, locked: !canAccess(r.access, tier) });
   // Grouped by how you get them — downloadable files vs. links — not by type.
   // The type (guidelines, past questions, study guide…) shows on each card.
   const downloads = resources

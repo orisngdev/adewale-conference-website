@@ -25,7 +25,9 @@ export const dynamic = "force-dynamic";
 const inputCls =
   "rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
 
-const ACCEPTED: RegistrationStatus[] = ["verified", "qualified", "finalist"];
+// Accepted into the competition — a single decision now; progress lives in the
+// stage-results tables, not the status.
+const ACCEPTED: RegistrationStatus[] = ["verified"];
 
 export default async function AdminEditions() {
   const supabase = await createClient();

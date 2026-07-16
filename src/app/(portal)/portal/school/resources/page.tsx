@@ -7,7 +7,7 @@ import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
 import { SUBJECTS, LEVELS } from "@/lib/assessments";
-import { canAccess, lockHint } from "@/lib/resource-access";
+import { canAccess, tierRank, lockHint } from "@/lib/resource-access";
 import {
   RESOURCE_COLUMNS,
   RESOURCE_TYPES,
@@ -48,15 +48,21 @@ export default async function SchoolResources({
     query,
     supabase
       .from("registrations")
-      .select("status")
+      .select("status, registration_stage_results(stage, outcome)")
       .order("edition_year", { ascending: false })
       .limit(1)
       .maybeSingle(),
   ]);
-  const status = (regData?.status as string | undefined) ?? null;
+  // Unlock tier derives from how far the school advanced, not the status flag.
+  const tier = tierRank(
+    (regData?.status as string | undefined) ?? null,
+    (regData?.registration_stage_results as
+      | { stage: string; outcome: string | null }[]
+      | undefined) ?? null,
+  );
 
   const resources = ((data ?? []) as unknown as ResourceRow[]).map(mapResource);
-  const withLock = (r: (typeof resources)[number]) => ({ r, locked: !canAccess(r.access, status) });
+  const withLock = (r: (typeof resources)[number]) => ({ r, locked: !canAccess(r.access, tier) });
   // Grouped by delivery (downloadable vs link), not by type — the type shows on
   // each card, so guidelines aren't mislabelled as study packs.
   const downloads = resources

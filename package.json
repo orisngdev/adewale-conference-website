@@ -9,6 +9,7 @@
     "lint": "next lint",
     "db:link": "supabase link --project-ref \"$SUPABASE_PROJECT_REF\"",
     "db:push": "npm run db:link && supabase db push",
+    "db:push:prod": "bash scripts/db-push-prod.sh",
     "db:seed": "bash scripts/db-seed.sh",
     "db:seed:accounts": "node scripts/seed-test-accounts.mjs",
     "db:setup": "npm run db:link && npm run db:push && npm run db:seed",

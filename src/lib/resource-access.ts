@@ -1,9 +1,10 @@
 // Tiered resource access: content unlocks as a school progresses through the
-// competition. The ladder mirrors registrations.status — verified (accepted) →
-// qualified (past zonals) → finalist — so releasing material "stage by stage" is
-// just admin promoting schools. A resource's `access` (Sanity) names the minimum
-// tier; anyone below it sees the item listed but locked, with the file withheld
-// SERVER-side (the URL never reaches their browser).
+// competition. The ladder — accepted → qualified (past zonals) → finalist — is
+// now DERIVED from stage advancement rather than a status flag, so one
+// advancement action on the participant hub drives both progress and unlocks.
+// A resource's `access` names the minimum tier; anyone below it sees the item
+// listed but locked, with the file withheld SERVER-side (the URL never reaches
+// their browser).
 
 export type ResourceAccess = "public" | "accepted" | "qualified" | "finalist";
 
@@ -19,23 +20,27 @@ export function accessRank(access?: string | null): number {
   return ACCESS_RANK[(access ?? "public") as ResourceAccess] ?? 0;
 }
 
-/** Tier a school's registration status grants. */
-export function statusRank(status?: string | null): number {
-  switch (status) {
-    case "verified":
-      return 1;
-    case "qualified":
-      return 2;
-    case "finalist":
-      return 3;
-    default:
-      // submitted / declined / no registration → public tier only.
-      return 0;
-  }
+/**
+ * Tier a school has unlocked, derived from competition progress: an accepted
+ * (verified) school gets tier 1, and each distinct stage it's marked 'advanced'
+ * at lifts it one tier — past zonals → qualified, a further advance → finalist —
+ * capped at finalist. A school not yet verified (submitted / declined / no
+ * registration) sees the public tier only.
+ */
+export function tierRank(
+  status: string | null | undefined,
+  stageResults?: { stage: string; outcome: string | null }[] | null,
+): number {
+  if (status !== "verified") return 0;
+  const advanced = new Set(
+    (stageResults ?? []).filter((s) => s?.outcome === "advanced").map((s) => s.stage),
+  ).size;
+  return Math.min(3, 1 + advanced);
 }
 
-export function canAccess(access: string | null | undefined, status: string | null | undefined) {
-  return accessRank(access) <= statusRank(status);
+/** Whether a school at the given unlocked tier can open a resource. */
+export function canAccess(access: string | null | undefined, tier: number) {
+  return accessRank(access) <= tier;
 }
 
 export const ACCESS_LABEL: Record<Exclude<ResourceAccess, "public">, string> = {

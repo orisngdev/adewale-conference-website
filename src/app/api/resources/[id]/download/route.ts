@@ -3,7 +3,7 @@ import { createClient } from "@/supabase/server";
 import { createAdminClient } from "@/supabase/admin";
 import { getSessionUser, getUserRole } from "@/supabase/auth";
 import { resourceStorage } from "@/lib/storage";
-import { canAccess } from "@/lib/resource-access";
+import { canAccess, tierRank } from "@/lib/resource-access";
 
 export const runtime = "nodejs";
 
@@ -46,10 +46,16 @@ export async function GET(
     if ((await getUserRole()) !== "admin") {
       const supabase = await createClient();
       const { data: school } = await supabase.rpc("get_my_school");
-      const status =
-        (school as { registration?: { status?: string } | null } | null)?.registration
-          ?.status ?? null;
-      if (!canAccess(resource.access as string, status)) {
+      const reg =
+        (school as {
+          registration?: {
+            status?: string;
+            stage_results?: { stage: string; outcome: string | null }[];
+          } | null;
+        } | null)?.registration ?? null;
+      // Tier is derived from stage advancement, not the status flag.
+      const tier = tierRank(reg?.status ?? null, reg?.stage_results);
+      if (!canAccess(resource.access as string, tier)) {
         return NextResponse.json({ error: "Locked" }, { status: 403 });
       }
     }

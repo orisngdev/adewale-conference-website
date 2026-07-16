@@ -3,12 +3,13 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, SectionHeading, StatTile, StatusBadge } from "@/components/portal/ui";
 import { EditionStages, nextStage } from "@/components/portal/edition-stages";
+import { StageResults } from "@/components/portal/stage-results";
 import LinkAccountForm from "@/components/portal/link-account-form";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
-import type { Edition, RegistrationWithRelations } from "@/supabase/types";
+import type { Edition, RegistrationWithRelations, StageResult, StudentStageResult } from "@/supabase/types";
 
 export const metadata = pageMetadata("Student dashboard", "Your conference overview.");
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export default async function StudentOverview() {
       .select("year, title, registration_open, stages, current_stage")
       .order("year", { ascending: false }),
     // Is this account already a provisioned student? If so, no need to link.
-    supabase.from("students").select("id").eq("auth_user_id", user.id).maybeSingle(),
+    supabase.from("students").select("id, school_id").eq("auth_user_id", user.id).maybeSingle(),
     // Recent practice + exam results for this student.
     supabase
       .from("assessment_attempts")
@@ -47,11 +48,32 @@ export default async function StudentOverview() {
       .limit(6),
   ]);
   const registrations = (regData ?? []) as unknown as RegistrationWithRelations[];
-  const certificates = registrations
-    .flatMap((r) => r.certificates ?? [])
-    .filter((c) => c.asset_url);
   const latest = ((editionData ?? []) as Edition[])[0] ?? null;
-  const isLinked = !!linkedStudent;
+  const linked = (linkedStudent as { id: string; school_id: string } | null) ?? null;
+  const isLinked = !!linked;
+
+  // This student's own competition progress + personally-issued certificates
+  // (provisioned students aren't registration owners, so their certs come from
+  // certificates.student_id, not the owner-registration join above).
+  let stageResults: StudentStageResult[] = [];
+  let personalCerts: { id: string; type: string | null; asset_url: string | null }[] = [];
+  if (linked) {
+    const [{ data: ssr }, { data: pc }] = await Promise.all([
+      supabase
+        .from("student_stage_results")
+        .select("id, student_id, stage, outcome, score, note")
+        .eq("student_id", linked.id),
+      supabase.from("certificates").select("id, type, asset_url").eq("student_id", linked.id),
+    ]);
+    stageResults = (ssr ?? []) as StudentStageResult[];
+    personalCerts = (pc ?? []) as { id: string; type: string | null; asset_url: string | null }[];
+  }
+
+  // School-wide certs (via owned registrations) + this student's personal certs.
+  const certificates = [
+    ...registrations.flatMap((r) => r.certificates ?? []),
+    ...personalCerts,
+  ].filter((c) => c.asset_url);
   const attempts = (attemptData ?? []) as unknown as {
     id: string;
     score: number;
@@ -140,6 +162,17 @@ export default async function StudentOverview() {
                 <> · Next: {nextStage(latest.stages, latest.current_stage)}</>
               ) : null}
             </p>
+            {stageResults.length > 0 ? (
+              <div className="border-t border-foreground/5 pt-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">
+                  Your stage results
+                </p>
+                <StageResults
+                  stages={latest.stages}
+                  results={stageResults as unknown as StageResult[]}
+                />
+              </div>
+            ) : null}
           </Card>
         </div>
       ) : null}

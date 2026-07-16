@@ -8,11 +8,9 @@ import {
   StatusBadge,
 } from "@/components/portal/ui";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
-import { SubmitButton } from "@/components/portal/submit-button";
 import { ConfirmDecisionButton } from "@/components/portal/confirm-decision-button";
 import { SelectAllCheckbox } from "@/components/portal/select-all-checkbox";
 import { SelectAllMatching } from "@/components/portal/select-all-matching";
-import { StageResults } from "@/components/portal/stage-results";
 import {
   FilterBar,
   Pagination,
@@ -21,37 +19,26 @@ import {
 } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
-import type {
-  AdminRegistrationRow,
-  Edition,
-  RegistrationStatus,
-  Rep,
-  StageResult,
-} from "@/supabase/types";
+import type { AdminRegistrationRow, RegistrationStatus, Rep } from "@/supabase/types";
 import {
   bulkRegistrationDecision,
-  issueCertificate,
   resendActivation,
   setRegistrationStatus,
   syncAirtableRegistrations,
 } from "../actions";
 
-export const metadata = pageMetadata("Registrations", "Review entries and issue certificates.");
+export const metadata = pageMetadata("Registrations", "Review and accept or decline entries.");
 export const dynamic = "force-dynamic";
 
-const STATUSES: RegistrationStatus[] = [
-  "submitted",
-  "verified",
-  "qualified",
-  "finalist",
-  "declined",
-];
+// Registration is now just the acceptance decision. Stage advancement and
+// certificates live on the Participants hub, per edition.
+const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
 
 const inputCls =
   "rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
 
 // Checkboxes reference this form by id (the `form` attribute), so the bulk form
-// never nests inside the per-row status/certificate forms.
+// never nests inside the per-row status forms.
 const BULK_FORM_ID = "bulk-decisions";
 
 const PAGE_SIZE = 20;
@@ -63,19 +50,13 @@ export default async function AdminRegistrations({
 }) {
   const { edition, q, status, page: pageParam } = await searchParams;
   const supabase = await createClient();
-  const [{ data: regData }, { data: editionData }] = await Promise.all([
-    supabase
-      .from("registrations")
-      .select(
-        "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, schools(name), profiles(email, full_name), certificates(id, type)",
-      )
-      .order("edition_year", { ascending: false })
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("editions")
-      .select("year, title, registration_open, stages, current_stage")
-      .order("year", { ascending: false }),
-  ]);
+  const { data: regData } = await supabase
+    .from("registrations")
+    .select(
+      "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, schools(name), profiles(email, full_name)",
+    )
+    .order("edition_year", { ascending: false })
+    .order("created_at", { ascending: false });
 
   const all = (regData ?? []) as unknown as AdminRegistrationRow[];
   const years = [...new Set(all.map((r) => r.edition_year))].sort((a, b) => b - a);
@@ -106,37 +87,11 @@ export default async function AdminRegistrations({
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const page = Math.min(parsePage(pageParam), pageCount);
   const registrations = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const listParams = {
-    edition,
-    q,
-    status,
-  };
-
-  // Stage marking only makes sense within a single edition (each edition owns
-  // its own ordered stages), so it shows on the default per-edition tab.
-  const editions = (editionData ?? []) as Edition[];
-  const activeEdition = activeYear
-    ? editions.find((e) => e.year === activeYear) ?? null
-    : null;
-
-  // Per-school stage outcomes for just the rows rendered on this page.
-  const pageIds = registrations.map((r) => r.id);
-  const { data: stageData } = pageIds.length
-    ? await supabase
-        .from("registration_stage_results")
-        .select("id, registration_id, stage, outcome, score, note")
-        .in("registration_id", pageIds)
-    : { data: [] as StageResult[] };
-  const resultsByReg = new Map<string, StageResult[]>();
-  for (const sr of (stageData ?? []) as StageResult[]) {
-    const list = resultsByReg.get(sr.registration_id) ?? [];
-    list.push(sr);
-    resultsByReg.set(sr.registration_id, list);
-  }
+  const listParams = { edition, q, status };
 
   return (
     <>
-      <PortalHeader title="Registrations" subtitle="Review entries, resend activations, issue certificates" />
+      <PortalHeader title="Registrations" subtitle="Review entries, resend activations, accept or decline" />
       <PortalBody>
         <div>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
@@ -202,8 +157,10 @@ export default async function AdminRegistrations({
           </FilterBar>
 
           {/* Close-of-registration review: tick schools, then approve or decline
-              the selection. Approve sends the guidelines email; decline sends a
-              polite not-selected email. Neither touches portal access. */}
+              the selection. Approve sends the guidelines email (and materialises
+              the school's competition roster); decline sends a polite not-selected
+              email. Neither touches portal access. Everything after acceptance —
+              stage advancement, certificates — lives on the Participants hub. */}
           <form id={BULK_FORM_ID} action={bulkRegistrationDecision}>
             <Card className="p-4 mb-6 space-y-3">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -224,7 +181,7 @@ export default async function AdminRegistrations({
                   value="approve"
                   size="sm"
                   title="Approve selected schools?"
-                  description="Every ticked school is approved and sent the guidelines email."
+                  description="Every ticked school is approved, sent the guidelines email, and its reps become the school's competition roster."
                   confirmLabel="Yes, approve"
                 >
                   Approve selected
@@ -242,52 +199,6 @@ export default async function AdminRegistrations({
                   Decline selected
                 </ConfirmDecisionButton>
               </div>
-
-              {/* Per-stage marking — record how the selected schools fared at a
-                  stage (advanced / not-advanced). Only within a single edition,
-                  which owns its own ordered stage list. */}
-              {activeEdition ? (
-                <div className="flex flex-wrap items-center gap-2 border-t border-foreground/5 pt-3">
-                  <span className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
-                    Stage result
-                  </span>
-                  <select
-                    name="stage"
-                    defaultValue={activeEdition.current_stage}
-                    className={inputCls}
-                    aria-label="Stage to mark"
-                  >
-                    {activeEdition.stages.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                  <ConfirmDecisionButton
-                    name="decision"
-                    value="advance"
-                    size="sm"
-                    variant="outline"
-                    title="Mark selected as advanced?"
-                    description="Records the ticked schools as advanced past the chosen stage and notifies each coordinator."
-                    confirmLabel="Yes, mark advanced"
-                  >
-                    Mark advanced
-                  </ConfirmDecisionButton>
-                  <ConfirmDecisionButton
-                    name="decision"
-                    value="eliminate"
-                    size="sm"
-                    variant="outline"
-                    destructive
-                    title="Mark selected as not advanced?"
-                    description="Records the ticked schools as not advancing past the chosen stage and notifies each coordinator. Portal access stays open."
-                    confirmLabel="Yes, mark"
-                  >
-                    Mark not advanced
-                  </ConfirmDecisionButton>
-                </div>
-              ) : null}
             </Card>
           </form>
 
@@ -345,13 +256,6 @@ export default async function AdminRegistrations({
                     </p>
                   ) : null}
 
-                  {activeEdition && (resultsByReg.get(r.id)?.length ?? 0) > 0 ? (
-                    <StageResults
-                      stages={activeEdition.stages}
-                      results={resultsByReg.get(r.id) ?? []}
-                    />
-                  ) : null}
-
                   <div className="flex flex-wrap items-center gap-2">
                     <form
                       action={setRegistrationStatus.bind(null, r.id)}
@@ -405,34 +309,6 @@ export default async function AdminRegistrations({
                         </ConfirmSubmitButton>
                       </form>
                     ) : null}
-                  </div>
-
-                  <div className="border-t border-foreground/5 pt-4">
-                    <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground mb-2">
-                      Certificates
-                      {r.certificates.length
-                        ? `: ${r.certificates.map((c) => c.type ?? "—").join(", ")}`
-                        : ""}
-                    </p>
-                    <form
-                      action={issueCertificate.bind(null, r.id)}
-                      className="flex flex-col sm:flex-row gap-2"
-                    >
-                      <input
-                        name="type"
-                        required
-                        placeholder="Certificate type (e.g. Finalist)"
-                        className={`flex-1 ${inputCls}`}
-                      />
-                      <input
-                        name="asset_url"
-                        placeholder="Asset URL (optional)"
-                        className={`flex-1 ${inputCls}`}
-                      />
-                      <SubmitButton size="sm" pendingText="Issuing…">
-                        Issue
-                      </SubmitButton>
-                    </form>
                   </div>
                 </Card>
               ))}

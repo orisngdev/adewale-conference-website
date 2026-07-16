@@ -11,16 +11,11 @@ import {
   sendEmailSafely,
 } from "@/lib/email";
 import { notifySchool, notifySchoolDecision } from "@/lib/school-notify";
+import { ensureRoster } from "@/lib/ensure-roster";
 import type { RegistrationStatus, UserRole } from "@/supabase/types";
 import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 
-const STATUSES: RegistrationStatus[] = [
-  "submitted",
-  "verified",
-  "qualified",
-  "finalist",
-  "declined",
-];
+const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
 
 // ── Team invitations ─────────────────────────────────────────────────────────
 // An admin invites a teammate (always as an admin — educators and students have
@@ -235,7 +230,7 @@ export async function setRegistrationStatus(
   const supabase = await createClient();
   const { data: before } = await supabase
     .from("registrations")
-    .select("status, edition_year, contact_email, contact_name, owner_id, school_id, schools(name)")
+    .select("status, edition_year, contact_email, contact_name, owner_id, school_id, reps, schools(name)")
     .eq("id", registrationId)
     .maybeSingle();
 
@@ -244,6 +239,16 @@ export async function setRegistrationStatus(
     .from("registrations")
     .update({ status })
     .eq("id", registrationId);
+
+  // First transition into verified materialises the roster (same as bulk
+  // approve). Idempotent, so re-verifying an already-verified row is harmless.
+  if (!error && status === "verified" && before && before.status !== "verified") {
+    await ensureRoster({
+      school_id: (before.school_id as string | null) ?? null,
+      edition_year: before.edition_year,
+      reps: before.reps,
+    });
+  }
 
   // Same emails as the bulk review, but only on an actual TRANSITION into
   // verified/declined — re-saving the same status never re-sends.
@@ -301,7 +306,7 @@ export async function bulkRegistrationDecision(formData: FormData) {
   // RLS (reg_owner_update with is_admin()) restricts the writes to admins.
   const { data } = await supabase
     .from("registrations")
-    .select("id, status, edition_year, contact_email, contact_name, owner_id, school_id, schools(name)")
+    .select("id, status, edition_year, contact_email, contact_name, owner_id, school_id, reps, schools(name)")
     .in("id", ids);
   const rows = (data ?? []) as unknown as {
     id: string;
@@ -311,6 +316,7 @@ export async function bulkRegistrationDecision(formData: FormData) {
     contact_name: string | null;
     owner_id: string | null;
     school_id: string | null;
+    reps: unknown;
     schools: { name: string | null } | null;
   }[];
 
@@ -327,6 +333,16 @@ export async function bulkRegistrationDecision(formData: FormData) {
       .update({ status })
       .eq("id", row.id);
     if (error) continue;
+
+    // Approval materialises the school's reps as its competition roster (stable
+    // student ids for per-student stage results + certificates). Idempotent.
+    if (decision === "approve") {
+      await ensureRoster({
+        school_id: row.school_id,
+        edition_year: row.edition_year,
+        reps: row.reps,
+      });
+    }
 
     const schoolName = row.schools?.name ?? "Your school";
     // Every educator (teacher + principal + any approved member) gets both the
@@ -398,7 +414,7 @@ async function bulkStageOutcome(
     }
   }
 
-  revalidatePath("/portal/admin/registrations");
+  revalidatePath("/portal/admin/participants");
   revalidatePath("/portal/admin");
   revalidatePath("/portal/school");
   revalidatePath("/portal");
@@ -446,23 +462,57 @@ export async function resendActivation(registrationId: string, formData: FormDat
   revalidatePath("/portal/admin/registrations");
 }
 
+// Backfill the roster for an already-approved school — for schools verified
+// before roster-at-approval existed, or after reps were edited. ensureRoster
+// uses the service-role client (bypasses RLS), so gate explicitly on admin.
+export async function syncRoster(registrationId: string) {
+  if (!(await requireAdmin())) return;
+  const supabase = await createClient();
+  const { data: reg } = await supabase
+    .from("registrations")
+    .select("school_id, edition_year, reps, status")
+    .eq("id", registrationId)
+    .maybeSingle();
+  if (!reg || reg.status !== "verified") return;
+  await ensureRoster({
+    school_id: (reg.school_id as string | null) ?? null,
+    edition_year: reg.edition_year as number,
+    reps: reg.reps,
+  });
+  revalidatePath("/portal/admin/participants");
+}
+
+// Issue a certificate from the participant hub. A blank student_id = a
+// school-wide certificate (the original behaviour); a student_id = an
+// individual rep's certificate. Notifies the coordinator either way.
 export async function issueCertificate(
   registrationId: string,
   formData: FormData,
 ) {
   const type = String(formData.get("type") ?? "").trim();
   const assetUrl = String(formData.get("asset_url") ?? "").trim();
+  const studentId = String(formData.get("student_id") ?? "").trim() || null;
   if (!type) return;
 
   const supabase = await createClient();
   // RLS (cert_admin_write) restricts inserts to admins.
   await supabase.from("certificates").insert({
     registration_id: registrationId,
+    student_id: studentId,
     type,
     asset_url: assetUrl || null,
   });
 
-  // Notify the registration owner.
+  // Name the student on a per-student cert so the coordinator's notice is clear.
+  let who = "";
+  if (studentId) {
+    const { data: st } = await supabase
+      .from("students")
+      .select("name")
+      .eq("id", studentId)
+      .maybeSingle();
+    who = st?.name ? ` for ${st.name}` : "";
+  }
   const { data: reg } = await supabase
     .from("registrations")
     .select("owner_id")
@@ -473,10 +523,171 @@ export async function issueCertificate(
     await supabase.from("notifications").insert({
       profile_id: owner,
       title: "Certificate issued",
-      body: `A "${type}" certificate is now available to download.`,
+      body: `A "${type}" certificate${who} is now available to download.`,
       link: "/portal",
     });
   }
-  revalidatePath("/portal/admin");
-  revalidatePath("/portal/admin/registrations");
+  revalidatePath("/portal/admin/participants");
+  revalidatePath("/portal/student");
+  revalidatePath("/portal/school");
+}
+
+// ── Participant hub: per-student advancement ────────────────────────────────
+// Mirror of bulkStageOutcome, one level down. Records a single rep's outcome +
+// optional score/note at a stage. RLS (student_stage_results_admin_write) limits
+// the upsert to admins. No per-student notification (visible on dashboards) —
+// coordinators are notified on the school-level milestones instead.
+export async function advanceStudent(studentId: string, formData: FormData) {
+  const stage = String(formData.get("stage") ?? "").trim();
+  const outcome = String(formData.get("outcome") ?? "");
+  if (!stage || !["advanced", "eliminated", "pending"].includes(outcome)) return;
+  const scoreRaw = String(formData.get("score") ?? "").trim();
+  const scoreNum = scoreRaw === "" ? null : Number(scoreRaw);
+  const note = String(formData.get("note") ?? "").trim() || null;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("student_stage_results").upsert(
+    {
+      student_id: studentId,
+      stage,
+      outcome,
+      score: scoreNum != null && !Number.isNaN(scoreNum) ? scoreNum : null,
+      note,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "student_id,stage" },
+  );
+  if (error) return;
+  revalidatePath("/portal/admin/participants");
+  revalidatePath("/portal/student");
+  revalidatePath("/portal/school");
+}
+
+// ── Participant hub: cascade advancement ────────────────────────────────────
+// "Advance school + all reps" (includeSchool=true) marks the school AND every
+// active rep at a stage; "Advance all reps" (false) sweeps just the roster. The
+// school-level upsert also drives resource-tier unlocks (see resource-access.ts).
+// Both notify the school once. Individual overrides afterwards via advanceStudent.
+async function cascadeAdvance(
+  registrationId: string,
+  stage: string,
+  outcome: "advanced" | "eliminated",
+  includeSchool: boolean,
+) {
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+  const { data: reg } = await supabase
+    .from("registrations")
+    .select("id, edition_year, owner_id, school_id, schools(name)")
+    .eq("id", registrationId)
+    .maybeSingle();
+  const schoolId = (reg?.school_id as string | null) ?? null;
+  if (!reg || !schoolId) return;
+
+  const { data: students } = await supabase
+    .from("students")
+    .select("id")
+    .eq("school_id", schoolId)
+    .is("deactivated_at", null);
+  const studentIds = ((students ?? []) as { id: string }[]).map((s) => s.id);
+
+  if (includeSchool) {
+    await supabase.from("registration_stage_results").upsert(
+      { registration_id: reg.id, stage, outcome, updated_at: now },
+      { onConflict: "registration_id,stage" },
+    );
+  }
+  if (studentIds.length) {
+    await supabase.from("student_stage_results").upsert(
+      studentIds.map((sid) => ({ student_id: sid, stage, outcome, updated_at: now })),
+      { onConflict: "student_id,stage" },
+    );
+  }
+
+  const schoolName =
+    ((reg.schools as unknown as { name: string | null } | null)?.name) ?? "Your school";
+  const past = outcome === "advanced" ? "advanced past" : "did not advance past";
+  await notifySchool(supabase, schoolId, (reg.owner_id as string | null) ?? null, {
+    title: outcome === "advanced" ? `Advanced past ${stage}` : `${stage} result`,
+    body: includeSchool
+      ? `${schoolName} and its reps ${past} the ${stage} in the ${reg.edition_year} competition.`
+      : `The reps of ${schoolName} ${past} the ${stage} in the ${reg.edition_year} competition.`,
+    link: "/portal/school",
+  });
+
+  revalidatePath("/portal/admin/participants");
+  revalidatePath("/portal/school");
+  revalidatePath("/portal/student");
+  revalidatePath("/portal");
+}
+
+// Cascade advancement, driven by a single `op` from a confirming button:
+//   advance-all / eliminate-all   → the school AND every rep
+//   advance-reps / eliminate-reps → the reps only (school standing unchanged)
+export async function cascadeAdvanceAction(registrationId: string, formData: FormData) {
+  const stage = String(formData.get("stage") ?? "").trim();
+  const op = String(formData.get("op") ?? "");
+  const outcome = op.startsWith("advance")
+    ? "advanced"
+    : op.startsWith("eliminate")
+      ? "eliminated"
+      : null;
+  if (!stage || !outcome) return;
+  await cascadeAdvance(registrationId, stage, outcome, op.endsWith("-all"));
+}
+
+// Undo an advancement — "bring a school back". Clears the school's (and its
+// reps') stage results at `from_stage` and every stage after it, so the school
+// returns to be re-decided at that stage. Fixes a mistaken advance without
+// leaving stale downstream results. RLS (admin_write, for all) gates the deletes.
+export async function sendSchoolBack(registrationId: string, formData: FormData) {
+  const fromStage = String(formData.get("from_stage") ?? "").trim();
+  if (!fromStage) return;
+
+  const supabase = await createClient();
+  const { data: reg } = await supabase
+    .from("registrations")
+    .select("id, edition_year, school_id")
+    .eq("id", registrationId)
+    .maybeSingle();
+  if (!reg) return;
+
+  const { data: ed } = await supabase
+    .from("editions")
+    .select("stages")
+    .eq("year", reg.edition_year)
+    .maybeSingle();
+  const stages = (ed?.stages as string[] | null) ?? [];
+  const fromIdx = stages.indexOf(fromStage);
+  if (fromIdx < 0) return;
+  const toClear = stages.slice(fromIdx); // from_stage and everything after it
+
+  await supabase
+    .from("registration_stage_results")
+    .delete()
+    .eq("registration_id", registrationId)
+    .in("stage", toClear);
+
+  // Bring the reps back too (a no-op for stages they were never marked at).
+  const schoolId = (reg.school_id as string | null) ?? null;
+  if (schoolId) {
+    const { data: sts } = await supabase
+      .from("students")
+      .select("id")
+      .eq("school_id", schoolId)
+      .is("deactivated_at", null);
+    const ids = ((sts ?? []) as { id: string }[]).map((s) => s.id);
+    if (ids.length) {
+      await supabase
+        .from("student_stage_results")
+        .delete()
+        .in("student_id", ids)
+        .in("stage", toClear);
+    }
+  }
+
+  revalidatePath("/portal/admin/participants");
+  revalidatePath("/portal/school");
+  revalidatePath("/portal/student");
+  revalidatePath("/portal");
 }
