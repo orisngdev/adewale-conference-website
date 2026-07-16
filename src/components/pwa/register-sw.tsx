@@ -6,7 +6,9 @@ import { flushPractice } from "@/lib/offline/practice-queue";
 
 // Registers the service worker in PRODUCTION only (after load, so it never blocks
 // first paint) and flushes any practice results buffered offline — on boot and
-// whenever connectivity returns. Mounted only inside the portal layout.
+// whenever connectivity returns. Mounted at the app root so the SW registers on
+// EVERY page (public site + portal) — a registered SW is one of Chrome's PWA
+// install criteria, so the home-page "Install app" button needs it site-wide.
 //
 // In development the SW is actively UNREGISTERED and its caches cleared: it serves
 // /_next/static cache-first, which would hand the browser stale compiled chunks and

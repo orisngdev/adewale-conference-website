@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { SubmitButton } from "@/components/portal/submit-button";
+import SettingsTabs from "@/components/portal/settings-tabs";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import {
   Card,
@@ -125,6 +126,11 @@ export default async function AssessmentEditor({
           </form>
         </div>
 
+        <SettingsTabs
+          tabs={[
+            {
+              label: `Results (${attempts.length})`,
+              content: (
         <div>
           <SectionHeading>Student results ({attempts.length})</SectionHeading>
           {attempts.length === 0 ? (
@@ -161,7 +167,11 @@ export default async function AssessmentEditor({
             </Card>
           )}
         </div>
-
+              ),
+            },
+            {
+              label: isPractice ? "Timing" : "Settings",
+              content: (
         <div>
           <SectionHeading>{isPractice ? "Timing (optional)" : "Exam settings"}</SectionHeading>
           <Card className="p-5 md:p-6">
@@ -205,7 +215,12 @@ export default async function AssessmentEditor({
             </form>
           </Card>
         </div>
-
+              ),
+            },
+            {
+              label: `Questions (${questions.length})`,
+              content: (
+              <div className="space-y-8">
         <div>
           <SectionHeading>
             {questions.length} question{questions.length === 1 ? "" : "s"}
@@ -303,6 +318,11 @@ export default async function AssessmentEditor({
             </form>
           </Card>
         </div>
+              </div>
+              ),
+            },
+          ]}
+        />
       </PortalBody>
     </>
   );

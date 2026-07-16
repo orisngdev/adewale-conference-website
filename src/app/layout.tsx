@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Providers from "./providers";
+import RegisterSW from "@/components/pwa/register-sw";
 import { SITE_URL } from "@/lib/site";
 
 export const viewport: Viewport = {
@@ -36,6 +37,9 @@ export default function RootLayout({
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body>
+        {/* Registers the service worker site-wide (prod only) so the PWA is
+            installable on the public site too, not just the portal. */}
+        <RegisterSW />
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -1,5 +1,4 @@
 import PortalNav, { type PortalTab } from "@/components/portal/portal-nav";
-import RegisterSW from "@/components/pwa/register-sw";
 import { createClient } from "@/supabase/server";
 import { getSessionUser, getUserRole } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
@@ -44,7 +43,6 @@ export default async function PortalLayout({
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <RegisterSW />
       <PortalNav email={email} tabs={tabs} unread={unread} />
       <main className="flex-1">{children}</main>
     </div>
