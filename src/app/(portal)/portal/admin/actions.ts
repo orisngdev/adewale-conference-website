@@ -3,7 +3,7 @@
 import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
-import { getSessionUser } from "@/supabase/auth";
+import { getSessionUser, requireAdmin } from "@/supabase/auth";
 import {
   buildActivationEmail,
   buildTeamInviteEmail,
@@ -204,15 +204,9 @@ export async function inviteWaitlist() {
 // role (RLS can't gate it), so the caller's admin role is checked explicitly.
 // The outcome lands as a notification for the acting admin.
 export async function syncAirtableRegistrations() {
-  const user = await getSessionUser();
-  if (!user) return;
+  const admin = await requireAdmin();
+  if (!admin) return;
   const supabase = await createClient();
-  const { data: me } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (me?.role !== "admin") return;
 
   let title = "Airtable sync complete";
   let body: string;
@@ -223,7 +217,7 @@ export async function syncAirtableRegistrations() {
     body = error instanceof Error ? error.message : String(error);
   }
   await supabase.from("notifications").insert({
-    profile_id: user.id,
+    profile_id: admin.user.id,
     title,
     body,
     link: "/portal/admin/registrations",

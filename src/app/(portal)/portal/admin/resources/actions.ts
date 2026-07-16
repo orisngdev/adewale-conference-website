@@ -3,25 +3,12 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
-import { getSessionUser } from "@/supabase/auth";
+import { requireAdmin } from "@/supabase/auth";
 import { resourceStorage } from "@/lib/storage";
 import { slugifyResource } from "@/lib/resources";
 import { accessRank } from "@/lib/resource-access";
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB per resource file.
-
-async function requireAdmin() {
-  const user = await getSessionUser();
-  if (!user) return null;
-  const supabase = await createClient();
-  const { data: me } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (me?.role !== "admin") return null;
-  return { user, supabase };
-}
 
 function revalidateResourceViews() {
   revalidatePath("/portal/admin/resources");
@@ -33,9 +20,9 @@ function revalidateResourceViews() {
 // URL (or neither, for a page-only entry). The file goes to object storage; only
 // its key is stored in the row.
 export async function createResource(formData: FormData) {
-  const ctx = await requireAdmin();
-  if (!ctx) return;
-  const { user, supabase } = ctx;
+  const admin = await requireAdmin();
+  if (!admin) return;
+  const supabase = await createClient();
 
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return;
@@ -92,16 +79,17 @@ export async function createResource(formData: FormData) {
     external_url: externalUrl,
     body,
     published,
-    created_by: user.id,
+    created_by: admin.user.id,
   });
 
   revalidateResourceViews();
 }
 
 export async function setResourcePublished(id: string, published: boolean) {
-  const ctx = await requireAdmin();
-  if (!ctx) return;
-  await ctx.supabase
+  const admin = await requireAdmin();
+  if (!admin) return;
+  const supabase = await createClient();
+  await supabase
     .from("resources")
     .update({ published, updated_at: new Date().toISOString() })
     .eq("id", id);
@@ -109,9 +97,9 @@ export async function setResourcePublished(id: string, published: boolean) {
 }
 
 export async function deleteResource(id: string) {
-  const ctx = await requireAdmin();
-  if (!ctx) return;
-  const { supabase } = ctx;
+  const admin = await requireAdmin();
+  if (!admin) return;
+  const supabase = await createClient();
 
   const { data: row } = await supabase
     .from("resources")

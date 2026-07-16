@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
-import { getSessionUser } from "@/supabase/auth";
+import { requireAdmin } from "@/supabase/auth";
 
 export interface ImportError {
   row: number;
@@ -155,11 +155,8 @@ export async function importQuestions(
   _prev: ImportState,
   formData: FormData,
 ): Promise<ImportState> {
+  if (!(await requireAdmin())) return { stage: "error", message: "Admins only." };
   const supabase = await createClient();
-  const user = await getSessionUser();
-  if (!user) return { stage: "error", message: "Not signed in." };
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (profile?.role !== "admin") return { stage: "error", message: "Admins only." };
 
   const payload = String(formData.get("payload") ?? "");
   const defaultMode = String(formData.get("mode") ?? "practice");

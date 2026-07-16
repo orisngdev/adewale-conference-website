@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/supabase/server";
 import { createAdminClient } from "@/supabase/admin";
-import { getSessionUser } from "@/supabase/auth";
+import { getSessionUser, getUserRole } from "@/supabase/auth";
 import { resourceStorage } from "@/lib/storage";
 import { canAccess } from "@/lib/resource-access";
 
@@ -42,13 +42,9 @@ export async function GET(
         new URL(`/portal/login?redirectTo=/portal`, request.url),
       );
     }
-    const supabase = await createClient();
-    const { data: me } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .maybeSingle();
-    if (me?.role !== "admin") {
+    // Admins bypass the tier gate; everyone else must have reached the tier.
+    if ((await getUserRole()) !== "admin") {
+      const supabase = await createClient();
       const { data: school } = await supabase.rpc("get_my_school");
       const status =
         (school as { registration?: { status?: string } | null } | null)?.registration

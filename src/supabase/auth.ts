@@ -35,3 +35,16 @@ export const getUserRole = cache(async () => {
     .maybeSingle();
   return (data?.role as string | undefined) ?? null;
 });
+
+export type AdminContext = { user: SessionUser };
+
+// The single admin gate. Server code that BYPASSES RLS — service-role writes,
+// the Airtable sync, cross-user reads — must call this, because RLS can't
+// protect those paths. Returns the admin's session user, or null when the caller
+// isn't a signed-in admin. (RLS-backed writes don't need it; the database is
+// already the gate there.) Cached, so it's free to call more than once a request.
+export const requireAdmin = cache(async (): Promise<AdminContext | null> => {
+  const user = await getSessionUser();
+  if (!user || (await getUserRole()) !== "admin") return null;
+  return { user };
+});
