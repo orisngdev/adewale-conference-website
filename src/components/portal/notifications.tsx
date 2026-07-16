@@ -1,5 +1,6 @@
 import { Card } from "@/components/portal/ui";
 import { createClient } from "@/supabase/server";
+import { getSessionUser } from "@/supabase/auth";
 import {
   markAllNotificationsRead,
   markNotificationRead,
@@ -16,9 +17,13 @@ interface NotificationRow {
 // none, so dashboards can drop it in unconditionally.
 export async function Notifications() {
   const supabase = await createClient();
+  const user = await getSessionUser();
+  if (!user) return null;
+  // Explicitly self-scoped (belt-and-suspenders alongside notif_self_read RLS).
   const { data } = await supabase
     .from("notifications")
     .select("id, title, body, read")
+    .eq("profile_id", user.id)
     .order("created_at", { ascending: false })
     .limit(8);
 

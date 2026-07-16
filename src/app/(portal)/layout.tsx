@@ -24,6 +24,7 @@ export default async function PortalLayout({
         supabase
           .from("notifications")
           .select("id", { count: "exact", head: true })
+          .eq("profile_id", user.id)
           .eq("read", false),
       ]);
       role = roleValue ?? "student";

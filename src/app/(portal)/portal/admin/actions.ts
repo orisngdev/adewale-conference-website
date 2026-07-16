@@ -5,13 +5,12 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import {
-  buildAcceptedEmail,
   buildActivationEmail,
-  buildDeclinedEmail,
   buildTeamInviteEmail,
   buildWaitlistOpenEmail,
   sendEmailSafely,
 } from "@/lib/email";
+import { notifySchool, notifySchoolDecision } from "@/lib/school-notify";
 import type { RegistrationStatus, UserRole } from "@/supabase/types";
 import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 
@@ -232,60 +231,6 @@ export async function syncAirtableRegistrations() {
   revalidatePath("/portal/admin/registrations");
 }
 
-// Every educator on the school (teacher + principal, and any other approved
-// member) gets the accepted / not-selected email — not just the one contact.
-// Reads approved school_members; falls back to the registration contact when
-// the school has no member rows yet. Deduped by email.
-type DecisionSupabase = Awaited<ReturnType<typeof createClient>>;
-async function emailSchoolDecision(
-  supabase: DecisionSupabase,
-  opts: {
-    schoolId: string | null;
-    schoolName: string;
-    editionYear: number;
-    decision: "approve" | "decline";
-    fallbackEmail?: string | null;
-    fallbackName?: string | null;
-  },
-) {
-  let recipients: { email: string; name: string | null }[] = [];
-  if (opts.schoolId) {
-    const { data: members } = await supabase
-      .from("school_members")
-      .select("email, full_name")
-      .eq("school_id", opts.schoolId)
-      .eq("status", "approved");
-    recipients = ((members ?? []) as { email: string; full_name: string | null }[])
-      .filter((m) => m.email)
-      .map((m) => ({ email: m.email, name: m.full_name }));
-  }
-  if (recipients.length === 0 && opts.fallbackEmail) {
-    recipients = [{ email: opts.fallbackEmail, name: opts.fallbackName ?? null }];
-  }
-
-  const seen = new Set<string>();
-  for (const r of recipients) {
-    const key = r.email.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    await sendEmailSafely(
-      opts.decision === "approve"
-        ? buildAcceptedEmail({
-            email: r.email,
-            name: r.name,
-            schoolFullName: opts.schoolName,
-            editionYear: opts.editionYear,
-          })
-        : buildDeclinedEmail({
-            email: r.email,
-            name: r.name,
-            schoolFullName: opts.schoolName,
-            editionYear: opts.editionYear,
-          }),
-    );
-  }
-}
-
 export async function setRegistrationStatus(
   registrationId: string,
   formData: FormData,
@@ -316,25 +261,17 @@ export async function setRegistrationStatus(
   if (notify) {
     const schoolName =
       ((before.schools as unknown as { name: string | null } | null)?.name) ?? "Your school";
-    await emailSchoolDecision(supabase, {
+    // One audience → email + in-portal notification for every educator, not just
+    // the owner.
+    await notifySchoolDecision(supabase, {
       schoolId: (before.school_id as string | null) ?? null,
       schoolName,
       editionYear: before.edition_year,
       decision: status === "verified" ? "approve" : "decline",
+      ownerId: before.owner_id,
       fallbackEmail: before.contact_email,
       fallbackName: before.contact_name,
     });
-    if (before.owner_id) {
-      await supabase.from("notifications").insert({
-        profile_id: before.owner_id,
-        title: status === "verified" ? "Entry confirmed" : "Entry update",
-        body:
-          status === "verified"
-            ? `${schoolName} is confirmed for the ${before.edition_year} competition — log in to your portal for the guidelines.`
-            : `${schoolName} wasn't selected for the ${before.edition_year} competition. Portal access stays open.`,
-        link: "/portal/school",
-      });
-    }
   }
   revalidatePath("/portal/admin");
   revalidatePath("/portal/admin/registrations");
@@ -398,26 +335,17 @@ export async function bulkRegistrationDecision(formData: FormData) {
     if (error) continue;
 
     const schoolName = row.schools?.name ?? "Your school";
-    // Teacher + principal (and any other approved member) both get the email.
-    await emailSchoolDecision(supabase, {
+    // Every educator (teacher + principal + any approved member) gets both the
+    // email and the in-portal notification — same audience, both channels.
+    await notifySchoolDecision(supabase, {
       schoolId: row.school_id,
       schoolName,
       editionYear: row.edition_year,
       decision,
+      ownerId: row.owner_id,
       fallbackEmail: row.contact_email,
       fallbackName: row.contact_name,
     });
-    if (row.owner_id) {
-      await supabase.from("notifications").insert({
-        profile_id: row.owner_id,
-        title: decision === "approve" ? "Entry confirmed" : "Entry update",
-        body:
-          decision === "approve"
-            ? `${schoolName} is confirmed for the ${row.edition_year} competition — log in to your portal for the guidelines.`
-            : `${schoolName} wasn't selected for the ${row.edition_year} competition. Portal access stays open.`,
-        link: "/portal/school",
-      });
-    }
   }
 
   revalidatePath("/portal/admin/registrations");
@@ -439,12 +367,13 @@ async function bulkStageOutcome(
   const supabase = await createClient();
   const { data } = await supabase
     .from("registrations")
-    .select("id, edition_year, owner_id, schools(name)")
+    .select("id, edition_year, owner_id, school_id, schools(name)")
     .in("id", ids);
   const rows = (data ?? []) as unknown as {
     id: string;
     edition_year: number;
     owner_id: string | null;
+    school_id: string | null;
     schools: { name: string | null } | null;
   }[];
   if (rows.length === 0) return;
@@ -462,10 +391,9 @@ async function bulkStageOutcome(
   );
   if (!error) {
     for (const r of rows) {
-      if (!r.owner_id) continue;
       const schoolName = r.schools?.name ?? "Your school";
-      await supabase.from("notifications").insert({
-        profile_id: r.owner_id,
+      // Notify every educator on the school, not just the owner.
+      await notifySchool(supabase, r.school_id, r.owner_id, {
         title: outcome === "advanced" ? `Advanced past ${stage}` : `${stage} result`,
         body:
           outcome === "advanced"
