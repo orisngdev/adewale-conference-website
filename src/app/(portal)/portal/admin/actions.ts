@@ -203,6 +203,36 @@ export async function syncAirtableRegistrations() {
   if (!admin) return;
   const supabase = await createClient();
 
+  // The full Airtable pull runs longer than a serverless request allows (it was
+  // 504-ing). On Netlify, hand it to a background function (15-min budget) that
+  // returns 202 at once, so the button responds instantly and the sync + its
+  // notification happen out of band. process.env.URL is set only on Netlify.
+  const base = process.env.URL;
+  const secret = process.env.SYNC_SECRET;
+  if (base && secret) {
+    let ok = false;
+    try {
+      const res = await fetch(
+        `${base}/.netlify/functions/airtable-sync-background?profile=${encodeURIComponent(admin.user.id)}`,
+        { method: "POST", headers: { "x-sync-secret": secret } },
+      );
+      ok = res.status === 202 || res.ok;
+    } catch {
+      ok = false;
+    }
+    await supabase.from("notifications").insert({
+      profile_id: admin.user.id,
+      title: ok ? "Airtable sync started" : "Couldn't start Airtable sync",
+      body: ok
+        ? "Pulling schools and registrations from Airtable in the background — you'll get another notification when it finishes."
+        : "The background sync couldn't be triggered. Check the deploy and SYNC_SECRET, then try again.",
+      link: "/portal/admin/registrations",
+    });
+    revalidatePath("/portal/admin/registrations");
+    return;
+  }
+
+  // Local dev (no Netlify runtime): run inline — no serverless timeout here.
   let title = "Airtable sync complete";
   let body: string;
   try {

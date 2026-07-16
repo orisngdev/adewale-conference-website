@@ -27,32 +27,58 @@ class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex items-center justify-center min-h-screen p-8 bg-background">
-          <div className="flex flex-col items-center w-full max-w-2xl p-8">
-            <AlertTriangle
-              size={48}
-              className="text-destructive mb-6 flex-shrink-0"
-            />
-
-            <h2 className="text-xl mb-4">An unexpected error occurred.</h2>
-
-            <div className="p-4 w-full rounded bg-muted overflow-auto mb-6">
-              <pre className="text-sm text-muted-foreground whitespace-break-spaces">
-                {this.state.error?.stack}
-              </pre>
+        <div className="flex min-h-screen items-center justify-center bg-background p-6">
+          <div className="w-full max-w-md text-center">
+            <div className="mx-auto mb-6 flex size-14 items-center justify-center rounded-full bg-destructive/10">
+              <AlertTriangle size={28} className="text-destructive" />
             </div>
 
-            <button
-              onClick={() => window.location.reload()}
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-lg",
-                "bg-primary text-primary-foreground",
-                "hover:opacity-90 cursor-pointer"
-              )}
-            >
-              <RotateCcw size={16} />
-              Reload Page
-            </button>
+            <h2 className="font-bebas text-3xl leading-tight text-foreground">
+              Something went wrong
+            </h2>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
+              We hit an unexpected error loading this page. It&apos;s usually temporary —
+              reloading often clears it. If it keeps happening, let us know at{" "}
+              <a
+                href="mailto:adewaleconference@gmail.com"
+                className="text-primary hover:underline"
+              >
+                adewaleconference@gmail.com
+              </a>
+              .
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={() => window.location.reload()}
+                className={cn(
+                  "inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold",
+                  "bg-primary text-primary-foreground hover:opacity-90 cursor-pointer",
+                )}
+              >
+                <RotateCcw size={16} />
+                Reload page
+              </button>
+              <a
+                href="/"
+                className="inline-flex items-center px-4 py-2.5 text-sm font-medium border border-foreground/15 hover:bg-foreground/5"
+              >
+                Go to homepage
+              </a>
+            </div>
+
+            {/* Raw detail is tucked away — useful for a bug report, not shoved in
+                the user's face. */}
+            {this.state.error?.message ? (
+              <details className="mt-8 text-left">
+                <summary className="cursor-pointer select-none text-xs uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground">
+                  Technical details
+                </summary>
+                <pre className="mt-2 max-h-48 overflow-auto rounded bg-muted p-3 text-xs whitespace-break-spaces text-muted-foreground">
+                  {this.state.error.message}
+                </pre>
+              </details>
+            ) : null}
           </div>
         </div>
       );
