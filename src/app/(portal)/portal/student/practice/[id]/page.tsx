@@ -1,21 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import PracticeRunner, { type PracticeQuestion } from "@/components/portal/practice-runner";
-import { createClient } from "@/supabase/server";
+import PracticeRunner from "@/components/portal/practice-runner";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
+import { loadPracticeBank } from "@/lib/assessment-session";
 
 export const dynamic = "force-dynamic";
-
-interface PracticeBank {
-  id: string;
-  title: string;
-  subject: string | null;
-  level: string | null;
-  time_limit_minutes: number | null;
-  content_version: number;
-  questions: PracticeQuestion[];
-}
 
 export default async function PracticePage({
   params,
@@ -25,14 +15,11 @@ export default async function PracticePage({
   if (!isSupabaseConfigured) redirect("/portal/login");
   const { id } = await params;
 
-  const supabase = await createClient();
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  // Practice bank ships correct answers (safe, ungraded). Cached client-side for offline replay.
-  const { data } = await supabase.rpc("get_practice_bank", { p_id: id });
-  const bank = data as PracticeBank | null;
-  if (!bank || bank.questions.length === 0) notFound();
+  const bank = await loadPracticeBank(id);
+  if (!bank) notFound();
 
   return (
     <div className="space-y-4">

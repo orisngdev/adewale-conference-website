@@ -5,6 +5,7 @@ import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
+import { examGate } from "@/lib/assessment-session";
 
 export const metadata = pageMetadata("Exams", "Take graded exams and see your scores.");
 export const dynamic = "force-dynamic";
@@ -26,23 +27,25 @@ export default async function StudentExams() {
     supabase.rpc("get_my_school"),
   ]);
 
-  // Competition gate (UI half — start_exam_attempt enforces it server-side):
-  // graded exams open once the school's entry is accepted. Practice never locks.
+  // Competition gate (UI half — start_exam_attempt enforces the same rule
+  // server-side): graded exams open once the school's entry is accepted.
   const entryStatus =
     ((schoolData as { registration?: { status?: string } | null } | null)?.registration
       ?.status as string | undefined) ?? null;
-  if (entryStatus === "submitted" || entryStatus === "declined") {
+  const gate = examGate(entryStatus);
+  if (!gate.open) {
+    const underReview = gate.reason === "under_review";
     return (
       <div>
         <SectionHeading>Exams</SectionHeading>
         <Card className="p-6 border-l-4 border-l-primary">
           <p className="font-bebas text-2xl text-foreground leading-tight">
-            {entryStatus === "submitted"
+            {underReview
               ? "Your school's entry is under review"
               : "Exams are closed for your school this edition"}
           </p>
           <p className="text-sm text-muted-foreground mt-1 max-w-xl">
-            {entryStatus === "submitted"
+            {underReview
               ? "Graded exams unlock once your school is confirmed for the competition — you'll be notified. Until then, every practice drill is open."
               : "Your school wasn't selected this edition, but the whole prep portal stays open — practice drills, Tech Lab, and study packs."}
           </p>
