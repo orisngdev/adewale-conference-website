@@ -16,8 +16,7 @@ export async function markNotificationRead(id: string) {
     .eq("id", id)
     .eq("profile_id", user.id);
 
-  revalidatePath("/portal/school");
-  revalidatePath("/portal/student");
+  revalidatePath("/portal/notifications");
   revalidatePath("/portal");
 }
 
@@ -34,7 +33,6 @@ export async function markAllNotificationsRead() {
     .eq("profile_id", user.id)
     .eq("read", false);
 
-  revalidatePath("/portal/school");
-  revalidatePath("/portal/student");
+  revalidatePath("/portal/notifications");
   revalidatePath("/portal");
 }

@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { Card, SectionHeading, StatTile } from "@/components/portal/ui";
 import { EditionStages, nextStage } from "@/components/portal/edition-stages";
 import { StageResults } from "@/components/portal/stage-results";
-import { Notifications } from "@/components/portal/notifications";
 import ClaimForm from "@/components/portal/claim-form";
 import RegisterEditionForm from "@/components/portal/register-edition-form";
 import { pageMetadata } from "@/lib/seo";
@@ -89,8 +88,6 @@ export default async function SchoolOverview() {
 
   return (
     <>
-      <Notifications />
-
       {/* Competition-entry status — bold and unmissable. Review happens at close
           of registration; portal/prep access is never gated by it. */}
       {entry ? (

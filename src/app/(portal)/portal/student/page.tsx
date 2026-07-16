@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, SectionHeading, StatTile, StatusBadge } from "@/components/portal/ui";
 import { EditionStages, nextStage } from "@/components/portal/edition-stages";
-import { Notifications } from "@/components/portal/notifications";
 import LinkAccountForm from "@/components/portal/link-account-form";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
@@ -63,8 +62,6 @@ export default async function StudentOverview() {
 
   return (
     <>
-      <Notifications />
-
       <Link href="/portal/student/resources" className="block group">
         <Card interactive className="p-5 flex items-center justify-between gap-4 border-l-4 border-l-primary">
           <div>

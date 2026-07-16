@@ -40,13 +40,14 @@ export default function PortalNav({
           </Link>
           <div className="flex items-center gap-4">
             <InstallAppButton />
-            {email && unread > 0 ? (
-              <span
-                className="inline-flex items-center gap-1 text-xs font-bold text-primary"
-                title={`${unread} unread notification${unread === 1 ? "" : "s"}`}
+            {email ? (
+              <Link
+                href="/portal/notifications"
+                className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:text-white transition-colors"
+                title={unread > 0 ? `${unread} unread notification${unread === 1 ? "" : "s"}` : "Notifications"}
               >
-                🔔 {unread}
-              </span>
+                🔔{unread > 0 ? ` ${unread}` : ""}
+              </Link>
             ) : null}
             {email ? (
               <span className="hidden sm:block text-xs text-background/60">
