@@ -1,9 +1,11 @@
-# Scheduled Airtable → portal sync. Doubles as the free-tier keep-alive:
-# every run hits Supabase through the live site, resetting the 7-day
-# inactivity pause clock. Same idempotent sync as the admin button.
+# Scheduled Airtable → portal sync, run DIRECTLY against prod Supabase (not
+# through the website) so it can never hit a serverless function timeout and
+# works even when the site is down. Also doubles as the Supabase free-tier
+# keep-alive — every run resets the 7-day inactivity pause clock.
 #
-# Required repository secret:
-#   SYNC_SECRET — must match the SYNC_SECRET env var on the Netlify site.
+# Required repository secrets:
+#   PROD_SUPABASE_SECRET_KEY — service-role key of the prod project
+#   AIRTABLE_API_TOKEN       — Airtable PAT (read access to the base)
 name: Airtable sync
 
 on:
@@ -15,9 +17,18 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger sync
-        run: |
-          curl --fail-with-body -sS -X POST \
-            -H "Authorization: Bearer ${{ secrets.SYNC_SECRET }}" \
-            --max-time 600 \
-            https://adewale-conf.netlify.app/api/sync-airtable
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run sync
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://owpyzqlwqwmytlalrval.supabase.co
+          SUPABASE_SECRET_KEY: ${{ secrets.PROD_SUPABASE_SECRET_KEY }}
+          AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
+          AIRTABLE_BASE_ID: apppcnjdT5iHZuflw
+          AIRTABLE_PARTICIPANTS_TABLE_ID: tblbSNTckK3aRxu6N
+          AIRTABLE_SCHOOLS_TABLE_ID: tblMmGw7SY2dHzQOj
+        run: npx tsx --experimental-websocket --tsconfig tsconfig.json scripts/sync-airtable.ts
