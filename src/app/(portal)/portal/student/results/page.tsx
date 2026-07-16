@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, EmptyState, SectionHeading } from "@/components/portal/ui";
 import { PortalResults } from "@/components/portal/portal-results";
@@ -81,15 +82,19 @@ export default async function StudentResults() {
             {attempts.map((a) => {
               const pct = a.total ? Math.round((a.score / a.total) * 100) : 0;
               return (
-                <div key={a.id} className="flex items-center justify-between gap-3 p-3">
+                <Link
+                  key={a.id}
+                  href={`/portal/results/${a.id}`}
+                  className="flex items-center justify-between gap-3 p-3 hover:bg-primary/5 transition-colors"
+                >
                   <span className="text-foreground min-w-0 truncate">
                     {a.assessments?.title ?? "Assessment"}
                     <span className="ml-2 text-[10px] uppercase tracking-wide text-primary">{a.mode}</span>
                   </span>
                   <span className="font-bebas text-lg text-foreground shrink-0">
-                    {a.score}/{a.total} · {pct}%
+                    {a.score}/{a.total} · {pct}% <span className="text-muted-foreground">→</span>
                   </span>
-                </div>
+                </Link>
               );
             })}
           </Card>

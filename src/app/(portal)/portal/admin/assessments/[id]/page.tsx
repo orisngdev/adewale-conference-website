@@ -32,7 +32,7 @@ export default async function AssessmentEditor({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data: assessment }, { data: aqData }] = await Promise.all([
+  const [{ data: assessment }, { data: aqData }, { data: attemptRows }] = await Promise.all([
     supabase
       .from("assessments")
       .select("id, title, subject, level, mode, published, max_attempts, time_limit_minutes")
@@ -43,6 +43,13 @@ export default async function AssessmentEditor({
       .select("position, question_bank(id, prompt, options, correct_index, explanation)")
       .eq("assessment_id", id)
       .order("position", { ascending: true }),
+    // Every submitted attempt for this assessment (admins read all via RLS).
+    supabase
+      .from("assessment_attempts")
+      .select("id, score, total, violations, submitted_at, student_user_id")
+      .eq("assessment_id", id)
+      .eq("status", "submitted")
+      .order("submitted_at", { ascending: false }),
   ]);
   if (!assessment) notFound();
   const a = assessment as Assessment;
@@ -53,6 +60,26 @@ export default async function AssessmentEditor({
   }[])
     .map((r) => r.question_bank)
     .filter(Boolean) as Question[];
+
+  // Resolve student display names for the attempts (attempts key on the auth
+  // user; the provisioned name lives on the students row).
+  const attempts = (attemptRows ?? []) as {
+    id: string;
+    score: number;
+    total: number;
+    violations: number;
+    submitted_at: string | null;
+    student_user_id: string;
+  }[];
+  const attemptUserIds = [...new Set(attempts.map((r) => r.student_user_id))];
+  const { data: studentRows } = attemptUserIds.length
+    ? await supabase.from("students").select("auth_user_id, name").in("auth_user_id", attemptUserIds)
+    : { data: [] };
+  const nameByUser = new Map(
+    ((studentRows ?? []) as { auth_user_id: string | null; name: string }[])
+      .filter((s) => s.auth_user_id)
+      .map((s) => [s.auth_user_id as string, s.name]),
+  );
 
   return (
     <>
@@ -96,6 +123,43 @@ export default async function AssessmentEditor({
               Delete
             </ConfirmSubmitButton>
           </form>
+        </div>
+
+        <div>
+          <SectionHeading>Student results ({attempts.length})</SectionHeading>
+          {attempts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No submitted attempts yet — scores appear here as students take it.
+            </p>
+          ) : (
+            <Card className="divide-y divide-foreground/5">
+              {attempts.map((at) => {
+                const pct = at.total ? Math.round((at.score / at.total) * 100) : 0;
+                return (
+                  <Link
+                    key={at.id}
+                    href={`/portal/results/${at.id}`}
+                    className="flex items-center justify-between gap-3 p-3 hover:bg-primary/5 transition-colors"
+                  >
+                    <span className="min-w-0 truncate text-foreground">
+                      {nameByUser.get(at.student_user_id) ?? "Student"}
+                      {at.violations > 0 ? (
+                        <span className="ml-2 text-[11px] text-red-600">⚠ left screen {at.violations}×</span>
+                      ) : null}
+                      {at.submitted_at ? (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {new Date(at.submitted_at).toLocaleDateString()}
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="font-bebas text-lg text-foreground shrink-0">
+                      {at.score}/{at.total} · {pct}% <span className="text-muted-foreground">→</span>
+                    </span>
+                  </Link>
+                );
+              })}
+            </Card>
+          )}
         </div>
 
         <div>

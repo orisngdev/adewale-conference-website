@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, SectionHeading } from "@/components/portal/ui";
 import { PortalResults } from "@/components/portal/portal-results";
@@ -28,7 +29,8 @@ export default async function SchoolResults() {
       .is("deactivated_at", null),
     supabase
       .from("assessment_attempts")
-      .select("student_user_id, score, total, violations, assessments(title)")
+      .select("id, student_user_id, score, total, violations, mode, assessments(title)")
+      .eq("status", "submitted")
       .order("created_at", { ascending: false }),
   ]);
   const schoolNames = [
@@ -54,18 +56,21 @@ export default async function SchoolResults() {
     auth_user_id: string | null;
   }[];
   const attempts = (attemptData ?? []) as unknown as {
+    id: string;
     student_user_id: string;
     score: number;
     total: number;
     violations: number;
+    mode: string;
     assessments: { title: string | null } | null;
   }[];
 
   const studentsWithAttempts = students
     .map((s) => {
+      // Best attempt per assessment, keeping the id so it links to the review.
       const best = new Map<
         string,
-        { title: string; score: number; total: number; violations: number }
+        { id: string; title: string; score: number; total: number; violations: number; mode: string }
       >();
       for (const a of attempts) {
         if (a.student_user_id !== s.auth_user_id) continue;
@@ -73,10 +78,12 @@ export default async function SchoolResults() {
         const cur = best.get(title);
         if (!cur || a.score > cur.score)
           best.set(title, {
+            id: a.id,
             title,
             score: a.score,
             total: a.total,
             violations: a.violations ?? 0,
+            mode: a.mode,
           });
       }
       return { name: s.name, best: [...best.values()] };
@@ -102,12 +109,16 @@ export default async function SchoolResults() {
               <div key={s.name} className="p-4">
                 <p className="font-medium text-foreground">{s.name}</p>
                 <ul className="text-sm text-muted-foreground mt-1 space-y-0.5">
-                  {s.best.map((b, i) => (
-                    <li key={i}>
-                      {b.title} —{" "}
-                      <span className="text-foreground font-medium">
-                        {b.score}/{b.total}
-                      </span>
+                  {s.best.map((b) => (
+                    <li key={b.id}>
+                      <Link href={`/portal/results/${b.id}`} className="hover:underline">
+                        {b.title} —{" "}
+                        <span className="text-foreground font-medium">
+                          {b.score}/{b.total}
+                        </span>
+                        <span className="ml-1 text-[10px] uppercase tracking-wide text-primary">{b.mode}</span>
+                        <span className="text-muted-foreground"> →</span>
+                      </Link>
                       {b.violations > 0 ? (
                         <span className="ml-2 text-red-600">
                           ⚠ {b.violations} tab-switch

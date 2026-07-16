@@ -1,5 +1,6 @@
 import { Button } from "../../components/ui/button";
 import { Star } from "lucide-react";
+import InstallAppButton from "@/components/pwa/install-app-button";
 
 const stats = [
   { num: "5,000+", label: "Students Reached Directly" },
@@ -58,6 +59,8 @@ export default function HeroSection() {
             >
               <a href="#register">Register Your School</a>
             </Button>
+            {/* Shows only on install-capable browsers (hidden once installed). */}
+            <InstallAppButton />
           </div>
 
           <div className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 self-start border border-[rgba(232,160,32,0.35)] px-3 py-2.5 text-[8px] md:text-[10px] tracking-[0.2em]">
