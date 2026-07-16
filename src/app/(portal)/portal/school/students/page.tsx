@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Card, SectionHeading } from "@/components/portal/ui";
 import ProvisionRepButton from "@/components/portal/provision-rep-button";
+import ReplaceRepButton from "@/components/portal/replace-rep-button";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
@@ -16,12 +17,19 @@ export default async function SchoolStudents() {
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  const [{ data: regData }, { data: studentData }] = await Promise.all([
+  const [{ data: regData }, { data: studentData }, { data: pendingData }] = await Promise.all([
     supabase
       .from("registrations")
       .select("id, edition_year, reps")
       .order("edition_year", { ascending: false }),
-    supabase.from("students").select("name, level, access_code"),
+    supabase
+      .from("students")
+      .select("name, level, access_code")
+      .is("deactivated_at", null),
+    supabase
+      .from("student_replacements")
+      .select("registration_id, old_name")
+      .eq("status", "pending"),
   ]);
   const registrations = (regData ?? []) as unknown as RegistrationWithRelations[];
   const students = (studentData ?? []) as {
@@ -30,15 +38,24 @@ export default async function SchoolStudents() {
     access_code: string;
   }[];
   const studentByName = new Map(students.map((s) => [s.name.toLowerCase(), s]));
+  const pending = (pendingData ?? []) as {
+    registration_id: string;
+    old_name: string;
+  }[];
+  const pendingKeys = new Set(
+    pending.map((p) => `${p.registration_id}|${p.old_name.toLowerCase()}`),
+  );
 
   return (
     <div>
       <SectionHeading>Students</SectionHeading>
       <p className="serif-display italic text-muted-foreground mb-5">
         When you register, each representative is automatically given an access
-        code — hand each student their code to sign in (no email needed). To
-        change the team, edit the registration; use “Provision” below to issue a
-        code for any rep that doesn&apos;t have one yet.
+        code — hand each student their code to sign in (no email needed). Use
+        “Provision” to issue a code for any rep that doesn&apos;t have one yet. If
+        a student is leaving and another is taking their place, use “Replace” —
+        an admin reviews it, then the old code stops working and the new student
+        gets a fresh one.
       </p>
 
       {students.length > 0 ? (
@@ -83,6 +100,9 @@ export default async function SchoolStudents() {
                   <div className="divide-y divide-foreground/5 border border-foreground/10">
                     {reps.map((rep, i) => {
                       const student = studentByName.get(rep.name.toLowerCase());
+                      const isPending = pendingKeys.has(
+                        `${r.id}|${rep.name.toLowerCase()}`,
+                      );
                       return (
                         <div
                           key={i}
@@ -94,11 +114,24 @@ export default async function SchoolStudents() {
                               <span className="text-muted-foreground"> · {rep.level}</span>
                             ) : null}
                           </span>
-                          <ProvisionRepButton
-                            name={rep.name}
-                            level={rep.level ?? null}
-                            existingCode={student?.access_code}
-                          />
+                          {isPending ? (
+                            <span className="text-xs italic text-muted-foreground">
+                              Replacement pending review
+                            </span>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <ProvisionRepButton
+                                name={rep.name}
+                                level={rep.level ?? null}
+                                existingCode={student?.access_code}
+                              />
+                              <ReplaceRepButton
+                                registrationId={r.id}
+                                name={rep.name}
+                                level={rep.level ?? null}
+                              />
+                            </div>
+                          )}
                         </div>
                       );
                     })}

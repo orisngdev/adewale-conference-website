@@ -6,7 +6,7 @@ import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { createAdminClient } from "@/supabase/admin";
 import { provisionStudent, type ProvisionResult } from "@/lib/provision-student";
-import type { Rep } from "@/supabase/types";
+import type { Rep, ReplacementResult } from "@/supabase/types";
 
 // Provision a student for the coordinator's school: a Supabase auth user with a
 // synthetic email + the access code as password (so they log in with just the
@@ -62,39 +62,113 @@ export async function provisionRep(
   );
 }
 
-// Update existing representatives in place (edit names/class) — coordinators can
-// correct details but not add or remove reps after submission. `count` is the
-// number of rep rows the form rendered.
-export async function updateReps(registrationId: string, formData: FormData) {
+// Representatives are locked in after submission — corrections and swaps both go
+// through the replacement flow (requestReplacement) so an admin reviews the
+// change and access codes stay in sync. There is deliberately no edit-in-place.
+
+// File a request to replace a rep (student A leaves, B takes the slot). This is
+// deliberately separate from updateReps (which is for typo corrections on the
+// same person): a replacement swaps one human for another, so it needs admin
+// approval to deactivate the outgoing student and provision the incoming one.
+// Allowed any time — no registration-open gate. RLS (sr_insert) gates to members.
+export async function requestReplacement(
+  registrationId: string,
+  _prev: ReplacementResult | null,
+  formData: FormData,
+): Promise<ReplacementResult> {
   const supabase = await createClient();
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated." };
 
-  // Reps are only editable while that edition's registration is open — past /
-  // closed editions are locked.
-  const { data: reg } = await supabase
-    .from("registrations")
-    .select("edition_year")
-    .eq("id", registrationId)
-    .maybeSingle();
-  if (!reg) return;
-  const { data: ed } = await supabase
-    .from("editions")
-    .select("registration_open")
-    .eq("year", reg.edition_year)
-    .maybeSingle();
-  if (!ed?.registration_open) return;
+  const oldName = String(formData.get("old_name") ?? "").trim();
+  const oldLevel = String(formData.get("old_level") ?? "").trim();
+  const newName = String(formData.get("new_name") ?? "").trim();
+  const newLevel = String(formData.get("new_level") ?? "").trim();
+  if (!oldName) return { error: "Missing the student being replaced." };
+  if (!newName) return { error: "Enter the replacement student's name." };
 
-  const count = Number(formData.get("count") ?? 0);
-  const reps: Rep[] = [];
-  for (let i = 0; i < count; i++) {
-    const name = String(formData.get(`rep${i}_name`) ?? "").trim();
-    const level = String(formData.get(`rep${i}_level`) ?? "").trim();
-    if (name) reps.push(level ? { name, level } : { name });
+  // Incoming rep's extra attributes — kept so Airtable stays complete after the
+  // swap. Neutral keys here; the admin approval maps them onto "Student Rep N …".
+  const newDetails: Record<string, string> = {};
+  for (const [field, key] of [
+    ["dob", "dob"],
+    ["gender", "gender"],
+    ["guardian_name", "guardianName"],
+    ["guardian_number", "guardianNumber"],
+  ] as const) {
+    const value = String(formData.get(field) ?? "").trim();
+    if (value) newDetails[key] = value;
   }
 
-  // RLS (reg_owner_update / member) ensures only an authorised user can write.
-  await supabase.from("registrations").update({ reps }).eq("id", registrationId);
+  const { data: reg } = await supabase
+    .from("registrations")
+    .select("id, school_id, details, reps")
+    .eq("id", registrationId)
+    .maybeSingle();
+  if (!reg?.school_id) return { error: "Registration not found." };
+
+  // Resolve the Airtable "Student Rep N" slot so approval writes the swap back
+  // to the right field. Prefer a details name-match; fall back to reps order.
+  const details = (reg.details ?? {}) as Record<string, string>;
+  let repSlot: number | null = null;
+  for (let n = 1; n <= 3; n++) {
+    if (
+      (details[`Student Rep ${n} Full Name`] ?? "").trim().toLowerCase() ===
+      oldName.toLowerCase()
+    ) {
+      repSlot = n;
+      break;
+    }
+  }
+  if (repSlot === null) {
+    const reps = Array.isArray(reg.reps) ? (reg.reps as Rep[]) : [];
+    const idx = reps.findIndex(
+      (r) => r.name.trim().toLowerCase() === oldName.toLowerCase(),
+    );
+    if (idx >= 0) repSlot = idx + 1;
+  }
+
+  // The outgoing student's provisioned row, if any (active only).
+  const { data: existing } = await supabase
+    .from("students")
+    .select("id")
+    .eq("school_id", reg.school_id)
+    .ilike("name", oldName)
+    .is("deactivated_at", null)
+    .limit(1);
+  const oldStudentId = (existing?.[0]?.id as string | undefined) ?? null;
+
+  // Don't stack duplicate pending requests for the same rep.
+  const { data: dupe } = await supabase
+    .from("student_replacements")
+    .select("id")
+    .eq("registration_id", registrationId)
+    .eq("old_name", oldName)
+    .eq("status", "pending")
+    .limit(1);
+  if (dupe && dupe.length) {
+    return { error: "A replacement for this student is already awaiting review." };
+  }
+
+  const { error } = await supabase.from("student_replacements").insert({
+    registration_id: registrationId,
+    school_id: reg.school_id,
+    rep_slot: repSlot,
+    old_student_id: oldStudentId,
+    old_name: oldName,
+    old_level: oldLevel || null,
+    new_name: newName,
+    new_level: newLevel || null,
+    new_details: newDetails,
+    reason: String(formData.get("reason") ?? "").trim() || null,
+    requested_by: user.id,
+    status: "pending",
+  });
+  if (error) return { error: `Could not submit: ${error.message}` };
+
+  revalidatePath("/portal/school/students");
   revalidatePath("/portal/school");
-  revalidatePath("/portal/school/registrations");
+  return { ok: true };
 }
 
 // Register the coordinator's school for an open edition — created owned by them,

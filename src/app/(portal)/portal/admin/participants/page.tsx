@@ -14,15 +14,21 @@ import {
 } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
+import type { RegistrationStatus } from "@/supabase/types";
 
 export const metadata = pageMetadata("Participants", "Student reps and contacts per registration.");
 export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 20;
 
+// "Approved" = accepted into the competition (past the close-of-registration
+// review). Matches the ACCEPTED set used on the Editions page.
+const APPROVED: RegistrationStatus[] = ["verified", "qualified", "finalist"];
+
 interface ParticipantRow {
   id: string;
   edition_year: number;
+  status: RegistrationStatus;
   details: Record<string, string> | null;
   reps: { name: string; level?: string }[] | null;
   contact_email: string | null;
@@ -38,7 +44,8 @@ export default async function AdminParticipants({
   const supabase = await createClient();
   const { data } = await supabase
     .from("registrations")
-    .select("id, edition_year, details, reps, contact_email, schools(name, lga, category)")
+    .select("id, edition_year, status, details, reps, contact_email, schools(name, lga, category)")
+    .in("status", APPROVED)
     .order("edition_year", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -73,10 +80,10 @@ export default async function AdminParticipants({
       <PortalBody>
         <div>
           <SectionHeading>
-            {filtered.length} registration{filtered.length === 1 ? "" : "s"}
+            {filtered.length} approved school{filtered.length === 1 ? "" : "s"}
           </SectionHeading>
 
-          <FilterBar q={q} placeholder="Search school, rep, teacher, or principal…">
+          <FilterBar q={q} placeholder="Search school, email, rep, teacher, or principal…">
             <select name="edition" defaultValue={edition ?? ""} className={filterSelectCls}>
               <option value="">All editions</option>
               {years.map((y) => (
@@ -88,10 +95,10 @@ export default async function AdminParticipants({
           </FilterBar>
 
           {rows.length === 0 ? (
-            <EmptyState title={needle || activeYear ? "No matches" : "No participants yet"}>
+            <EmptyState title={needle || activeYear ? "No matches" : "No approved schools yet"}>
               {needle || activeYear
-                ? "No registrations match the current search or filter."
-                : "Submitted registrations from the public form will appear here."}
+                ? "No approved schools match the current search or filter."
+                : "Schools appear here once they're approved in Registrations at close of review."}
             </EmptyState>
           ) : (
             <Card className="divide-y divide-foreground/5">
@@ -142,11 +149,11 @@ export default async function AdminParticipants({
             params={{ q, edition }}
           />
           <p className="text-xs text-muted-foreground mt-4">
-            Data mirrors Airtable via the{" "}
+            Shows only schools approved for the competition. Approve entries under{" "}
             <Link href="/portal/admin/registrations" className="text-primary hover:underline">
               Registrations
-            </Link>{" "}
-            sync.
+            </Link>
+            .
           </p>
         </div>
       </PortalBody>

@@ -11,6 +11,8 @@ import {
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { ConfirmDecisionButton } from "@/components/portal/confirm-decision-button";
 import { SelectAllCheckbox } from "@/components/portal/select-all-checkbox";
+import { SelectAllMatching } from "@/components/portal/select-all-matching";
+import { StageResults } from "@/components/portal/stage-results";
 import {
   FilterBar,
   Pagination,
@@ -21,8 +23,10 @@ import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import type {
   AdminRegistrationRow,
+  Edition,
   RegistrationStatus,
   Rep,
+  StageResult,
 } from "@/supabase/types";
 import {
   bulkRegistrationDecision,
@@ -59,13 +63,19 @@ export default async function AdminRegistrations({
 }) {
   const { edition, q, status, page: pageParam } = await searchParams;
   const supabase = await createClient();
-  const { data: regData } = await supabase
-    .from("registrations")
-    .select(
-      "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, schools(name), profiles(email, full_name), certificates(id, type)",
-    )
-    .order("edition_year", { ascending: false })
-    .order("created_at", { ascending: false });
+  const [{ data: regData }, { data: editionData }] = await Promise.all([
+    supabase
+      .from("registrations")
+      .select(
+        "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, schools(name), profiles(email, full_name), certificates(id, type)",
+      )
+      .order("edition_year", { ascending: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("editions")
+      .select("year, title, registration_open, stages, current_stage")
+      .order("year", { ascending: false }),
+  ]);
 
   const all = (regData ?? []) as unknown as AdminRegistrationRow[];
   const years = [...new Set(all.map((r) => r.edition_year))].sort((a, b) => b - a);
@@ -101,6 +111,28 @@ export default async function AdminRegistrations({
     q,
     status,
   };
+
+  // Stage marking only makes sense within a single edition (each edition owns
+  // its own ordered stages), so it shows on the default per-edition tab.
+  const editions = (editionData ?? []) as Edition[];
+  const activeEdition = activeYear
+    ? editions.find((e) => e.year === activeYear) ?? null
+    : null;
+
+  // Per-school stage outcomes for just the rows rendered on this page.
+  const pageIds = registrations.map((r) => r.id);
+  const { data: stageData } = pageIds.length
+    ? await supabase
+        .from("registration_stage_results")
+        .select("id, registration_id, stage, outcome, score, note")
+        .in("registration_id", pageIds)
+    : { data: [] as StageResult[] };
+  const resultsByReg = new Map<string, StageResult[]>();
+  for (const sr of (stageData ?? []) as StageResult[]) {
+    const list = resultsByReg.get(sr.registration_id) ?? [];
+    list.push(sr);
+    resultsByReg.set(sr.registration_id, list);
+  }
 
   return (
     <>
@@ -156,7 +188,7 @@ export default async function AdminRegistrations({
 
           <FilterBar
             q={q}
-            placeholder="Search school, contact, rep, or claim code…"
+            placeholder="Search school, email, contact, rep, or claim code…"
             preserve={{ edition }}
           >
             <select name="status" defaultValue={status ?? ""} className={filterSelectCls}>
@@ -173,35 +205,89 @@ export default async function AdminRegistrations({
               the selection. Approve sends the guidelines email; decline sends a
               polite not-selected email. Neither touches portal access. */}
           <form id={BULK_FORM_ID} action={bulkRegistrationDecision}>
-            <Card className="p-4 mb-6 flex flex-wrap items-center gap-3">
-              <SelectAllCheckbox formId={BULK_FORM_ID} targetName="ids" />
-              <p className="text-sm text-muted-foreground flex-1 min-w-40">
-                <span className="font-bold text-foreground">{underReview}</span> under
-                review · <span className="font-bold text-foreground">{filtered.length}</span>{" "}
-                match{filtered.length === 1 ? "" : "es"} — select schools below, then:
-              </p>
-              <ConfirmDecisionButton
-                name="decision"
-                value="approve"
-                size="sm"
-                title="Approve selected schools?"
-                description="Every ticked school is approved and sent the guidelines email."
-                confirmLabel="Yes, approve"
-              >
-                Approve selected
-              </ConfirmDecisionButton>
-              <ConfirmDecisionButton
-                name="decision"
-                value="decline"
-                size="sm"
-                variant="outline"
-                destructive
-                title="Decline selected schools?"
-                description="Every ticked school is declined and sent a polite not-selected email."
-                confirmLabel="Yes, decline"
-              >
-                Decline selected
-              </ConfirmDecisionButton>
+            <Card className="p-4 mb-6 space-y-3">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                <SelectAllCheckbox formId={BULK_FORM_ID} targetName="ids" />
+                {filtered.length > registrations.length ? (
+                  <SelectAllMatching
+                    formId={BULK_FORM_ID}
+                    ids={filtered.map((r) => r.id)}
+                  />
+                ) : null}
+                <p className="text-sm text-muted-foreground flex-1 min-w-40">
+                  <span className="font-bold text-foreground">{underReview}</span> under
+                  review · <span className="font-bold text-foreground">{filtered.length}</span>{" "}
+                  match{filtered.length === 1 ? "" : "es"} — select schools below, then:
+                </p>
+                <ConfirmDecisionButton
+                  name="decision"
+                  value="approve"
+                  size="sm"
+                  title="Approve selected schools?"
+                  description="Every ticked school is approved and sent the guidelines email."
+                  confirmLabel="Yes, approve"
+                >
+                  Approve selected
+                </ConfirmDecisionButton>
+                <ConfirmDecisionButton
+                  name="decision"
+                  value="decline"
+                  size="sm"
+                  variant="outline"
+                  destructive
+                  title="Decline selected schools?"
+                  description="Every ticked school is declined and sent a polite not-selected email."
+                  confirmLabel="Yes, decline"
+                >
+                  Decline selected
+                </ConfirmDecisionButton>
+              </div>
+
+              {/* Per-stage marking — record how the selected schools fared at a
+                  stage (advanced / not-advanced). Only within a single edition,
+                  which owns its own ordered stage list. */}
+              {activeEdition ? (
+                <div className="flex flex-wrap items-center gap-2 border-t border-foreground/5 pt-3">
+                  <span className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
+                    Stage result
+                  </span>
+                  <select
+                    name="stage"
+                    defaultValue={activeEdition.current_stage}
+                    className={inputCls}
+                    aria-label="Stage to mark"
+                  >
+                    {activeEdition.stages.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                  <ConfirmDecisionButton
+                    name="decision"
+                    value="advance"
+                    size="sm"
+                    variant="outline"
+                    title="Mark selected as advanced?"
+                    description="Records the ticked schools as advanced past the chosen stage and notifies each coordinator."
+                    confirmLabel="Yes, mark advanced"
+                  >
+                    Mark advanced
+                  </ConfirmDecisionButton>
+                  <ConfirmDecisionButton
+                    name="decision"
+                    value="eliminate"
+                    size="sm"
+                    variant="outline"
+                    destructive
+                    title="Mark selected as not advanced?"
+                    description="Records the ticked schools as not advancing past the chosen stage and notifies each coordinator. Portal access stays open."
+                    confirmLabel="Yes, mark"
+                  >
+                    Mark not advanced
+                  </ConfirmDecisionButton>
+                </div>
+              ) : null}
             </Card>
           </form>
 
@@ -257,6 +343,13 @@ export default async function AdminRegistrations({
                         )
                         .join(", ")}
                     </p>
+                  ) : null}
+
+                  {activeEdition && (resultsByReg.get(r.id)?.length ?? 0) > 0 ? (
+                    <StageResults
+                      stages={activeEdition.stages}
+                      results={resultsByReg.get(r.id) ?? []}
+                    />
                   ) : null}
 
                   <div className="flex flex-wrap items-center gap-2">

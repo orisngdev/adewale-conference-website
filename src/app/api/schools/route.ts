@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { LGA_OPTIONS, SCHOOL_CATEGORY_OPTIONS } from "@/lib/forms";
-import { isSupabaseConfigured, supabasePublishableKey, supabaseUrl } from "@/supabase/env";
+import { createAdminClient } from "@/supabase/admin";
 
 export const runtime = "nodejs";
 
@@ -26,8 +25,11 @@ function requireOption<T extends readonly string[]>(
 }
 
 // School lookup for the registration form's dropdown. Reads the portal's
-// schools table (kept complete by the Airtable sync) with the public anon
-// key — schools_read RLS is public, and no cookies keeps this cacheable.
+// schools table (kept complete by the Airtable sync) with the service-role
+// client: the form is a public, logged-out page, but schools_read RLS is
+// authenticated-only, so the anon key would return zero rows. The admin
+// client stays server-side and we hand back only the three dropdown fields —
+// never the school's email/address.
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -38,13 +40,11 @@ export async function GET(request: Request) {
       "School Category",
     );
 
-    if (!isSupabaseConfigured) {
+    const supabase = createAdminClient();
+    if (!supabase) {
       return NextResponse.json({ schools: [] });
     }
 
-    const supabase = createClient(supabaseUrl, supabasePublishableKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
     const { data, error } = await supabase
       .from("schools")
       .select("id, name, category, lga")

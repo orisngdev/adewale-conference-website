@@ -3,16 +3,19 @@ import { redirect } from "next/navigation";
 import { Lock } from "lucide-react";
 import { Card, EmptyState, SectionHeading } from "@/components/portal/ui";
 import { Button } from "@/components/ui/button";
-import MaterialDownloadButton from "@/components/portal/material-download-button";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
-import { sanityFetch } from "@/sanity/lib/live";
-import { resourcesQuery } from "@/sanity/lib/queries";
-import type { ResourceListItem } from "@/sanity/types";
 import { SUBJECTS, LEVELS } from "@/lib/assessments";
 import { canAccess, lockHint } from "@/lib/resource-access";
+import {
+  RESOURCE_COLUMNS,
+  RESOURCE_TYPES,
+  STUDENT_VISIBLE_AUDIENCE,
+  mapResource,
+  type ResourceRow,
+} from "@/lib/resources";
 
 export const metadata = pageMetadata("Resources", "Study packs, past questions, and tools.");
 export const dynamic = "force-dynamic";
@@ -20,7 +23,7 @@ export const dynamic = "force-dynamic";
 const selCls =
   "rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary";
 
-// Official state systems — always shown; admins can add more via Sanity (type "external-link").
+// Official state systems — always shown; admins add more as external-link resources.
 const OFFICIAL_LINKS = [
   { title: "OgunLEARN", url: "https://learn.ogunstate.gov.ng/", note: "State lesson-notes platform" },
   { title: "DiPER", url: "https://diper.ogunstate.gov.ng/", note: "Learner ID & records" },
@@ -37,29 +40,38 @@ export default async function StudentResources({
   if (!user) redirect("/portal/login");
   const supabase = await createClient();
 
-  // Tiered access: competition material unlocks with the school's status
-  // (accepted → qualified → finalist). Locked items are listed as motivation,
-  // but their file URLs are withheld here on the server — they never reach the
-  // browser of anyone below the tier.
+  // Published resources (RLS shows only published to non-admins), filtered by
+  // the chosen facets. Tier gating on the FILE happens at download — locked
+  // items are listed to motivate, but their URLs never leave the server.
+  let query = supabase
+    .from("resources")
+    .select(RESOURCE_COLUMNS)
+    .eq("published", true)
+    // Students see student-facing resources only; coordinator-only material is hidden.
+    .in("audience", [...STUDENT_VISIBLE_AUDIENCE])
+    .order("created_at", { ascending: false });
+  if (sp.subject) query = query.eq("subject", sp.subject);
+  if (sp.level) query = query.eq("level", sp.level);
+  if (sp.type) query = query.eq("type", sp.type);
+
   const [{ data }, { data: schoolData }] = await Promise.all([
-    sanityFetch({
-      query: resourcesQuery,
-      params: { type: sp.type ?? "", subject: sp.subject ?? "", level: sp.level ?? "" },
-    }),
+    query,
     supabase.rpc("get_my_school"),
   ]);
   const status =
     ((schoolData as { registration?: { status?: string } | null } | null)?.registration
       ?.status as string | undefined) ?? null;
 
-  const resources = (data ?? []) as ResourceListItem[];
-  const withLock = (r: ResourceListItem) => ({ r, locked: !canAccess(r.access, status) });
-  const packs = resources
-    .filter((r) => r.hasFile && r.type !== "external-link")
+  const resources = ((data ?? []) as unknown as ResourceRow[]).map(mapResource);
+  const withLock = (r: (typeof resources)[number]) => ({ r, locked: !canAccess(r.access, status) });
+  // Grouped by how you get them — downloadable files vs. links — not by type.
+  // The type (guidelines, past questions, study guide…) shows on each card.
+  const downloads = resources
+    .filter((r) => r.hasFile)
     .map(withLock)
     .sort((a, b) => Number(a.locked) - Number(b.locked));
   const links = resources
-    .filter((r) => r.type === "external-link" || (!r.hasFile && r.externalUrl))
+    .filter((r) => !r.hasFile && r.externalUrl)
     .map(withLock);
 
   return (
@@ -78,10 +90,9 @@ export default async function StudentResources({
             </select>
             <select name="type" defaultValue={sp.type ?? ""} className={selCls}>
               <option value="">Any type</option>
-              <option value="past-question">Past questions</option>
-              <option value="study-guide">Study guides</option>
-              <option value="syllabus">Syllabus</option>
-              <option value="video">Video</option>
+              {RESOURCE_TYPES.filter((t) => t.value !== "external-link").map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
             </select>
             <Button type="submit" size="sm" variant="outline">Apply</Button>
           </form>
@@ -90,14 +101,14 @@ export default async function StudentResources({
 
       <div>
         <SectionHeading action={{ href: "/resources", label: "All resources →" }}>
-          Study packs &amp; past questions
+          Downloads
         </SectionHeading>
-        {packs.length === 0 ? (
-          <EmptyState title="Study packs will appear here as they're published." />
+        {downloads.length === 0 ? (
+          <EmptyState title="Downloadable materials will appear here as they're published." />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {packs.map(({ r, locked }) => (
-              <Card key={r._id} className={`p-5 h-full flex flex-col ${locked ? "opacity-75" : ""}`}>
+            {downloads.map(({ r, locked }) => (
+              <Card key={r.id} className={`p-5 h-full flex flex-col ${locked ? "opacity-75" : ""}`}>
                 {r.type ? (
                   <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
                     {r.type.replace("-", " ")}
@@ -112,15 +123,13 @@ export default async function StudentResources({
                     <Lock className="size-3.5 shrink-0 text-gold-ink" />
                     {lockHint(r.access)}
                   </p>
-                ) : r.fileUrl ? (
-                  <MaterialDownloadButton resourceId={r._id} fileUrl={r.fileUrl} fileName={r.fileName} />
-                ) : r.slug ? (
-                  <Link
-                    href={`/resources/${r.slug}`}
+                ) : r.hasFile ? (
+                  <a
+                    href={`/api/resources/${r.id}/download`}
                     className="mt-3 text-xs uppercase tracking-[0.15em] text-primary hover:underline"
                   >
-                    Open →
-                  </Link>
+                    Download ↓
+                  </a>
                 ) : null}
               </Card>
             ))}
@@ -141,7 +150,7 @@ export default async function StudentResources({
           ))}
           {links.map(({ r, locked }) =>
             locked ? (
-              <Card key={r._id} className="p-5 h-full opacity-75">
+              <Card key={r.id} className="p-5 h-full opacity-75">
                 <h4 className="font-bebas text-lg text-foreground">{r.title}</h4>
                 <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Lock className="size-3.5 shrink-0 text-gold-ink" />
@@ -150,7 +159,7 @@ export default async function StudentResources({
               </Card>
             ) : (
               <a
-                key={r._id}
+                key={r.id}
                 href={r.externalUrl ?? "#"}
                 target="_blank"
                 rel="noopener noreferrer"

@@ -20,6 +20,8 @@ export async function GET(request: Request) {
   const type = params.get("type") ?? "registration";
   const sendTo = params.get("send");
 
+  // buildRegistrationEmail now returns one message per recipient — preview the
+  // teacher's copy (the one that carries the activation link).
   const email =
     type === "sponsorship"
       ? buildSponsorshipEmail({
@@ -36,7 +38,7 @@ export async function GET(request: Request) {
           principalEmail: "principal@example.com",
           teacherFullName: "Mr. Tunde Bello",
           teacherEmail: "teacher@example.com",
-        });
+        })[0];
 
   if (sendTo) {
     try {

@@ -232,6 +232,60 @@ export async function syncAirtableRegistrations() {
   revalidatePath("/portal/admin/registrations");
 }
 
+// Every educator on the school (teacher + principal, and any other approved
+// member) gets the accepted / not-selected email — not just the one contact.
+// Reads approved school_members; falls back to the registration contact when
+// the school has no member rows yet. Deduped by email.
+type DecisionSupabase = Awaited<ReturnType<typeof createClient>>;
+async function emailSchoolDecision(
+  supabase: DecisionSupabase,
+  opts: {
+    schoolId: string | null;
+    schoolName: string;
+    editionYear: number;
+    decision: "approve" | "decline";
+    fallbackEmail?: string | null;
+    fallbackName?: string | null;
+  },
+) {
+  let recipients: { email: string; name: string | null }[] = [];
+  if (opts.schoolId) {
+    const { data: members } = await supabase
+      .from("school_members")
+      .select("email, full_name")
+      .eq("school_id", opts.schoolId)
+      .eq("status", "approved");
+    recipients = ((members ?? []) as { email: string; full_name: string | null }[])
+      .filter((m) => m.email)
+      .map((m) => ({ email: m.email, name: m.full_name }));
+  }
+  if (recipients.length === 0 && opts.fallbackEmail) {
+    recipients = [{ email: opts.fallbackEmail, name: opts.fallbackName ?? null }];
+  }
+
+  const seen = new Set<string>();
+  for (const r of recipients) {
+    const key = r.email.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    await sendEmailSafely(
+      opts.decision === "approve"
+        ? buildAcceptedEmail({
+            email: r.email,
+            name: r.name,
+            schoolFullName: opts.schoolName,
+            editionYear: opts.editionYear,
+          })
+        : buildDeclinedEmail({
+            email: r.email,
+            name: r.name,
+            schoolFullName: opts.schoolName,
+            editionYear: opts.editionYear,
+          }),
+    );
+  }
+}
+
 export async function setRegistrationStatus(
   registrationId: string,
   formData: FormData,
@@ -242,7 +296,7 @@ export async function setRegistrationStatus(
   const supabase = await createClient();
   const { data: before } = await supabase
     .from("registrations")
-    .select("status, edition_year, contact_email, contact_name, owner_id, schools(name)")
+    .select("status, edition_year, contact_email, contact_name, owner_id, school_id, schools(name)")
     .eq("id", registrationId)
     .maybeSingle();
 
@@ -262,30 +316,21 @@ export async function setRegistrationStatus(
   if (notify) {
     const schoolName =
       ((before.schools as unknown as { name: string | null } | null)?.name) ?? "Your school";
-    if (before.contact_email) {
-      await sendEmailSafely(
-        status === "verified"
-          ? buildAcceptedEmail({
-              email: before.contact_email,
-              name: before.contact_name,
-              schoolFullName: schoolName,
-              editionYear: before.edition_year,
-            })
-          : buildDeclinedEmail({
-              email: before.contact_email,
-              name: before.contact_name,
-              schoolFullName: schoolName,
-              editionYear: before.edition_year,
-            }),
-      );
-    }
+    await emailSchoolDecision(supabase, {
+      schoolId: (before.school_id as string | null) ?? null,
+      schoolName,
+      editionYear: before.edition_year,
+      decision: status === "verified" ? "approve" : "decline",
+      fallbackEmail: before.contact_email,
+      fallbackName: before.contact_name,
+    });
     if (before.owner_id) {
       await supabase.from("notifications").insert({
         profile_id: before.owner_id,
         title: status === "verified" ? "Entry confirmed" : "Entry update",
         body:
           status === "verified"
-            ? `${schoolName} is confirmed for the ${before.edition_year} competition — guidelines are in your email.`
+            ? `${schoolName} is confirmed for the ${before.edition_year} competition — log in to your portal for the guidelines.`
             : `${schoolName} wasn't selected for the ${before.edition_year} competition. Portal access stays open.`,
         link: "/portal/school",
       });
@@ -302,15 +347,30 @@ export async function setRegistrationStatus(
 // for approve, already past it) are skipped, so re-running never re-sends.
 export async function bulkRegistrationDecision(formData: FormData) {
   const decision = String(formData.get("decision") ?? "");
-  if (decision !== "approve" && decision !== "decline") return;
-  const ids = formData.getAll("ids").map(String).filter(Boolean);
+  // Deduped because "select all matching" injects hidden ids that can overlap
+  // the ticked page rows — the DB fetch would collapse them anyway, but keep
+  // the notification loop honest.
+  const ids = [...new Set(formData.getAll("ids").map(String).filter(Boolean))];
   if (ids.length === 0) return;
+
+  // Stage marking (advance / not-advanced at a chosen stage) shares this
+  // selection form but is a different flow from acceptance (approve / decline).
+  if (decision === "advance" || decision === "eliminate") {
+    await bulkStageOutcome(
+      ids,
+      decision === "advance" ? "advanced" : "eliminated",
+      String(formData.get("stage") ?? "").trim(),
+    );
+    return;
+  }
+
+  if (decision !== "approve" && decision !== "decline") return;
 
   const supabase = await createClient();
   // RLS (reg_owner_update with is_admin()) restricts the writes to admins.
   const { data } = await supabase
     .from("registrations")
-    .select("id, status, edition_year, contact_email, contact_name, owner_id, schools(name)")
+    .select("id, status, edition_year, contact_email, contact_name, owner_id, school_id, schools(name)")
     .in("id", ids);
   const rows = (data ?? []) as unknown as {
     id: string;
@@ -319,6 +379,7 @@ export async function bulkRegistrationDecision(formData: FormData) {
     contact_email: string | null;
     contact_name: string | null;
     owner_id: string | null;
+    school_id: string | null;
     schools: { name: string | null } | null;
   }[];
 
@@ -337,30 +398,22 @@ export async function bulkRegistrationDecision(formData: FormData) {
     if (error) continue;
 
     const schoolName = row.schools?.name ?? "Your school";
-    if (row.contact_email) {
-      await sendEmailSafely(
-        decision === "approve"
-          ? buildAcceptedEmail({
-              email: row.contact_email,
-              name: row.contact_name,
-              schoolFullName: schoolName,
-              editionYear: row.edition_year,
-            })
-          : buildDeclinedEmail({
-              email: row.contact_email,
-              name: row.contact_name,
-              schoolFullName: schoolName,
-              editionYear: row.edition_year,
-            }),
-      );
-    }
+    // Teacher + principal (and any other approved member) both get the email.
+    await emailSchoolDecision(supabase, {
+      schoolId: row.school_id,
+      schoolName,
+      editionYear: row.edition_year,
+      decision,
+      fallbackEmail: row.contact_email,
+      fallbackName: row.contact_name,
+    });
     if (row.owner_id) {
       await supabase.from("notifications").insert({
         profile_id: row.owner_id,
         title: decision === "approve" ? "Entry confirmed" : "Entry update",
         body:
           decision === "approve"
-            ? `${schoolName} is confirmed for the ${row.edition_year} competition — guidelines are in your email.`
+            ? `${schoolName} is confirmed for the ${row.edition_year} competition — log in to your portal for the guidelines.`
             : `${schoolName} wasn't selected for the ${row.edition_year} competition. Portal access stays open.`,
         link: "/portal/school",
       });
@@ -369,6 +422,64 @@ export async function bulkRegistrationDecision(formData: FormData) {
 
   revalidatePath("/portal/admin/registrations");
   revalidatePath("/portal/admin");
+}
+
+// ── Per-stage results: mark selected schools advanced / not-advanced ─────────
+// The edition moves everyone through one shared stage; this records how each
+// school fared at a given stage so a school can advance at the Zonal Stage yet
+// not at the Grand Finale. Upsert keyed on (registration_id, stage), so
+// re-marking corrects rather than duplicates. Notifies each owner.
+async function bulkStageOutcome(
+  ids: string[],
+  outcome: "advanced" | "eliminated",
+  stage: string,
+) {
+  if (!stage || ids.length === 0) return;
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("registrations")
+    .select("id, edition_year, owner_id, schools(name)")
+    .in("id", ids);
+  const rows = (data ?? []) as unknown as {
+    id: string;
+    edition_year: number;
+    owner_id: string | null;
+    schools: { name: string | null } | null;
+  }[];
+  if (rows.length === 0) return;
+
+  const now = new Date().toISOString();
+  // RLS (stage_results_admin_write) restricts the upsert to admins.
+  const { error } = await supabase.from("registration_stage_results").upsert(
+    rows.map((r) => ({
+      registration_id: r.id,
+      stage,
+      outcome,
+      updated_at: now,
+    })),
+    { onConflict: "registration_id,stage" },
+  );
+  if (!error) {
+    for (const r of rows) {
+      if (!r.owner_id) continue;
+      const schoolName = r.schools?.name ?? "Your school";
+      await supabase.from("notifications").insert({
+        profile_id: r.owner_id,
+        title: outcome === "advanced" ? `Advanced past ${stage}` : `${stage} result`,
+        body:
+          outcome === "advanced"
+            ? `${schoolName} advanced past the ${stage} in the ${r.edition_year} competition.`
+            : `${schoolName} did not advance past the ${stage} in the ${r.edition_year} competition. The prep portal stays open.`,
+        link: "/portal/school",
+      });
+    }
+  }
+
+  revalidatePath("/portal/admin/registrations");
+  revalidatePath("/portal/admin");
+  revalidatePath("/portal/school");
+  revalidatePath("/portal");
 }
 
 // ── Resend / change-email for the activation link ────────────────────────────

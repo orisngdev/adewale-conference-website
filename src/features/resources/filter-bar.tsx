@@ -1,5 +1,6 @@
 import Link from "next/link";
-import type { ResourceFilters } from "@/sanity/types";
+
+export type ResourceFilters = { type: string; subject: string; level: string };
 
 type Option = { value: string; label: string };
 

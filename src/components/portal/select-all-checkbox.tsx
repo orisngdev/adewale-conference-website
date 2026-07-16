@@ -26,7 +26,7 @@ export function SelectAllCheckbox({
             });
         }}
       />
-      Select all
+      Select page
     </label>
   );
 }

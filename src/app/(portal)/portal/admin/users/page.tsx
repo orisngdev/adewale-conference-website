@@ -82,6 +82,7 @@ export default async function AdminUsers({
     const { data: studentRows } = await supabase
       .from("students")
       .select("auth_user_id, access_code, level, schools(name)")
+      .is("deactivated_at", null)
       .in("auth_user_id", studentIds);
     for (const s of (studentRows ?? []) as unknown as {
       auth_user_id: string | null;

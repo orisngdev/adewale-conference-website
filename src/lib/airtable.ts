@@ -149,6 +149,25 @@ export async function createAirtableRecord(
   return response.json();
 }
 
+// Patch a single record's fields (leaves other fields untouched). Used to write
+// a student swap back to the participant row so the one-way sync doesn't revert
+// it. No-op when Airtable writes are disabled.
+export async function updateAirtableRecord(
+  tableId: string,
+  recordId: string,
+  fields: AirtableRecordFields,
+) {
+  if (!isAirtableWritesEnabled()) return null;
+  const response = await airtableFetch(
+    buildAirtableUrl(`${tableId}/${recordId}`),
+    {
+      method: "PATCH",
+      body: JSON.stringify({ fields, typecast: false }),
+    },
+  );
+  return response.json();
+}
+
 export async function listAirtableRecords<TFields extends object>(
   tableId: string,
   params?: URLSearchParams,

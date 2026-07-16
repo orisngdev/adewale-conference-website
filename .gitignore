@@ -44,9 +44,15 @@ next-env.d.ts
 
 .env
 .env.local
-.env.development.local
+.env.development
+
 
 # Supabase CLI local state — holds the project ref and a pooler URL WITH the DB password.
 supabase/.temp/
 supabase/.branches/
 .env.prod
+
+# Internal ops docs/scripts — kept local, not in the public repo (they map the
+# prod/dev/staging project refs, orgs, and backup buckets).
+docs/environments-and-deploy.md
+scripts/db-push-prod.sh

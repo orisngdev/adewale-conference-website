@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Card, SectionHeading, StatTile } from "@/components/portal/ui";
 import { EditionStages, nextStage } from "@/components/portal/edition-stages";
+import { StageResults } from "@/components/portal/stage-results";
 import { Notifications } from "@/components/portal/notifications";
 import ClaimForm from "@/components/portal/claim-form";
 import RegisterEditionForm from "@/components/portal/register-edition-form";
@@ -8,7 +9,12 @@ import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
-import type { Edition, Rep, RegistrationWithRelations } from "@/supabase/types";
+import type {
+  Edition,
+  Rep,
+  RegistrationWithRelations,
+  StageResult,
+} from "@/supabase/types";
 
 export const metadata = pageMetadata("School dashboard", "Your school overview.");
 export const dynamic = "force-dynamic";
@@ -19,17 +25,26 @@ export default async function SchoolOverview() {
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  const [{ data: regData }, { data: memberData }, { data: editionData }] = await Promise.all([
-    supabase
-      .from("registrations")
-      .select("id, edition_year, status, reps, schools(name)")
-      .order("edition_year", { ascending: false }),
-    supabase.from("school_members").select("status, schools(name)"),
-    supabase
-      .from("editions")
-      .select("year, title, registration_open, stages, current_stage")
-      .order("year", { ascending: false }),
-  ]);
+  const [{ data: regData }, { data: memberData }, { data: editionData }, { data: guidelineRows }] =
+    await Promise.all([
+      supabase
+        .from("registrations")
+        .select("id, edition_year, status, reps, schools(name)")
+        .order("edition_year", { ascending: false }),
+      supabase.from("school_members").select("status, schools(name)"),
+      supabase
+        .from("editions")
+        .select("year, title, registration_open, stages, current_stage")
+        .order("year", { ascending: false }),
+      // The competition guideline is a resource (type "guidelines") — single
+      // source of truth, managed in Admin → Resources.
+      supabase
+        .from("resources")
+        .select("id, edition_year")
+        .eq("type", "guidelines")
+        .eq("published", true)
+        .order("created_at", { ascending: false }),
+    ]);
   const registrations = (regData ?? []) as unknown as RegistrationWithRelations[];
   const totalReps = registrations.reduce(
     (n, r) => n + (Array.isArray(r.reps) ? (r.reps as Rep[]).length : 0),
@@ -48,6 +63,29 @@ export default async function SchoolOverview() {
   const entry = registrations[0] ?? null;
   const accepted =
     entry && ["verified", "qualified", "finalist"].includes(entry.status);
+
+  // Pick the guideline for this school's edition, else one with no edition set,
+  // else the newest. Downloaded through the tier-gated resource route.
+  const guidelineRes = (guidelineRows ?? []) as { id: string; edition_year: number | null }[];
+  const guideline =
+    (entry ? guidelineRes.find((g) => g.edition_year === entry.edition_year) : undefined) ??
+    guidelineRes.find((g) => g.edition_year == null) ??
+    guidelineRes[0] ??
+    null;
+  const guidelineHref = guideline ? `/api/resources/${guideline.id}/download` : "";
+
+  // The school's own per-stage outcomes for its latest entry (empty until an
+  // admin marks a stage), plus the matching edition's ordered stage list.
+  const { data: stageData } = entry
+    ? await supabase
+        .from("registration_stage_results")
+        .select("id, registration_id, stage, outcome, score, note")
+        .eq("registration_id", entry.id)
+    : { data: [] as StageResult[] };
+  const stageResults = (stageData ?? []) as StageResult[];
+  const entryEdition = entry
+    ? editions.find((e) => e.year === entry.edition_year) ?? latest
+    : null;
 
   return (
     <>
@@ -85,11 +123,29 @@ export default async function SchoolOverview() {
           </p>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             {accepted
-              ? "Your entry is confirmed — the guidelines are in your email, and your teacher will receive the zonal schedule at least two weeks ahead."
+              ? "Your entry is confirmed — download the competition guidelines below. Your teacher will also receive the zonal schedule at least two weeks ahead."
               : entry.status === "declined"
                 ? "Your school wasn't selected this time. The prep portal stays open all year — practice, Tech Lab, plans and resources — and we'd love to see you register next edition."
-                : "You'll be emailed the full competition guidelines once schools are confirmed at close of registration. Meanwhile, everything here is open — prepare freely."}
+                : "The full competition guidelines unlock here once schools are confirmed at close of registration. Meanwhile, everything here is open — prepare freely."}
           </p>
+          {accepted && guidelineHref ? (
+            <a
+              href={guidelineHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 inline-flex items-center gap-2 bg-primary px-4 py-2.5 text-xs font-bold uppercase tracking-[0.15em] text-foreground hover:bg-primary/90 transition-colors"
+            >
+              Download the competition guidelines →
+            </a>
+          ) : null}
+          {entryEdition && stageResults.length > 0 ? (
+            <div className="mt-4 border-t border-foreground/5 pt-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">
+                Your stage results
+              </p>
+              <StageResults stages={entryEdition.stages} results={stageResults} />
+            </div>
+          ) : null}
         </Card>
       ) : null}
 

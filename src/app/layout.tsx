@@ -13,10 +13,8 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "ASC Portal", statusBarStyle: "default" },
-  icons: {
-    icon: "/favicon.svg",
-    apple: "/icons/icon-maskable-192.png",
-  },
+  // Favicon + apple-touch icon come from the src/app/icon.png and
+  // src/app/apple-icon.png file conventions (auto-linked site-wide).
   title: {
     default: "Adewale Students Conference",
     template: "%s | Adewale Students Conference",

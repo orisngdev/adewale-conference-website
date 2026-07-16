@@ -213,24 +213,52 @@ function buildClaimBlock(claimCode?: string | null) {
 </table>`;
 }
 
-export function buildRegistrationEmail(data: RegistrationEmailData) {
+// Returns one message PER recipient — never a single email addressed to both —
+// because the activation link is the coordinating teacher's private onboarding
+// secret. Bundling both into one `to` would hand the principal (and anyone
+// they forward to) the teacher's account. The teacher's copy carries the
+// activation block; the principal's is a plain confirmation (they receive their
+// OWN activation link in a separate email from the registration mirror). When
+// they share an inbox, only the teacher's copy — with the link — is sent.
+export function buildRegistrationEmail(data: RegistrationEmailData): SendEmailInput[] {
   const subject = `Registration received — ${data.schoolFullName}`;
-  const html = render("registration", "Registration received", {
-    schoolFullName: data.schoolFullName,
-    schoolLGA: data.schoolLGA,
-    zonalFinalsLocation: data.zonalFinalsLocation,
-    principalFullName: data.principalFullName,
-    teacherFullName: data.teacherFullName,
-    claimBlock: buildActivateBlock(data.verifyToken, data.claimCode),
-  });
+  const notify = getNotifyRecipient();
+  const bcc = notify ? [notify] : undefined;
 
-  const to: EmailRecipient[] = [
-    { email: data.principalEmail, name: data.principalFullName },
-    { email: data.teacherEmail, name: data.teacherFullName },
+  const renderFor = (claimBlock: string) =>
+    render("registration", "Registration received", {
+      schoolFullName: data.schoolFullName,
+      schoolLGA: data.schoolLGA,
+      zonalFinalsLocation: data.zonalFinalsLocation,
+      principalFullName: data.principalFullName,
+      teacherFullName: data.teacherFullName,
+      claimBlock,
+    });
+
+  const teacherLower = data.teacherEmail.trim().toLowerCase();
+  const principalLower = data.principalEmail.trim().toLowerCase();
+
+  // Teacher (coordinator): confirmation WITH the activation link.
+  const messages: SendEmailInput[] = [
+    {
+      to: [{ email: data.teacherEmail, name: data.teacherFullName }],
+      subject,
+      html: renderFor(buildActivateBlock(data.verifyToken, data.claimCode)),
+      ...(bcc ? { bcc } : {}),
+    },
   ];
 
-  const notify = getNotifyRecipient();
-  return { to, bcc: notify ? [notify] : undefined, subject, html };
+  // Principal: same confirmation but NO activation link. Skipped when they share
+  // the teacher's inbox (the message above already reached them, with the link).
+  if (principalLower && principalLower !== teacherLower) {
+    messages.push({
+      to: [{ email: data.principalEmail, name: data.principalFullName }],
+      subject,
+      html: renderFor(""),
+    });
+  }
+
+  return messages;
 }
 
 /** Heads-up to the conference team when a new registration lands (awareness only). */
@@ -273,11 +301,14 @@ export function buildActivationEmail(data: {
   return { to, subject, html };
 }
 
-function getGuidelinesUrl() {
-  return process.env.ADEWALE_GUIDELINES_URL || `${SITE_URL}/faq`;
+// The portal sign-in page, pre-set to land on the school dashboard. First-time
+// educators sign in with a one-time email link and then set a password — there
+// is no public sign-up (accounts come from registration + the Airtable sync).
+function getPortalLoginUrl(next = "/portal/school") {
+  return `${SITE_URL}/portal/login?redirectTo=${encodeURIComponent(next)}`;
 }
 
-/** Official acceptance + competition guidelines (sent at close-of-registration review). */
+/** Official acceptance — directs educators to log in and download the guide. */
 export function buildAcceptedEmail(data: {
   email: string;
   name?: string | null;
@@ -288,7 +319,7 @@ export function buildAcceptedEmail(data: {
   const html = render("accepted", "Entry confirmed", {
     schoolFullName: data.schoolFullName,
     editionYear: String(data.editionYear),
-    guidelinesUrl: getGuidelinesUrl(),
+    portalUrl: getPortalLoginUrl(),
   });
   const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
   return { to, subject, html };
@@ -305,6 +336,7 @@ export function buildDeclinedEmail(data: {
   const html = render("declined", "Entry update", {
     schoolFullName: data.schoolFullName,
     editionYear: String(data.editionYear),
+    portalUrl: getPortalLoginUrl(),
   });
   const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
   return { to, subject, html };

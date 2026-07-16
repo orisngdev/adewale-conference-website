@@ -2,8 +2,8 @@
 // Bump CACHE_VERSION on each release to purge old caches. Deliberately does NOT
 // cache authed HTML (network-first + offline fallback only) so shared devices
 // never serve one student's page to another. Never intercepts /api or auth.
-const CACHE_VERSION = "asc-cache-v3";
-const PRECACHE = ["/portal/offline", "/manifest.webmanifest", "/favicon.svg"];
+const CACHE_VERSION = "asc-cache-v4";
+const PRECACHE = ["/portal/offline", "/manifest.webmanifest", "/icons/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -48,7 +48,8 @@ self.addEventListener("fetch", (event) => {
     url.origin === self.location.origin &&
     (url.pathname.startsWith("/_next/static") ||
       url.pathname.startsWith("/assets") ||
-      url.pathname === "/favicon.svg" ||
+      url.pathname === "/icon.png" ||
+      url.pathname.startsWith("/icons/") ||
       url.pathname === "/manifest.webmanifest")
   ) {
     event.respondWith(cacheFirst(req));

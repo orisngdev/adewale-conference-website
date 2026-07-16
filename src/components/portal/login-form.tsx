@@ -5,7 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/supabase/client";
 import { Button } from "@/components/ui/button";
 
-type Mode = "password" | "signup" | "magic";
+// No public sign-up: accounts come from registration + the Airtable sync, which
+// stage each educator as an approved school member. First-timers sign in with a
+// one-time email link, then set a password (they land on /portal/reset).
+type Mode = "password" | "magic";
 
 const inputCls =
   "w-full rounded-md border border-foreground/15 bg-card px-4 py-3 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
@@ -16,10 +19,10 @@ export default function LoginForm() {
   const redirectTo = params.get("redirectTo") || "/portal";
 
   const [supabase] = useState(() => createClient());
-  // Arriving from a claim link → likely a new coordinator: default to sign-up so
-  // they set a password first, then get returned to /portal/claim.
+  // Claim links are hit by brand-new coordinators — default them to the email
+  // link so their account is created and they're guided to set a password.
   const [mode, setMode] = useState<Mode>(
-    redirectTo.includes("/portal/claim") ? "signup" : "password",
+    redirectTo.includes("/portal/claim") ? "magic" : "password",
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,34 +50,19 @@ export default function LoginForm() {
       return;
     }
 
-    if (mode === "signup") {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: callbackUrl(redirectTo) },
-      });
-      setLoading(false);
-      if (error) setMsg({ type: "error", text: error.message });
-      else if (data.session) {
-        router.push(redirectTo);
-        router.refresh();
-      } else {
-        setMsg({
-          type: "info",
-          text: "Check your email to confirm your account, then sign in.",
-        });
-      }
-      return;
-    }
-
-    // magic link
+    // Magic link → after sign-in, land on the set-password page so new users
+    // finish with a password of their own (valid for returning users too).
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: callbackUrl(redirectTo) },
+      options: { emailRedirectTo: callbackUrl("/portal/reset?welcome=1") },
     });
     setLoading(false);
     if (error) setMsg({ type: "error", text: error.message });
-    else setMsg({ type: "info", text: `We sent a sign-in link to ${email}.` });
+    else
+      setMsg({
+        type: "info",
+        text: `We sent a sign-in link to ${email}. Open it to continue and set your password.`,
+      });
   }
 
   async function onForgot() {
@@ -94,17 +82,13 @@ export default function LoginForm() {
   }
 
   const submitLabel =
-    mode === "signup"
+    mode === "magic"
       ? loading
-        ? "Creating…"
-        : "Create account"
-      : mode === "magic"
-        ? loading
-          ? "Sending…"
-          : "Send sign-in link"
-        : loading
-          ? "Signing in…"
-          : "Sign in";
+        ? "Sending…"
+        : "Email me a sign-in link"
+      : loading
+        ? "Signing in…"
+        : "Sign in";
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
@@ -127,7 +111,7 @@ export default function LoginForm() {
         />
       </div>
 
-      {mode !== "magic" ? (
+      {mode === "password" ? (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label
@@ -136,25 +120,23 @@ export default function LoginForm() {
             >
               Password
             </label>
-            {mode === "password" ? (
-              <button
-                type="button"
-                onClick={onForgot}
-                className="text-xs text-primary hover:underline"
-              >
-                Forgot password?
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={onForgot}
+              className="text-xs text-primary hover:underline"
+            >
+              Forgot password?
+            </button>
           </div>
           <input
             id="password"
             type="password"
             required
-            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            autoComplete="current-password"
             minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder={mode === "signup" ? "Choose a password" : "Your password"}
+            placeholder="Your password"
             className={inputCls}
           />
         </div>
@@ -176,21 +158,21 @@ export default function LoginForm() {
       <div className="text-sm text-muted-foreground space-y-2 pt-1">
         {mode === "password" ? (
           <p>
-            New here?{" "}
+            First time here, or no password yet?{" "}
             <button
               type="button"
               onClick={() => {
-                setMode("signup");
+                setMode("magic");
                 setMsg(null);
               }}
               className="text-primary hover:underline font-medium"
             >
-              Create an account
+              Email me a sign-in link
             </button>
           </p>
         ) : (
           <p>
-            Already have an account?{" "}
+            Already set a password?{" "}
             <button
               type="button"
               onClick={() => {
@@ -199,22 +181,10 @@ export default function LoginForm() {
               }}
               className="text-primary hover:underline font-medium"
             >
-              Sign in
+              Sign in with it
             </button>
           </p>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            setMode(mode === "magic" ? "password" : "magic");
-            setMsg(null);
-          }}
-          className="text-primary hover:underline"
-        >
-          {mode === "magic"
-            ? "Use a password instead"
-            : "Email me a sign-in link instead"}
-        </button>
       </div>
     </form>
   );

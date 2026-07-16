@@ -7,6 +7,19 @@ export type RegistrationStatus =
   | "finalist"
   | "declined";
 
+// How a school fared at a single competition stage (the edition moves everyone
+// through one shared stage list; this is the per-school result at each).
+export type StageOutcome = "pending" | "advanced" | "eliminated";
+
+export interface StageResult {
+  id: string;
+  registration_id: string;
+  stage: string;
+  outcome: StageOutcome;
+  score: number | null;
+  note: string | null;
+}
+
 export interface Certificate {
   id: string;
   type: string | null;
@@ -16,6 +29,32 @@ export interface Certificate {
 export interface Rep {
   name: string;
   level?: string;
+}
+
+export type ReplacementStatus = "pending" | "approved" | "declined";
+
+/** Return shape of the requestReplacement server action (used by its dialog). */
+export type ReplacementResult = { ok?: boolean; error?: string };
+
+export interface StudentReplacementRow {
+  id: string;
+  registration_id: string;
+  school_id: string;
+  rep_slot: number | null;
+  old_student_id: string | null;
+  old_name: string;
+  old_level: string | null;
+  new_name: string;
+  new_level: string | null;
+  new_details: Record<string, string>;
+  reason: string | null;
+  status: ReplacementStatus;
+  requested_by: string | null;
+  reviewed_by: string | null;
+  admin_note: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  schools?: { name: string | null } | null;
 }
 
 export interface Edition {

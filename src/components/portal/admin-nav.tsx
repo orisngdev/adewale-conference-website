@@ -11,6 +11,7 @@ import {
   Users,
   School,
   UserRound,
+  UserRoundCheck,
   HandCoins,
   Settings,
 } from "lucide-react";
@@ -26,6 +27,7 @@ const RESOURCES: NavLink = { href: "/portal/admin/resources", label: "Resources"
 const USERS: NavLink = { href: "/portal/admin/users", label: "Users", icon: Users };
 const SCHOOLS: NavLink = { href: "/portal/admin/schools", label: "Schools", icon: School };
 const PARTICIPANTS: NavLink = { href: "/portal/admin/participants", label: "Participants", icon: UserRound, short: "People" };
+const REPLACEMENTS: NavLink = { href: "/portal/admin/replacements", label: "Replacements", icon: UserRoundCheck, short: "Swaps" };
 const SPONSORS: NavLink = { href: "/portal/admin/sponsors", label: "Sponsors", icon: HandCoins };
 const SETTINGS: NavLink = { href: "/portal/admin/settings", label: "Settings", icon: Settings };
 
@@ -34,11 +36,11 @@ const CONFIG: SidebarConfig = {
   overview: OVERVIEW,
   groups: [
     { title: "Program", links: [EDITIONS, REGISTRATIONS, WAITLIST, ASSESSMENTS, QUESTION_BANK, RESOURCES] },
-    { title: "People", links: [USERS, SCHOOLS, PARTICIPANTS, SPONSORS] },
+    { title: "People", links: [USERS, SCHOOLS, PARTICIPANTS, REPLACEMENTS, SPONSORS] },
     { title: "Site", links: [SETTINGS] },
   ],
   bottom: [OVERVIEW, REGISTRATIONS, ASSESSMENTS, USERS],
-  more: [EDITIONS, WAITLIST, QUESTION_BANK, RESOURCES, SCHOOLS, PARTICIPANTS, SPONSORS, SETTINGS],
+  more: [EDITIONS, WAITLIST, QUESTION_BANK, RESOURCES, SCHOOLS, PARTICIPANTS, REPLACEMENTS, SPONSORS, SETTINGS],
 };
 
 export default function AdminNav() {

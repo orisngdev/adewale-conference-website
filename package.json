@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "db:link": "supabase link --project-ref \"$SUPABASE_PROJECT_REF\"",
-    "db:push": "supabase db push",
+    "db:push": "npm run db:link && supabase db push",
     "db:seed": "bash scripts/db-seed.sh",
     "db:seed:accounts": "node scripts/seed-test-accounts.mjs",
     "db:setup": "npm run db:link && npm run db:push && npm run db:seed",
@@ -17,6 +17,8 @@
     "db:diff": "supabase db diff"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1088.0",
+    "@aws-sdk/s3-request-presigner": "^3.1088.0",
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@sanity/image-url": "^2.1.1",

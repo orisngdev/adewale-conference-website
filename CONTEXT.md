@@ -62,5 +62,16 @@ A Student's completion state across a Plan's required Items (a %). Assessment It
 One yearly run of the programme (e.g. 2026), with its own roster, stages, and registration window (`editions` table). Rosters, assignments, and progress are always scoped to an Edition; a Coordinator only ever sees or assigns the current Edition's Students.
 _Avoid_: cohort, season, year (as a bare noun).
 
+**Resource**:
+A library item admins publish in the portal for Students and Coordinators to open or download — a Study Pack, the competition guidelines, a syllabus, a video, or an external link. Every Resource carries an **Access tier** and an **Audience**. Managed entirely in the portal (admins upload, tier, publish, delete).
+_Avoid_: asset, material, file (for the umbrella noun).
+
+**Access tier**:
+How far a school must have progressed for its people to open a Resource's file — **Public**, **Accepted**, **Qualified**, or **Finalist** — mirroring the Registration status ladder. A locked Resource is still *listed* (as motivation), but its file is withheld until the school reaches the tier.
+
+**Audience**:
+Who a Resource is shown to — **Students**, **Coordinators**, or **both**. A Student sees only Student-facing Resources in their portal; a Coordinator (and an admin) sees every Resource, so they can attach any of them to a Learning Plan.
+
 **Study Pack**:
-A downloadable study resource (past questions, study guide, syllabus) hosted on the Sanity CDN as a `resource` document. Free and public; the portal only logs who downloads what.
+A free, Public-tier Resource of study material (past questions, study guide, syllabus). The portal logs who opens/downloads each one, which feeds a Student's Progress.
+_Avoid_: study resource (use Resource for the umbrella).

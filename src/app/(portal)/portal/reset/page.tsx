@@ -8,15 +8,31 @@ import { isSupabaseConfigured } from "@/supabase/env";
 export const metadata = pageMetadata("Set a new password", "Choose a new password for your account.");
 export const dynamic = "force-dynamic";
 
-export default async function ResetPage() {
+export default async function ResetPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
   if (!isSupabaseConfigured) redirect("/portal/login");
 
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
+  // `welcome=1` = arriving from a first-time email sign-in link — frame it as
+  // finishing setup rather than a password reset.
+  const { welcome } = await searchParams;
+  const isWelcome = welcome === "1";
+
   return (
     <>
-      <PortalHeader title="New password" subtitle="Choose a password for your account" />
+      <PortalHeader
+        title={isWelcome ? "Set your password" : "New password"}
+        subtitle={
+          isWelcome
+            ? "You're signed in — set a password to finish setting up your account"
+            : "Choose a password for your account"
+        }
+      />
       <PortalBody>
         <Card className="p-5 md:p-6 max-w-md">
           <ResetForm />

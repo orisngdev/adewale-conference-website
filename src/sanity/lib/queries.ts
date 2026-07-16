@@ -26,34 +26,8 @@ export const resultsQuery = defineQuery(`
   } | order(year desc, category asc, position asc)
 `);
 
-// Filtered resource list. Empty-string params mean "any" for that facet.
-export const resourcesQuery = defineQuery(`
-  *[_type == "resource"
-    && ($type == "" || type == $type)
-    && ($subject == "" || subject == $subject)
-    && ($level == "" || level == $level)
-  ] | order(title asc) {
-    _id, title, "slug": slug.current, type, subject, level, access,
-    "hasFile": defined(file.asset), externalUrl,
-    "fileUrl": file.asset->url, "fileName": file.asset->originalFilename
-  }
-`);
-
-export const resourceSubjectsQuery = defineQuery(`
-  *[_type == "resource" && defined(subject)].subject
-`);
-
-export const resourceSlugsQuery = defineQuery(`
-  *[_type == "resource" && defined(slug.current)].slug.current
-`);
-
-export const resourceBySlugQuery = defineQuery(`
-  *[_type == "resource" && slug.current == $slug][0] {
-    _id, title, "slug": slug.current, type, subject, level, access, body, externalUrl,
-    "fileUrl": file.asset->url, "fileName": file.asset->originalFilename,
-    "edition": edition->{ year, theme }
-  }
-`);
+// Resources moved to the portal-native library (Supabase `resources` table +
+// S3); see ADR-0006. The Sanity `resource` type has been retired.
 
 export const newsPostsQuery = defineQuery(`
   *[_type == "newsPost" && defined(slug.current)] | order(publishedAt desc) {

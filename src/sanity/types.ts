@@ -44,40 +44,8 @@ export interface ResultRow {
   theme?: string;
 }
 
-export type ResourceType =
-  | "past-question"
-  | "study-guide"
-  | "syllabus"
-  | "video"
-  | "external-link";
-
-export interface ResourceListItem {
-  _id: string;
-  title: string;
-  slug: string | null;
-  type?: ResourceType;
-  subject?: string;
-  level?: string;
-  /** Minimum tier: public (default) | accepted | qualified | finalist. */
-  access?: string | null;
-  hasFile?: boolean;
-  externalUrl?: string;
-  fileUrl?: string;
-  fileName?: string;
-}
-
-export interface Resource extends ResourceListItem {
-  body?: PortableTextBlock[];
-  fileUrl?: string;
-  fileName?: string;
-  edition?: { year: number; theme: string } | null;
-}
-
-export interface ResourceFilters {
-  type: string;
-  subject: string;
-  level: string;
-}
+// Resources moved to the portal-native library (Supabase + S3); see ADR-0006.
+// Their types now live in @/lib/resources.
 
 interface NewsBase {
   _id: string;

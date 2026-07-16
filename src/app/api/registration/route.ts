@@ -347,19 +347,22 @@ export async function POST(request: Request) {
       console.error("Supabase mirror failed (non-fatal):", mirrorError);
     }
 
-    await sendEmailSafely(
-      buildRegistrationEmail({
-        schoolFullName: registration.schoolFullName,
-        schoolLGA: registration.schoolLGA,
-        zonalFinalsLocation: registration.zonalFinalsLocation,
-        principalFullName: registration.principalFullName,
-        principalEmail: registration.principalEmail,
-        teacherFullName: registration.teacherFullName,
-        teacherEmail: registration.teacherEmail,
-        claimCode: mirror?.claimCode ?? null,
-        verifyToken: mirror?.verifyToken ?? null,
-      }),
-    );
+    // One message per recipient — the teacher's carries the activation link,
+    // the principal's does not (they get their own link from the mirror).
+    const confirmations = buildRegistrationEmail({
+      schoolFullName: registration.schoolFullName,
+      schoolLGA: registration.schoolLGA,
+      zonalFinalsLocation: registration.zonalFinalsLocation,
+      principalFullName: registration.principalFullName,
+      principalEmail: registration.principalEmail,
+      teacherFullName: registration.teacherFullName,
+      teacherEmail: registration.teacherEmail,
+      claimCode: mirror?.claimCode ?? null,
+      verifyToken: mirror?.verifyToken ?? null,
+    });
+    for (const confirmation of confirmations) {
+      await sendEmailSafely(confirmation);
+    }
 
     return NextResponse.json({ ok: true });
   } catch (error) {

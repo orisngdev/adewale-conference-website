@@ -1,19 +1,20 @@
 import Link from "next/link";
-import type { ResourceListItem } from "@/sanity/types";
+import type { PortalResource } from "@/lib/resources";
 
 export const TYPE_LABEL: Record<string, string> = {
+  guidelines: "Guidelines",
   "past-question": "Past question",
   "study-guide": "Study guide",
   syllabus: "Syllabus",
   video: "Video",
 };
 
-export default function ResourceCard({ resource }: { resource: ResourceListItem }) {
+export default function ResourceCard({ resource }: { resource: PortalResource }) {
   const meta = [resource.subject, resource.level].filter(Boolean).join(" · ");
 
   return (
     <Link
-      href={`/resources/${resource.slug}`}
+      href={resource.slug ? `/resources/${resource.slug}` : "#"}
       className="group block border border-[rgba(10,15,30,0.1)] bg-white p-5 hover:border-[#E8A020] transition-colors"
     >
       {resource.type ? (

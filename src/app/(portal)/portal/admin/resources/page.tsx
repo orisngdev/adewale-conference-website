@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/ui/empty-state";
 import {
   Card,
@@ -8,102 +7,182 @@ import {
   SectionHeading,
   StatTile,
 } from "@/components/portal/ui";
+import { SubmitButton } from "@/components/portal/submit-button";
+import { ResourceTypeField } from "@/components/portal/resource-type-field";
+import { ResourceAudienceFields } from "@/components/portal/resource-audience-fields";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { pageMetadata } from "@/lib/seo";
-import { sanityFetch } from "@/sanity/lib/live";
-import { resourcesQuery } from "@/sanity/lib/queries";
-import type { ResourceListItem } from "@/sanity/types";
+import { createClient } from "@/supabase/server";
+import { SUBJECTS, LEVELS } from "@/lib/assessments";
+import {
+  RESOURCE_ACCESS_OPTIONS,
+  RESOURCE_AUDIENCE_LABEL,
+  RESOURCE_COLUMNS,
+  RESOURCE_TYPES,
+  RESOURCE_TYPE_LABEL,
+  mapResource,
+  type ResourceRow,
+} from "@/lib/resources";
 import { ACCESS_LABEL, accessRank, type ResourceAccess } from "@/lib/resource-access";
+import { resourceStorage } from "@/lib/storage";
+import { createResource, deleteResource, setResourcePublished } from "./actions";
 
-export const metadata = pageMetadata("Resources", "What students can download — authored in Sanity.");
+export const metadata = pageMetadata("Resources", "Upload and manage the study library — no Sanity needed.");
 export const dynamic = "force-dynamic";
 
-const TYPE_LABEL: Record<string, string> = {
-  "past-question": "Past questions",
-  "study-guide": "Study guides",
-  syllabus: "Syllabus",
-  video: "Videos",
-  "external-link": "External links",
-};
+const inputCls =
+  "rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
 
-// Read-only mirror of the published resource library (students + educators see
-// exactly this). Content is AUTHORED in Sanity Studio — the button below opens
-// it; publish there and it's live here instantly, no deploy.
 export default async function AdminResources() {
-  const { data } = await sanityFetch({
-    query: resourcesQuery,
-    params: { type: "", subject: "", level: "" },
-  });
-  const resources = (data ?? []) as ResourceListItem[];
-  const downloadable = resources.filter((r) => r.hasFile);
-  const external = resources.filter((r) => r.type === "external-link" || (!r.hasFile && r.externalUrl));
-  const pageOnly = resources.length - downloadable.length - external.length;
+  const supabase = await createClient();
+  // Admins read all rows (published + drafts) via RLS.
+  const { data } = await supabase
+    .from("resources")
+    .select(RESOURCE_COLUMNS)
+    .order("created_at", { ascending: false });
+  const rows = (data ?? []) as unknown as ResourceRow[];
+  const resources = rows.map(mapResource);
+
+  const downloadable = resources.filter((r) => r.hasFile).length;
+  const external = resources.filter((r) => !r.hasFile && r.externalUrl).length;
+  const drafts = resources.filter((r) => !r.published).length;
+
+  // Custom types admins have typed before (beyond the built-in list) — offered
+  // as suggestions alongside the defaults so they stay reusable.
+  const knownTypes = new Set<string>(RESOURCE_TYPES.map((t) => t.value));
+  const customTypes = [
+    ...new Set(resources.map((r) => r.type).filter((t): t is string => Boolean(t))),
+  ]
+    .filter((t) => !knownTypes.has(t))
+    .sort();
+
+  const storageReady = resourceStorage.configured;
 
   return (
     <>
       <PortalHeader
         title="Resources"
-        subtitle="Study packs, guides & links — what students and educators can access"
+        subtitle="Upload and manage study packs, guides & links — right here in the portal"
       />
       <PortalBody>
-        <Card className="p-5 border-l-4 border-l-primary flex flex-wrap items-center justify-between gap-4">
-          <div className="max-w-2xl">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary">
-              Authored in Sanity Studio
-            </p>
-            <p className="font-bebas text-2xl text-foreground leading-tight">
-              Add or update guides in the Studio
+        {!storageReady ? (
+          <Card className="p-4 border-l-4 border-l-red-500">
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-600">
+              File storage not configured
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              Create a <span className="font-medium text-foreground">Resource</span> — title,
-              type, subject, level, and the file — and hit Publish. It appears here, on the
-              public library, and in the student &amp; educator portals immediately. No deploy.
+              Set <span className="font-mono">RESOURCE_S3_REGION</span>,{" "}
+              <span className="font-mono">RESOURCE_S3_BUCKET</span>,{" "}
+              <span className="font-mono">RESOURCE_S3_ACCESS_KEY_ID</span> and{" "}
+              <span className="font-mono">RESOURCE_S3_SECRET_ACCESS_KEY</span> to enable
+              file uploads. You can still add external-link resources without it.
             </p>
-          </div>
-          <div className="flex flex-wrap gap-2 shrink-0">
-            <Button asChild>
-              <a href="/studio" target="_blank" rel="noopener noreferrer">
-                Open Sanity Studio ↗
-              </a>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/portal/student/resources">View as student →</Link>
-            </Button>
-          </div>
-        </Card>
+          </Card>
+        ) : null}
 
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-          <StatTile label="Published" value={resources.length} />
-          <StatTile label="Downloadable" value={downloadable.length} />
-          <StatTile label="External links" value={external.length} />
-          <StatTile label="Page-only" value={pageOnly} />
+          <StatTile label="Total" value={resources.length} />
+          <StatTile label="Downloadable" value={downloadable} />
+          <StatTile label="External links" value={external} />
+          <StatTile label="Drafts" value={drafts} />
+        </div>
+
+        {/* Add a resource — file OR external link, with metadata + access tier. */}
+        <div>
+          <SectionHeading>Add a resource</SectionHeading>
+          <Card className="p-5 md:p-6">
+            <form action={createResource} className="space-y-4" encType="multipart/form-data">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="sm:col-span-2 space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Title</span>
+                  <input name="title" required placeholder="e.g. 2024 Mathematics past questions" className={`w-full ${inputCls}`} />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Type</span>
+                  <ResourceTypeField presets={[...RESOURCE_TYPES]} custom={customTypes} />
+                  <span className="text-[11px] text-muted-foreground">
+                    The type is a label shown on the card. Upload a file to make it
+                    a download, or paste a URL for a link.
+                  </span>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Who can access</span>
+                  <select name="access" defaultValue="public" className={`w-full ${inputCls}`}>
+                    {RESOURCE_ACCESS_OPTIONS.map((a) => (
+                      <option key={a.value} value={a.value}>{a.label}</option>
+                    ))}
+                  </select>
+                </label>
+
+                {/* Audience + Subject/Level — Subject/Level hide for coordinator-only resources. */}
+                <ResourceAudienceFields subjects={[...SUBJECTS]} levels={[...LEVELS]} />
+
+                <label className="space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Edition year (optional)</span>
+                  <input name="edition_year" inputMode="numeric" placeholder="2026" className={`w-full ${inputCls}`} />
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">File (PDF, etc.)</span>
+                  <input type="file" name="file" disabled={!storageReady} className={`w-full ${inputCls} disabled:opacity-60`} />
+                </label>
+
+                <label className="sm:col-span-2 space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">External URL (instead of a file)</span>
+                  <input name="external_url" type="url" placeholder="https://…" className={`w-full ${inputCls}`} />
+                </label>
+
+                <label className="sm:col-span-2 space-y-1">
+                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Description (optional)</span>
+                  <textarea name="body" rows={2} className={`w-full ${inputCls}`} />
+                </label>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <input type="checkbox" name="published" defaultChecked className="size-4 accent-primary" />
+                Publish now (uncheck to save as a draft)
+              </label>
+
+              <SubmitButton size="sm" pendingText="Uploading…">Add resource</SubmitButton>
+            </form>
+          </Card>
         </div>
 
         <div>
-          <SectionHeading action={{ href: "/resources", label: "Public library →" }}>
-            Published resources
+          <SectionHeading action={{ href: "/portal/student/resources", label: "View as student →" }}>
+            Library
           </SectionHeading>
           {resources.length === 0 ? (
-            <EmptyState title="Nothing published yet">
-              Students currently see an empty library — open the Studio above,
-              add your first study pack or past questions, and publish.
+            <EmptyState title="Nothing yet">
+              Add your first study pack or past questions above — it appears for
+              students and educators immediately.
             </EmptyState>
           ) : (
             <Card className="divide-y divide-foreground/5">
               {resources.map((r) => (
-                <div key={r._id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                   <div className="min-w-0">
-                    <p className="font-medium text-foreground truncate">{r.title}</p>
+                    <p className="font-medium text-foreground truncate">
+                      {r.title}
+                      {!r.published ? (
+                        <span className="ml-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">· draft</span>
+                      ) : null}
+                    </p>
                     <p className="text-sm text-muted-foreground">
                       {[
-                        r.type ? TYPE_LABEL[r.type] ?? r.type : null,
+                        r.type ? RESOURCE_TYPE_LABEL[r.type] ?? r.type : null,
                         r.subject,
                         r.level,
+                        r.editionYear,
+                        RESOURCE_AUDIENCE_LABEL[r.audience] ?? r.audience,
                       ]
                         .filter(Boolean)
                         .join(" · ") || "Untyped"}
                     </p>
                   </div>
-                  <span className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     {accessRank(r.access) > 0 ? (
                       <span className="inline-flex items-center px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide bg-primary/[0.14] text-gold-ink">
                         🔒 {ACCESS_LABEL[r.access as Exclude<ResourceAccess, "public">] ?? r.access}
@@ -118,15 +197,56 @@ export default async function AdminResources() {
                             : "bg-foreground/5 text-muted-foreground"
                       }`}
                     >
-                      {r.hasFile ? "Downloadable" : r.externalUrl ? "External link" : "Page only"}
+                      {r.hasFile ? "File" : r.externalUrl ? "Link" : "Page only"}
                     </span>
-                  </span>
+                    {/* Admins can open their own upload — the download route
+                        bypasses the tier gate for admins. */}
+                    {r.hasFile ? (
+                      <a
+                        href={`/api/resources/${r.id}/download`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs uppercase tracking-[0.15em] text-primary hover:underline px-1"
+                      >
+                        View ↓
+                      </a>
+                    ) : r.externalUrl ? (
+                      <a
+                        href={r.externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs uppercase tracking-[0.15em] text-primary hover:underline px-1"
+                      >
+                        Open ↗
+                      </a>
+                    ) : null}
+                    <form action={setResourcePublished.bind(null, r.id, !r.published)}>
+                      <SubmitButton size="sm" variant="outline">
+                        {r.published ? "Unpublish" : "Publish"}
+                      </SubmitButton>
+                    </form>
+                    <form action={deleteResource.bind(null, r.id)}>
+                      <ConfirmSubmitButton
+                        size="sm"
+                        variant="outline"
+                        destructive
+                        title="Delete this resource?"
+                        description="Removes the file from storage and the entry from the library. This can't be undone."
+                        confirmLabel="Yes, delete"
+                      >
+                        Delete
+                      </ConfirmSubmitButton>
+                    </form>
+                  </div>
                 </div>
               ))}
             </Card>
           )}
           <p className="text-xs text-muted-foreground mt-3">
-            Drafts aren&apos;t shown here — they&apos;re only visible inside the Studio until published.
+            Files are stored privately in{" "}
+            <Link href="/portal/admin/settings" className="text-primary hover:underline">object storage</Link>{" "}
+            and served through short-lived download links. Locked tiers are listed
+            but their files are withheld until a school reaches that stage.
           </p>
         </div>
       </PortalBody>

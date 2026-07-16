@@ -8,9 +8,6 @@ import PlanItemForm from "@/components/portal/plan-item-form";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
-import { sanityFetch } from "@/sanity/lib/live";
-import { resourcesQuery } from "@/sanity/lib/queries";
-import type { ResourceListItem } from "@/sanity/types";
 import { LEVELS } from "@/lib/assessments";
 import {
   addItem,
@@ -72,7 +69,14 @@ export default async function PlanBuilder({ params }: { params: Promise<{ id: st
       supabase.from("assessments").select("id, title, mode").eq("published", true).order("title"),
       supabase.from("students").select("id, name, level").eq("school_id", plan.school_id).eq("edition_year", plan.edition_year).order("name"),
       supabase.from("plan_assignments").select("id, assignee_type, level, student_id").eq("plan_id", id),
-      sanityFetch({ query: resourcesQuery, params: { type: "", subject: "", level: "" } }),
+      // Student-facing downloadable resources — the pool a coordinator can attach.
+      supabase
+        .from("resources")
+        .select("id, title, storage_key")
+        .eq("published", true)
+        .in("audience", ["student", "both"])
+        .not("storage_key", "is", null)
+        .order("title", { ascending: true }),
     ]);
 
   const modules = ((modData ?? []) as Module[]).map((m) => ({
@@ -82,9 +86,10 @@ export default async function PlanBuilder({ params }: { params: Promise<{ id: st
   const assessments = (aData ?? []) as { id: string; title: string; mode: string }[];
   const students = (stData ?? []) as { id: string; name: string; level: string | null }[];
   const assignments = (asgData ?? []) as { id: string; assignee_type: string; level: string | null; student_id: string | null }[];
-  const materials = ((matData ?? []) as ResourceListItem[])
-    .filter((r) => r.hasFile)
-    .map((r) => ({ _id: r._id, title: r.title }));
+  const materials = ((matData ?? []) as { id: string; title: string }[]).map((r) => ({
+    _id: r.id,
+    title: r.title,
+  }));
   const studentName = (sid: string | null) => students.find((s) => s.id === sid)?.name ?? "student";
 
   return (

@@ -22,7 +22,10 @@ export default async function SchoolResults() {
   // the derived school names, so it stays sequential after them.
   const [{ data: regData }, { data: studentData }, { data: attemptData }] = await Promise.all([
     supabase.from("registrations").select("schools(name)"),
-    supabase.from("students").select("name, auth_user_id"),
+    supabase
+      .from("students")
+      .select("name, auth_user_id")
+      .is("deactivated_at", null),
     supabase
       .from("assessment_attempts")
       .select("student_user_id, score, total, violations, assessments(title)")

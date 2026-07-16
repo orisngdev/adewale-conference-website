@@ -20,8 +20,8 @@ export default function LoginPage() {
           Portal access
         </h1>
         <p className="serif-display italic text-muted-foreground mt-3 mb-8 leading-relaxed">
-          Schools, students, and staff — sign in with your email and password,
-          create an account, or use a one-time email link.
+          Schools, students, and staff — sign in with your email and password.
+          First time here? Use a one-time email link, then set your password.
         </p>
 
         {isSupabaseConfigured ? (
