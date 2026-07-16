@@ -17,6 +17,45 @@ import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 
 const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
 
+// Provision each approved school's reps as student rows. Each rep is an
+// auth-user create, so doing it inline in the approve path 504'd a bulk approve.
+// On Netlify this hands off to a background function (returns 202 at once, runs
+// up to 15 min); locally it runs inline. Idempotent either way, and the
+// per-school "Sync roster" button remains the manual backstop.
+async function triggerRosterProvision(ids: string[]) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return;
+
+  const base = process.env.URL; // set only on Netlify
+  const secret = process.env.SYNC_SECRET;
+  if (base && secret) {
+    try {
+      await fetch(`${base}/.netlify/functions/roster-provision-background`, {
+        method: "POST",
+        headers: { "x-sync-secret": secret, "content-type": "application/json" },
+        body: JSON.stringify({ ids: unique }),
+      });
+    } catch {
+      // best-effort — provisioning is idempotent and re-runnable from the hub
+    }
+    return;
+  }
+
+  // Local dev (no Netlify runtime): provision inline — no serverless timeout.
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("registrations")
+    .select("school_id, edition_year, reps")
+    .in("id", unique);
+  for (const r of (data ?? []) as {
+    school_id: string | null;
+    edition_year: number;
+    reps: unknown;
+  }[]) {
+    await ensureRoster({ school_id: r.school_id, edition_year: r.edition_year, reps: r.reps });
+  }
+}
+
 // ── Team invitations ─────────────────────────────────────────────────────────
 // An admin invites a teammate (always as an admin — educators and students have
 // their own onboarding flows). If the email already has a profile we promote it
@@ -271,13 +310,9 @@ export async function setRegistrationStatus(
     .eq("id", registrationId);
 
   // First transition into verified materialises the roster (same as bulk
-  // approve). Idempotent, so re-verifying an already-verified row is harmless.
+  // approve), off-request so the action returns fast. Idempotent.
   if (!error && status === "verified" && before && before.status !== "verified") {
-    await ensureRoster({
-      school_id: (before.school_id as string | null) ?? null,
-      edition_year: before.edition_year,
-      reps: before.reps,
-    });
+    await triggerRosterProvision([registrationId]);
   }
 
   // Same emails as the bulk review, but only on an actual TRANSITION into
@@ -350,6 +385,7 @@ export async function bulkRegistrationDecision(formData: FormData) {
     schools: { name: string | null } | null;
   }[];
 
+  const approvedIds: string[] = [];
   for (const row of rows) {
     const skip =
       decision === "approve"
@@ -364,15 +400,9 @@ export async function bulkRegistrationDecision(formData: FormData) {
       .eq("id", row.id);
     if (error) continue;
 
-    // Approval materialises the school's reps as its competition roster (stable
-    // student ids for per-student stage results + certificates). Idempotent.
-    if (decision === "approve") {
-      await ensureRoster({
-        school_id: row.school_id,
-        edition_year: row.edition_year,
-        reps: row.reps,
-      });
-    }
+    // Roster provisioning (one auth user per rep) is deferred to a background
+    // function after the loop — doing it inline here 504'd a bulk approve.
+    if (decision === "approve") approvedIds.push(row.id);
 
     const schoolName = row.schools?.name ?? "Your school";
     // Every educator (teacher + principal + any approved member) gets both the
@@ -387,6 +417,8 @@ export async function bulkRegistrationDecision(formData: FormData) {
       fallbackName: row.contact_name,
     });
   }
+
+  await triggerRosterProvision(approvedIds);
 
   revalidatePath("/portal/admin/registrations");
   revalidatePath("/portal/admin");
