@@ -25,15 +25,20 @@ function uuid() {
 }
 
 // Practice adapter: marks locally against the shipped answers (works offline),
-// then records the summary (buffered if offline). Ungraded — no proctoring.
+// then records the summary (buffered if offline). Ungraded, but a faithful
+// rehearsal — when `proctor` is set (the student's own drill) it runs the same
+// no-tab-switch discipline as the exam so the habit is trained; the classroom
+// display leaves it off (a broadcast must not auto-submit on focus loss).
 export default function PracticeRunner({
   assessmentId,
   questions,
   timeLimitMinutes,
+  proctor = false,
 }: {
   assessmentId: string;
   questions: PracticeQuestion[];
   timeLimitMinutes: number | null;
+  proctor?: boolean;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [phase, setPhase] = useState<"intro" | "running" | "done">("intro");
@@ -50,10 +55,14 @@ export default function PracticeRunner({
   );
 
   const doSubmit = useCallback(
-    async (ans: Record<string, number>) => {
+    async (ans: Record<string, number>, violations: number) => {
       setAnswers(ans);
       setPhase("done");
-      const meta = { client_attempt_id: uuid(), submitted_offline: !navigator.onLine };
+      const meta = {
+        client_attempt_id: uuid(),
+        submitted_offline: !navigator.onLine,
+        violations,
+      };
       const { error } = await supabase.rpc("submit_practice_attempt", {
         p_assessment_id: assessmentId,
         p_answers: ans,
@@ -82,6 +91,9 @@ export default function PracticeRunner({
           </li>
           <li>📶 Works offline once loaded — you get your score and explanations instantly.</li>
           <li>🔁 Unlimited attempts. This is practice — it never affects selection.</li>
+          {proctor ? (
+            <li>🚫 Leaving the screen is recorded — it auto-submits after 3 switches, just like the exam.</li>
+          ) : null}
         </ul>
         <Button onClick={() => setPhase("running")} size="lg">Start drill</Button>
       </Card>
@@ -148,6 +160,7 @@ export default function PracticeRunner({
     <AssessmentNavigator
       questions={questions.map((q) => ({ id: q.id, prompt: q.prompt, options: q.options }))}
       timeLimitMinutes={timeLimitMinutes}
+      proctor={proctor}
       onSubmit={doSubmit}
     />
   );

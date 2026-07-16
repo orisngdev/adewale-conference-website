@@ -39,6 +39,7 @@ export default async function PracticePage({
         assessmentId={bank.id}
         questions={bank.questions}
         timeLimitMinutes={bank.time_limit_minutes}
+        proctor
       />
     </div>
   );
