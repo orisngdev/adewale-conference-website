@@ -53,11 +53,8 @@ export const galleryItemsQuery = defineQuery(`
   }
 `);
 
-export const sponsorsQuery = defineQuery(`
-  *[_type == "sponsor"] | order(name asc) {
-    _id, name, tier, logo, url
-  }
-`);
+// Sponsors are managed in Airtable (public form → enquiries); the Sanity
+// `sponsor` type has been retired. See admin/sponsors.
 
 // The edition to surface in the portal: soonest upcoming/active one.
 export const currentEditionQuery = defineQuery(`

@@ -1,36 +1,16 @@
+import Link from "next/link";
 import PageHeader from "@/components/layout/page-header";
-import EmptyState from "@/components/ui/empty-state";
-import SponsorCard from "@/features/sponsors/sponsor-card";
 import { pageMetadata } from "@/lib/seo";
-import { sanityFetch } from "@/sanity/lib/live";
-import { sponsorsQuery } from "@/sanity/lib/queries";
-import type { Sponsor } from "@/sanity/types";
 
 export const metadata = pageMetadata(
   "Our Sponsors",
-  "The organisations powering STEM opportunity for students through the Adewale Students Conference.",
+  "Partner with the Adewale Students Conference to power STEM opportunity for students.",
 );
 
-const TIER_ORDER = ["Platinum", "Gold", "Silver", "Bronze", "Scholarship"];
-
-function groupByTier(sponsors: Sponsor[]) {
-  const map = new Map<string, Sponsor[]>();
-  for (const sponsor of sponsors) {
-    const tier = sponsor.tier && TIER_ORDER.includes(sponsor.tier) ? sponsor.tier : "Other";
-    const list = map.get(tier) ?? [];
-    list.push(sponsor);
-    map.set(tier, list);
-  }
-  return [...TIER_ORDER, "Other"]
-    .filter((tier) => map.has(tier))
-    .map((tier) => [tier, map.get(tier)!] as const);
-}
-
-export default async function SponsorsPage() {
-  const { data } = await sanityFetch({ query: sponsorsQuery });
-  const sponsors = (data ?? []) as Sponsor[];
-  const groups = groupByTier(sponsors);
-
+// Sponsor partnerships are handled by the ASC team (enquiries come through the
+// public sponsorship form → Airtable). This page is an invitation to partner —
+// there is no Sanity-authored sponsor list.
+export default function SponsorsPage() {
   return (
     <>
       <PageHeader
@@ -38,37 +18,30 @@ export default async function SponsorsPage() {
         title="Our Sponsors"
         subtitle="The organisations powering STEM opportunity for students."
       />
-      <section className="px-6 md:px-12 py-16 md:py-20">
-        <div className="max-w-6xl mx-auto">
-          {sponsors.length === 0 ? (
-            <EmptyState title="Sponsors coming soon">
-              Our partners will be featured here. Interested in sponsoring? Reach us at
-              partnerships@asc2026.ng.
-            </EmptyState>
-          ) : (
-            <div className="space-y-12">
-              {groups.map(([tier, list]) => (
-                <div key={tier}>
-                  <h2 className="font-bebas text-2xl text-foreground mb-4">{tier}</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {list.map((sponsor) => (
-                      <SponsorCard key={sponsor._id} sponsor={sponsor} />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-16 border-t border-[rgba(10,15,30,0.12)] pt-10 text-center">
-            <p className="serif-display italic text-lg text-muted-foreground">
-              Interested in partnering with us?
-            </p>
-            <a
-              href="mailto:partnerships@asc2026.ng"
-              className="inline-block mt-4 bg-[#E8A020] text-foreground text-xs font-bold tracking-[0.2em] uppercase px-6 py-3 hover:bg-[#F5C55A] transition-colors"
+      <section className="px-6 md:px-12 py-16 md:py-24">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="serif-display italic text-xl md:text-2xl text-foreground leading-relaxed">
+            Every edition of the Adewale Students Conference is made possible by
+            organisations that believe in Ogun State&apos;s young innovators.
+          </p>
+          <p className="text-muted-foreground mt-6 leading-relaxed">
+            We partner across Platinum, Gold, Silver, Bronze and Scholarship tiers —
+            with naming rights, branded stages, shortlist access, and named
+            scholarships. Tell us how you&apos;d like to be involved and our team
+            will send the full sponsorship deck within 48 hours.
+          </p>
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/#partner"
+              className="inline-block bg-[#E8A020] text-foreground text-xs font-bold tracking-[0.2em] uppercase px-6 py-3 hover:bg-[#F5C55A] transition-colors"
             >
               Become a Sponsor
+            </Link>
+            <a
+              href="mailto:partnerships@asc2026.ng"
+              className="inline-block border border-foreground/20 text-foreground text-xs font-bold tracking-[0.2em] uppercase px-6 py-3 hover:border-[#E8A020] hover:text-primary transition-colors"
+            >
+              partnerships@asc2026.ng
             </a>
           </div>
         </div>

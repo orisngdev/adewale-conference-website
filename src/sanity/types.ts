@@ -80,10 +80,5 @@ export interface GalleryItem {
   year?: number;
 }
 
-export interface Sponsor {
-  _id: string;
-  name: string;
-  tier?: string;
-  logo?: Image;
-  url?: string;
-}
+// Sponsors moved to Airtable (enquiries via the public form); the Sanity
+// `sponsor` type has been retired.

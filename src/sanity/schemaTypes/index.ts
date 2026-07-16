@@ -3,7 +3,6 @@ import { edition } from "./edition";
 import { result } from "./result";
 import { newsPost } from "./newsPost";
 import { galleryItem } from "./galleryItem";
-import { sponsor } from "./sponsor";
 import { person } from "./person";
 import { siteSettings } from "./siteSettings";
 
@@ -12,7 +11,6 @@ export const schemaTypes: SchemaTypeDefinition[] = [
   result,
   newsPost,
   galleryItem,
-  sponsor,
   person,
   siteSettings,
 ];
