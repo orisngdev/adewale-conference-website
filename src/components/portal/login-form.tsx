@@ -26,6 +26,11 @@ export default function LoginForm() {
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Once the email is sent, we also accept the 6-digit code from that email.
+  // Link-scanners (Outlook SafeLinks, corporate filters) pre-fetch the sign-in
+  // link and burn its single-use token; typing the code sidesteps that.
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ type: "error" | "info"; text: string } | null>(
     null,
@@ -33,6 +38,10 @@ export default function LoginForm() {
 
   const callbackUrl = (to: string) =>
     `${location.origin}/portal/auth/callback?redirectTo=${encodeURIComponent(to)}`;
+
+  // Both the emailed link and the typed code land new users on the set-password
+  // page (harmless for returning users, who can keep their existing password).
+  const WELCOME = "/portal/reset?welcome=1";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -50,19 +59,37 @@ export default function LoginForm() {
       return;
     }
 
-    // Magic link → after sign-in, land on the set-password page so new users
-    // finish with a password of their own (valid for returning users too).
+    // Second magic-mode step: verify the 6-digit code the user typed from the
+    // email. Succeeds even if the clickable link was already consumed/expired.
+    if (codeSent) {
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token: code.trim(),
+        type: "email",
+      });
+      setLoading(false);
+      if (error) setMsg({ type: "error", text: error.message });
+      else {
+        router.push(WELCOME);
+        router.refresh();
+      }
+      return;
+    }
+
+    // First magic-mode step: send the email (contains both a link and a code).
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: callbackUrl("/portal/reset?welcome=1") },
+      options: { emailRedirectTo: callbackUrl(WELCOME) },
     });
     setLoading(false);
     if (error) setMsg({ type: "error", text: error.message });
-    else
+    else {
+      setCodeSent(true);
       setMsg({
         type: "info",
-        text: `We sent a sign-in link to ${email}. Open it to continue and set your password.`,
+        text: `We sent a sign-in link and a 6-digit code to ${email}. Click the link, or enter the code below.`,
       });
+    }
   }
 
   async function onForgot() {
@@ -83,12 +110,22 @@ export default function LoginForm() {
 
   const submitLabel =
     mode === "magic"
-      ? loading
-        ? "Sending…"
-        : "Email me a sign-in link"
+      ? codeSent
+        ? loading
+          ? "Verifying…"
+          : "Verify code & continue"
+        : loading
+          ? "Sending…"
+          : "Email me a sign-in link"
       : loading
         ? "Signing in…"
         : "Sign in";
+
+  function backToEmail() {
+    setCodeSent(false);
+    setCode("");
+    setMsg(null);
+  }
 
   return (
     <form onSubmit={onSubmit} className="space-y-5">
@@ -106,10 +143,40 @@ export default function LoginForm() {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          readOnly={codeSent}
           placeholder="you@school.edu.ng"
-          className={inputCls}
+          className={`${inputCls}${codeSent ? " opacity-70" : ""}`}
         />
       </div>
+
+      {mode === "magic" && codeSent ? (
+        <div className="space-y-2">
+          <label
+            htmlFor="code"
+            className="block text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground"
+          >
+            6-digit code from the email
+          </label>
+          <input
+            id="code"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]*"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+            placeholder="123456"
+            className={`${inputCls} tracking-[0.4em] font-mono`}
+          />
+          <button
+            type="button"
+            onClick={backToEmail}
+            className="text-xs text-primary hover:underline"
+          >
+            Use a different email
+          </button>
+        </div>
+      ) : null}
 
       {mode === "password" ? (
         <div className="space-y-2">
@@ -151,7 +218,12 @@ export default function LoginForm() {
         </p>
       ) : null}
 
-      <Button type="submit" size="lg" disabled={loading || !email} className="w-full">
+      <Button
+        type="submit"
+        size="lg"
+        disabled={loading || !email || (mode === "magic" && codeSent && code.length < 6)}
+        className="w-full"
+      >
         {submitLabel}
       </Button>
 
@@ -163,7 +235,7 @@ export default function LoginForm() {
               type="button"
               onClick={() => {
                 setMode("magic");
-                setMsg(null);
+                backToEmail();
               }}
               className="text-primary hover:underline font-medium"
             >
@@ -177,7 +249,7 @@ export default function LoginForm() {
               type="button"
               onClick={() => {
                 setMode("password");
-                setMsg(null);
+                backToEmail();
               }}
               className="text-primary hover:underline font-medium"
             >
