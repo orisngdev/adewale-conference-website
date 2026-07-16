@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/portal/submit-button";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import {
   Card,
@@ -59,9 +60,9 @@ export default async function AdminAssessments() {
                   <option key={l} value={l}>{l}</option>
                 ))}
               </select>
-              <Button type="submit" size="sm" className="sm:col-span-2 lg:col-span-5 lg:w-40">
+              <SubmitButton size="sm" pendingText="Creating…" className="sm:col-span-2 lg:col-span-5 lg:w-40">
                 Create
-              </Button>
+              </SubmitButton>
             </form>
           </Card>
         </div>

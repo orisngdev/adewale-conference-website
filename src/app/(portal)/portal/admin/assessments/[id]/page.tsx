@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/portal/submit-button";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import {
   Card,
@@ -234,7 +234,7 @@ export default async function AssessmentEditor({
                     <option value="4">D</option>
                   </select>
                 </label>
-                <Button type="submit" size="sm">Add question</Button>
+                <SubmitButton size="sm" pendingText="Adding…">Add question</SubmitButton>
               </div>
             </form>
           </Card>

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/ui/empty-state";
 import {
   Card,
@@ -9,6 +8,7 @@ import {
   StatusBadge,
 } from "@/components/portal/ui";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
+import { SubmitButton } from "@/components/portal/submit-button";
 import { ConfirmDecisionButton } from "@/components/portal/confirm-decision-button";
 import { SelectAllCheckbox } from "@/components/portal/select-all-checkbox";
 import { SelectAllMatching } from "@/components/portal/select-all-matching";
@@ -429,9 +429,9 @@ export default async function AdminRegistrations({
                         placeholder="Asset URL (optional)"
                         className={`flex-1 ${inputCls}`}
                       />
-                      <Button type="submit" size="sm">
+                      <SubmitButton size="sm" pendingText="Issuing…">
                         Issue
-                      </Button>
+                      </SubmitButton>
                     </form>
                   </div>
                 </Card>

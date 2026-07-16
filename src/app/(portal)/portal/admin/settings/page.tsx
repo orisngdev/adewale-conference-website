@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
+import { SubmitButton } from "@/components/portal/submit-button";
 import { Card, PortalBody, PortalHeader } from "@/components/portal/ui";
 import AccountSettings from "@/components/portal/account-settings";
 import SettingsTabs from "@/components/portal/settings-tabs";
@@ -108,9 +108,9 @@ export default async function AdminSettings() {
             placeholder="teammate@example.com"
             className={inputCls}
           />
-          <Button type="submit" size="sm" variant="outline">
+          <SubmitButton size="sm" variant="outline" pendingText="Sending…">
             Send invite
-          </Button>
+          </SubmitButton>
         </form>
       </Card>
 
