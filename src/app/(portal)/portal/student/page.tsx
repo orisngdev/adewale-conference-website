@@ -107,7 +107,7 @@ export default async function StudentOverview() {
           {[
             { href: "/portal/student/practice", label: "Practice drills", desc: "Offline speed practice" },
             { href: "/portal/student/exams", label: "Exams", desc: "Graded CBT" },
-            { href: "/portal/student/tech-lab", label: "Tech Skills Lab", desc: "Scratch → Python" },
+            { href: "/portal/student/labs", label: "Labs", desc: "Guided learning paths" },
             { href: "/portal/student/pitch-studio", label: "Pitch Studio", desc: "Design thinking & BMC" },
             { href: "/portal/student/plans", label: "My plans", desc: "Assigned study path" },
             { href: "/portal/student/resources", label: "Study packs", desc: "Past questions & guides" },

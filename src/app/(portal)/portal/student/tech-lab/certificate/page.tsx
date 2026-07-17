@@ -3,7 +3,7 @@ import PrintButton from "@/components/portal/print-button";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
-import { TECH_LAB_STEPS } from "@/lib/tech-lab";
+import { FUTURE_TECH_SLUG, passedAssessmentIds, type LabStep } from "@/lib/labs";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +13,34 @@ export default async function TechLabCertificate() {
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  const { data: prog } = await supabase
-    .from("tech_lab_progress")
-    .select("step_key")
-    .eq("student_user_id", user.id);
-  const done = new Set(((prog ?? []) as { step_key: string }[]).map((r) => r.step_key));
-  if (!TECH_LAB_STEPS.every((s) => done.has(s.key))) redirect("/portal/student/tech-lab");
+  // Certificate gate reads the Guided-Lab progress (labs engine), not the legacy
+  // tech_lab_progress table — new ticks land in lab_progress.
+  const { data: lab } = await supabase
+    .from("labs")
+    .select("id, lab_steps(key, kind, assessment_id)")
+    .eq("slug", FUTURE_TECH_SLUG)
+    .maybeSingle();
+  const steps = ((lab?.lab_steps ?? []) as Pick<LabStep, "key" | "kind" | "assessment_id">[]);
+  if (!lab || steps.length === 0) redirect(`/portal/student/labs/${FUTURE_TECH_SLUG}`);
+
+  const quizIds = steps.filter((s) => s.kind === "quiz" && s.assessment_id).map((s) => s.assessment_id as string);
+  const [{ data: prog }, { data: attempts }] = await Promise.all([
+    supabase.from("lab_progress").select("step_key").eq("student_user_id", user.id).eq("lab_id", lab.id),
+    quizIds.length
+      ? supabase
+          .from("assessment_attempts")
+          .select("assessment_id, score, total")
+          .eq("student_user_id", user.id)
+          .eq("status", "submitted")
+          .in("assessment_id", quizIds)
+      : Promise.resolve({ data: [] as never[] }),
+  ]);
+  const ticked = new Set(((prog ?? []) as { step_key: string }[]).map((r) => r.step_key));
+  const passed = passedAssessmentIds((attempts ?? []) as never);
+  const allDone = steps.every(
+    (s) => ticked.has(s.key) || (s.kind === "quiz" && !!s.assessment_id && passed.has(s.assessment_id)),
+  );
+  if (!allDone) redirect(`/portal/student/labs/${FUTURE_TECH_SLUG}`);
 
   const [{ data: profile }, { data: student }] = await Promise.all([
     supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),

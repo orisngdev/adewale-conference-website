@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import StudentSidebar from "@/components/portal/student-sidebar";
+import AdminPreviewBanner from "@/components/portal/admin-preview-banner";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
@@ -26,8 +27,12 @@ export default async function StudentLayout({
   )?.name;
 
   return (
-    <div className="px-4 md:px-6 py-6 md:py-8">
-      <div className="max-w-7xl mx-auto">
+    <>
+      {/* Admins land here via "Preview as student" — the whole student sidebar is
+          reachable, so pin the notice to the top of every student page. */}
+      <AdminPreviewBanner backHref="/portal/admin" />
+      <div className="px-4 md:px-6 py-6 md:py-8">
+        <div className="max-w-7xl mx-auto">
         <h1 className="font-bebas text-3xl md:text-4xl text-foreground leading-[0.95]">
           {name}
         </h1>
@@ -40,7 +45,8 @@ export default async function StudentLayout({
           </aside>
           <div className="flex-1 min-w-0 space-y-6 pb-24 md:pb-0">{children}</div>
         </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

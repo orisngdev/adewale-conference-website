@@ -4,7 +4,7 @@ import {
   LayoutDashboard,
   BookOpen,
   ClipboardCheck,
-  Monitor,
+  FlaskConical,
   Trophy,
   Lightbulb,
   ListChecks,
@@ -18,7 +18,7 @@ import PortalSidebar, { type SidebarConfig, type NavLink } from "@/components/po
 const OVERVIEW: NavLink = { href: "/portal/student", label: "Overview", icon: LayoutDashboard, exact: true, short: "Home" };
 const PRACTICE: NavLink = { href: "/portal/student/practice", label: "Practice", icon: BookOpen };
 const EXAMS: NavLink = { href: "/portal/student/exams", label: "Exams", icon: ClipboardCheck };
-const TECH_LAB: NavLink = { href: "/portal/student/tech-lab", label: "Tech Lab", icon: Monitor };
+const LABS: NavLink = { href: "/portal/student/labs", label: "Labs", icon: FlaskConical };
 const CHALLENGES: NavLink = { href: "/portal/student/challenges", label: "Challenges", icon: Trophy };
 const PITCH: NavLink = { href: "/portal/student/pitch-studio", label: "Pitch Studio", icon: Lightbulb };
 const PLANS: NavLink = { href: "/portal/student/plans", label: "My plans", icon: ListChecks, short: "Plans" };
@@ -31,11 +31,11 @@ const CONFIG: SidebarConfig = {
   ariaLabel: "Student sections",
   overview: OVERVIEW,
   groups: [
-    { title: "Learn", links: [PRACTICE, EXAMS, TECH_LAB, CHALLENGES, PITCH] },
+    { title: "Learn", links: [PRACTICE, EXAMS, LABS, CHALLENGES, PITCH] },
     { title: "You", links: [PLANS, RESULTS, SCHOOL, RESOURCES, SETTINGS] },
   ],
   bottom: [OVERVIEW, PRACTICE, EXAMS, PLANS],
-  more: [TECH_LAB, CHALLENGES, PITCH, RESULTS, SCHOOL, RESOURCES, SETTINGS],
+  more: [LABS, CHALLENGES, PITCH, RESULTS, SCHOOL, RESOURCES, SETTINGS],
 };
 
 export default function StudentSidebar() {
