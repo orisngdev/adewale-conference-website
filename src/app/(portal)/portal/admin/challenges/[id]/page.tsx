@@ -170,7 +170,11 @@ export default async function AdminChallengeDetail({
         {/* ── Settings ──────────────────────────────────────────────────── */}
         <div>
           <SectionHeading
-            action={{ href: `/portal/student/challenges/${c.id}`, label: "Preview as student →" }}
+            action={
+              c.published
+                ? { href: `/portal/student/challenges/${c.id}`, label: "Preview as student →" }
+                : undefined
+            }
           >
             Challenge settings
           </SectionHeading>
@@ -394,9 +398,11 @@ async function DataAdminView({
           </p>
           <div className="flex flex-wrap items-center gap-2 border-t border-foreground/5 pt-4">
             {publishToggle}
-            <Button asChild size="sm" variant="outline">
-              <Link href={`/portal/student/challenges/${c.id}`}>Open arena →</Link>
-            </Button>
+            {c.published ? (
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/portal/student/challenges/${c.id}`}>Open arena →</Link>
+              </Button>
+            ) : null}
           </div>
         </Card>
 
