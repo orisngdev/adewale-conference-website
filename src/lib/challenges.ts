@@ -29,7 +29,7 @@ export const CHALLENGE_TYPE_LABEL: Record<ChallengeType, string> = {
 // Short helper text shown under each option in the admin type picker.
 export const CHALLENGE_TYPE_HINT: Record<ChallengeType, string> = {
   data: "Auto-scored on a hidden test set — authored via the arena.",
-  pitch: "Students submit a snapshot of their Pitch Studio canvas.",
+  pitch: "Students submit a saved copy of their Pitch Studio canvas.",
   text: "Students write a response in a text box.",
   link: "Students submit a URL (a video, doc, or repo).",
 };

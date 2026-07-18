@@ -201,14 +201,15 @@ function PitchEntry({
         <>
           <BmcSnapshot payload={entry.payload} />
           <p className="text-xs text-muted-foreground">
-            Snapshot of your canvas from <b className="text-foreground">{shortDate(entry.submitted_at)}</b>.
-            Editing in the Pitch Studio won&apos;t change your entry — resubmit to update it.
+            Your entry is a saved copy of your canvas from{" "}
+            <b className="text-foreground">{shortDate(entry.submitted_at)}</b>. Editing it in the Pitch
+            Studio won&apos;t change your entry — resubmit to update it.
           </p>
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
-          Build your Business Model Canvas in the Pitch Studio, then submit a snapshot of it as your
-          entry.
+          Build your Business Model Canvas in the Pitch Studio, then submit it here as your entry. We
+          save a copy as it is now — you can resubmit to update it before the deadline.
         </p>
       )}
       {!locked ? (

@@ -142,8 +142,7 @@ export default async function StudentLabs() {
               Compete on real datasets
             </p>
             <p className="text-sm text-white/70 mt-1 max-w-xl">
-              Like Zindi &amp; Kaggle — download the data, make your predictions, and climb a live
-              leaderboard.
+              Download the data, make your predictions, and climb a live leaderboard.
             </p>
           </div>
           <span className="shrink-0 text-primary font-bold uppercase tracking-[0.2em] text-sm">
