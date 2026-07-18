@@ -84,5 +84,3 @@ export function BmcSnapshot({ payload }: { payload: unknown }) {
     </div>
   );
 }
-
-export { CHALLENGE_TYPE_LABEL };

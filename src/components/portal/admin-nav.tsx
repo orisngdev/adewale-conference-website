@@ -9,6 +9,7 @@ import {
   FlaskConical,
   FolderDown,
   Hourglass,
+  Trophy,
   Users,
   School,
   UserRound,
@@ -24,6 +25,7 @@ const REGISTRATIONS: NavLink = { href: "/portal/admin/registrations", label: "Re
 const WAITLIST: NavLink = { href: "/portal/admin/waitlist", label: "Waitlist", icon: Hourglass, short: "Wait" };
 const ASSESSMENTS: NavLink = { href: "/portal/admin/assessments", label: "Assessments", icon: ClipboardCheck, short: "Tests" };
 const LABS: NavLink = { href: "/portal/admin/labs", label: "Labs", icon: FlaskConical };
+const CHALLENGES: NavLink = { href: "/portal/admin/challenges", label: "Challenges", icon: Trophy, short: "Arena" };
 const QUESTION_BANK: NavLink = { href: "/portal/admin/question-bank", label: "Question bank", icon: FileQuestion, short: "Bank" };
 const RESOURCES: NavLink = { href: "/portal/admin/resources", label: "Resources", icon: FolderDown, short: "Guides" };
 const USERS: NavLink = { href: "/portal/admin/users", label: "Users", icon: Users };
@@ -37,12 +39,12 @@ const CONFIG: SidebarConfig = {
   ariaLabel: "Admin sections",
   overview: OVERVIEW,
   groups: [
-    { title: "Program", links: [EDITIONS, REGISTRATIONS, WAITLIST, ASSESSMENTS, LABS, QUESTION_BANK, RESOURCES] },
+    { title: "Program", links: [EDITIONS, REGISTRATIONS, WAITLIST, ASSESSMENTS, LABS, CHALLENGES, QUESTION_BANK, RESOURCES] },
     { title: "People", links: [PARTICIPANTS, REPLACEMENTS, USERS, SCHOOLS, SPONSORS] },
     { title: "Site", links: [SETTINGS] },
   ],
   bottom: [OVERVIEW, REGISTRATIONS, ASSESSMENTS, USERS],
-  more: [PARTICIPANTS, REPLACEMENTS, EDITIONS, WAITLIST, LABS, QUESTION_BANK, RESOURCES, SCHOOLS, SPONSORS, SETTINGS],
+  more: [PARTICIPANTS, REPLACEMENTS, EDITIONS, WAITLIST, LABS, CHALLENGES, QUESTION_BANK, RESOURCES, SCHOOLS, SPONSORS, SETTINGS],
 };
 
 export default function AdminNav() {
