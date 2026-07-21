@@ -136,6 +136,8 @@ export interface AdminRegistrationRow {
   onboarded_at: string | null;
   provisioned_count: number | null;
   reps: unknown;
+  /** Full entry keyed by Airtable field names (genders, DOBs, guardians, contacts). */
+  details: Record<string, string> | null;
   schools: { name: string | null } | null;
   profiles: { email: string | null; full_name: string | null } | null;
   certificates: { id: string; type: string | null }[];

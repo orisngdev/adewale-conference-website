@@ -5,26 +5,10 @@ import {
   buildAdminNewRegistrationEmail,
   sendEmailSafely,
 } from "@/lib/email";
+import { mapRegistrationFields, type RegistrationFormData } from "@/lib/forms";
 
 const EDITION_YEAR =
   Number(process.env.ASC_EDITION_YEAR) || new Date().getFullYear();
-
-export interface MirrorRegistrationInput {
-  schoolFullName: string;
-  schoolLGA: string;
-  schoolCategory: string;
-  schoolEmail?: string;
-  principalFullName: string;
-  principalEmail: string;
-  teacherFullName: string;
-  teacherEmail: string;
-  studentRep1FullName: string;
-  studentRep1Class: string;
-  studentRep2FullName: string;
-  studentRep2Class: string;
-  studentRep3FullName: string;
-  studentRep3Class: string;
-}
 
 export interface MirrorRegistrationResult {
   /** Fallback for coordinators who sign up with a different email. */
@@ -46,7 +30,7 @@ function makeClaimCode() {
 // Mirrors a public registration into Supabase (thin copy; Airtable stays the
 // source of truth). Returns the onboarding tokens, or null when the bridge is off.
 export async function mirrorRegistrationToSupabase(
-  input: MirrorRegistrationInput,
+  input: RegistrationFormData,
   airtableSchoolId?: string | null,
   editionYear?: number,
 ): Promise<MirrorRegistrationResult | null> {
@@ -113,6 +97,10 @@ export async function mirrorRegistrationToSupabase(
     edition_year: edition,
     status: "submitted",
     reps,
+    // Full entry (gender, DOB, guardians, principal + teacher contacts) keyed by
+    // the same Airtable field names the sync uses, so the admin review sees rich
+    // detail immediately — before the first Airtable sync refreshes it.
+    details: mapRegistrationFields(input),
     contact_email: contactEmail,
     contact_name: input.teacherFullName || null,
     claim_code: claimCode,

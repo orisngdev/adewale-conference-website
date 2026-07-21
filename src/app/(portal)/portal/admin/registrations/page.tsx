@@ -11,6 +11,7 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { ConfirmDecisionButton } from "@/components/portal/confirm-decision-button";
 import { SelectAllCheckbox } from "@/components/portal/select-all-checkbox";
 import { SelectAllMatching } from "@/components/portal/select-all-matching";
+import { RegistrationDetails, genderMix } from "@/components/portal/registration-details";
 import {
   FilterBar,
   Pagination,
@@ -54,7 +55,7 @@ export default async function AdminRegistrations({
   const { data: regData } = await supabase
     .from("registrations")
     .select(
-      "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, schools(name), profiles(email, full_name)",
+      "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, details, schools(name), profiles(email, full_name)",
     )
     .order("edition_year", { ascending: false })
     .order("created_at", { ascending: false });
@@ -244,18 +245,33 @@ export default async function AdminRegistrations({
                     <StatusBadge status={r.status} />
                   </div>
 
-                  {Array.isArray(r.reps) && (r.reps as Rep[]).length > 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      <span className="uppercase tracking-[0.15em] text-[11px] font-bold">
-                        Reps:{" "}
-                      </span>
-                      {(r.reps as Rep[])
-                        .map((rep) =>
-                          rep.level ? `${rep.name} (${rep.level})` : rep.name,
-                        )
-                        .join(", ")}
-                    </p>
-                  ) : null}
+                  {(() => {
+                    const reps = Array.isArray(r.reps) ? (r.reps as Rep[]) : [];
+                    if (reps.length === 0) return null;
+                    const mix = genderMix(r.details);
+                    return (
+                      <>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p className="text-sm text-muted-foreground">
+                            <span className="uppercase tracking-[0.15em] text-[11px] font-bold">
+                              Reps:{" "}
+                            </span>
+                            {reps
+                              .map((rep) =>
+                                rep.level ? `${rep.name} (${rep.level})` : rep.name,
+                              )
+                              .join(", ")}
+                          </p>
+                          {mix ? (
+                            <span className="shrink-0 rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                              {mix}
+                            </span>
+                          ) : null}
+                        </div>
+                        <RegistrationDetails details={r.details} reps={reps} />
+                      </>
+                    );
+                  })()}
 
                   <div className="flex flex-wrap items-center gap-2">
                     <form
