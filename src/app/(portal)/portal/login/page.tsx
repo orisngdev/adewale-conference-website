@@ -1,7 +1,10 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import LoginForm from "@/components/portal/login-form";
+import { authenticatedLoginRedirect } from "@/lib/portal-login-redirect";
 import { isSupabaseConfigured } from "@/supabase/env";
+import { getSessionUser, getUserRole } from "@/supabase/auth";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata(
@@ -9,7 +12,23 @@ export const metadata = pageMetadata(
   "Sign in to the Adewale Students Conference portal.",
 );
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirectTo?: string | string[] }>;
+}) {
+  const params = await searchParams;
+
+  if (isSupabaseConfigured) {
+    const user = await getSessionUser();
+    const target = authenticatedLoginRedirect(
+      user,
+      params.redirectTo,
+      user ? await getUserRole() : null,
+    );
+    if (target) redirect(target);
+  }
+
   return (
     <section className="px-6 py-16 md:py-24 min-h-[70vh] flex items-center justify-center">
       <div className="w-full max-w-md bg-card border border-foreground/10 shadow-[0_4px_40px_rgba(10,15,30,0.08)] p-8 md:p-10">

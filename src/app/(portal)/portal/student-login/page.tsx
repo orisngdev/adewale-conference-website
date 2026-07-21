@@ -1,13 +1,27 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import StudentLoginForm from "@/components/portal/student-login-form";
+import { authenticatedLoginRedirect } from "@/lib/portal-login-redirect";
 import { pageMetadata } from "@/lib/seo";
+import { getSessionUser, getUserRole } from "@/supabase/auth";
+import { isSupabaseConfigured } from "@/supabase/env";
 
 export const metadata = pageMetadata(
   "Student sign-in",
   "Sign in to the portal with the access code from your school.",
 );
 
-export default function StudentLoginPage() {
+export default async function StudentLoginPage() {
+  if (isSupabaseConfigured) {
+    const user = await getSessionUser();
+    const target = authenticatedLoginRedirect(
+      user,
+      "/portal",
+      user ? await getUserRole() : null,
+    );
+    if (target) redirect(target);
+  }
+
   return (
     <section className="px-6 py-16 md:py-24 min-h-[70vh] flex items-center justify-center">
       <div className="w-full max-w-md bg-card border border-foreground/10 shadow-[0_4px_40px_rgba(10,15,30,0.08)] p-8 md:p-10">
