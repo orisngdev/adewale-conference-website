@@ -15,6 +15,7 @@ import {
 } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
 import { LGA_OPTIONS, SCHOOL_CATEGORY_OPTIONS } from "@/lib/forms";
+import { escapeLikePattern, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
 import { approveMembership, rejectMembership } from "./actions";
 
@@ -54,8 +55,9 @@ export default async function AdminSchools({
     .order("name", { ascending: true })
     .range(from, to);
   if (q?.trim()) {
-    const escaped = q.trim().replace(/[%_\\]/g, (m) => `\\${m}`);
-    schoolsQuery = schoolsQuery.ilike("name", `%${escaped}%`);
+    for (const token of searchTokens(q)) {
+      schoolsQuery = schoolsQuery.ilike("name", `%${escapeLikePattern(token)}%`);
+    }
   }
   if (lga) schoolsQuery = schoolsQuery.eq("lga", lga);
   if (category) schoolsQuery = schoolsQuery.eq("category", category);

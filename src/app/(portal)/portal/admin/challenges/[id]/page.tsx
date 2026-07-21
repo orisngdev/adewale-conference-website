@@ -9,6 +9,7 @@ import { ChallengeTypePicker } from "@/components/portal/challenge-type-picker";
 import { Card, EmptyState, PortalBody, PortalHeader, SectionHeading, StatTile } from "@/components/portal/ui";
 import { FilterBar, Pagination, filterSelectCls, pageBounds, parsePage } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
+import { searchHaystackMatches, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
 import {
   deadlineInfo,
@@ -128,16 +129,14 @@ export default async function AdminChallengeDetail({
   const reviewed = enriched.length - awaiting;
 
   // Filter + sort (awaiting first) + paginate.
-  const q = sp.q?.trim().toLowerCase() ?? "";
+  const q = searchTokens(sp.q).join(" ");
   const statusFilter = sp.status === "submitted" || sp.status === "reviewed" ? sp.status : "";
   const page = parsePage(sp.page);
 
   let list = enriched;
   if (statusFilter) list = list.filter((e) => e.status === statusFilter);
   if (q) {
-    list = list.filter(
-      (e) => e.name.toLowerCase().includes(q) || (e.school ?? "").toLowerCase().includes(q),
-    );
+    list = list.filter((e) => searchHaystackMatches([e.name, e.school], sp.q));
   }
   list = [...list].sort((a, b) => {
     if (a.status !== b.status) return a.status === "submitted" ? -1 : 1;

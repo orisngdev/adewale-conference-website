@@ -19,6 +19,7 @@ import {
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { FilterBar, parsePage } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
+import { searchHaystackMatches, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
 import { bulkRegistrationDecision, sendSchoolBack } from "../actions";
 import type { Edition, Rep, StageResult, StudentStageResult } from "@/supabase/types";
@@ -99,7 +100,7 @@ export default async function AdminParticipants({
   const stageTabs = stages.filter((s) => !["Registration", "Completed"].includes(s));
 
   const inEdition = activeYear ? allRegs.filter((r) => r.edition_year === activeYear) : allRegs;
-  const needle = (q ?? "").trim().toLowerCase();
+  const needle = searchTokens(q).join(" ");
   const filtered = inEdition.filter((r) => {
     if (!needle) return true;
     const haystack = [
@@ -107,7 +108,7 @@ export default async function AdminParticipants({
       r.contact_email,
       ...(Array.isArray(r.reps) ? (r.reps as Rep[]).map((rep) => rep.name) : []),
     ];
-    return haystack.some((v) => v?.toLowerCase().includes(needle));
+    return searchHaystackMatches(haystack, q);
   });
 
   // School-level stage results for EVERY filtered school (not just the page), so

@@ -301,6 +301,34 @@ export function buildActivationEmail(data: {
   return { to, subject, html };
 }
 
+export function buildMagicAccessEmail(data: {
+  email: string;
+  name?: string | null;
+  schoolFullName: string;
+  actionLink: string;
+  code?: string | null;
+}) {
+  const subject = `Your ASC portal access link — ${data.schoolFullName}`;
+  const codeBlock = data.code
+    ? `<p class="body-font" style="margin:14px 0 0;font-size:13px;line-height:20px;color:#4A4E5C;">If the button does not work, return to the portal and enter this one-time code: <span style="font-family:monospace;font-weight:bold;color:#0A0F1E;">${escapeHtml(data.code)}</span></p>`
+    : "";
+  const html = render("activation", "Access your portal", {
+    schoolFullName: data.schoolFullName,
+    activateBlock: `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:26px 0 0;background:#FBF3E2;border:1px solid #E8A020;">
+  <tr><td style="padding:18px;">
+    <p class="body-font" style="margin:0 0 8px;font-size:11px;font-weight:bold;letter-spacing:0.12em;text-transform:uppercase;color:#8a5e0e;">Portal access link</p>
+    <p class="body-font" style="margin:0 0 14px;font-size:15px;line-height:24px;color:#4A4E5C;">Use this secure email link to enter the portal. If this is your first time, you will set a password after signing in.</p>
+    <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="background:#E8A020;">
+      <a href="${data.actionLink}" style="display:inline-block;padding:11px 24px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#0A0F1E;text-decoration:none;">Open the portal →</a>
+    </td></tr></table>
+    ${codeBlock}
+  </td></tr>
+</table>`,
+  });
+  const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
+  return { to, subject, html };
+}
+
 // The portal sign-in page, pre-set to land on the school dashboard. First-time
 // educators sign in with a one-time email link and then set a password — there
 // is no public sign-up (accounts come from registration + the Airtable sync).

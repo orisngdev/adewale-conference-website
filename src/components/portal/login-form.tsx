@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { requestTrustedMagicAccessLink } from "@/app/(portal)/portal/login/actions";
 import { createClient } from "@/supabase/client";
 import { Button } from "@/components/ui/button";
 import { safePortalRedirect } from "@/lib/portal-redirect";
@@ -29,6 +30,11 @@ function portalAuthErrorMessage(message: string) {
   }
 
   return message;
+}
+
+function isMissingAuthAccountError(message: string) {
+  const lower = message.toLowerCase();
+  return lower.includes("signups not allowed") || lower.includes("user not found");
 }
 
 export default function LoginForm() {
@@ -121,8 +127,21 @@ export default function LoginForm() {
       options: { emailRedirectTo: callbackUrl(welcomePath()), shouldCreateUser: false },
     });
     setLoading(false);
-    if (error) setMsg({ type: "error", text: portalAuthErrorMessage(error.message) });
-    else {
+    if (error) {
+      if (isMissingAuthAccountError(error.message)) {
+        const accessLink = await requestTrustedMagicAccessLink(email, redirectTo);
+        if (!accessLink.done) {
+          setMsg({ type: "error", text: accessLink.error });
+        } else {
+          setMsg({
+            type: "info",
+            text: `If ${email} belongs to a registered school, we sent a secure access link. Open it to sign in and set your password.`,
+          });
+        }
+      } else {
+        setMsg({ type: "error", text: portalAuthErrorMessage(error.message) });
+      }
+    } else {
       setCodeSent(true);
       setMsg({
         type: "info",
@@ -267,7 +286,7 @@ export default function LoginForm() {
       <div className="text-sm text-muted-foreground space-y-2 pt-1">
         {mode === "password" ? (
           <p>
-            Account already active, but no password yet?{" "}
+            Registered, but no password yet?{" "}
             <button
               type="button"
               onClick={() => {
@@ -276,7 +295,7 @@ export default function LoginForm() {
               }}
               className="text-primary hover:underline font-medium"
             >
-              Email me a sign-in link
+              Email me an access link
             </button>
           </p>
         ) : (

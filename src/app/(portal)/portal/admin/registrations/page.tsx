@@ -18,6 +18,7 @@ import {
   parsePage,
 } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
+import { searchHaystackMatches, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
 import type { AdminRegistrationRow, RegistrationStatus, Rep } from "@/supabase/types";
 import {
@@ -68,7 +69,7 @@ export default async function AdminRegistrations({
 
   // Search matches school, contact, coordinator, and reps; status narrows the
   // review queue. Both apply within the active edition tab.
-  const needle = (q ?? "").trim().toLowerCase();
+  const needle = searchTokens(q).join(" ");
   const filtered = inEdition.filter((r) => {
     if (status && r.status !== status) return false;
     if (!needle) return true;
@@ -81,7 +82,7 @@ export default async function AdminRegistrations({
       r.claim_code,
       ...(Array.isArray(r.reps) ? (r.reps as Rep[]).map((rep) => rep.name) : []),
     ];
-    return haystack.some((v) => v?.toLowerCase().includes(needle));
+    return searchHaystackMatches(haystack, q);
   });
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
