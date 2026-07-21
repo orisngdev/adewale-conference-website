@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/supabase/client";
 import { Button } from "@/components/ui/button";
+import { safePortalRedirect } from "@/lib/portal-redirect";
 
 // No public sign-up: accounts are activated from registration/team-invite links.
 // Existing users can request a one-time email link, then set or reset a password.
@@ -33,11 +34,11 @@ function portalAuthErrorMessage(message: string) {
 export default function LoginForm() {
   const params = useSearchParams();
   const router = useRouter();
-  const redirectTo = params.get("redirectTo") || "/portal";
+  const redirectTo = safePortalRedirect(params.get("redirectTo"));
 
   const [supabase] = useState(() => createClient());
-  // Claim links are hit by brand-new coordinators — default them to the email
-  // link so their account is created and they're guided to set a password.
+  // Claim links often arrive before a password has been set, so default to the
+  // email-code path and carry the claim URL through password setup.
   const [mode, setMode] = useState<Mode>(
     redirectTo.includes("/portal/claim") ? "magic" : "password",
   );
@@ -56,9 +57,14 @@ export default function LoginForm() {
   const callbackUrl = (to: string) =>
     `${location.origin}/portal/auth/callback?redirectTo=${encodeURIComponent(to)}`;
 
-  // Both the emailed link and the typed code land new users on the set-password
-  // page (harmless for returning users, who can keep their existing password).
-  const WELCOME = "/portal/reset?welcome=1";
+  // Both the emailed link and the typed code land users on the set-password page.
+  const welcomePath = () => {
+    const next =
+      redirectTo === "/portal" || redirectTo.startsWith("/portal/reset")
+        ? ""
+        : `&next=${encodeURIComponent(redirectTo)}`;
+    return `/portal/reset?welcome=1${next}`;
+  };
 
   useEffect(() => {
     const queryError = params.get("authError");
@@ -103,7 +109,7 @@ export default function LoginForm() {
       setLoading(false);
       if (error) setMsg({ type: "error", text: portalAuthErrorMessage(error.message) });
       else {
-        router.push(WELCOME);
+        router.push(welcomePath());
         router.refresh();
       }
       return;
@@ -112,7 +118,7 @@ export default function LoginForm() {
     // First magic-mode step: send the email (contains both a link and a code).
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: callbackUrl(WELCOME), shouldCreateUser: false },
+      options: { emailRedirectTo: callbackUrl(welcomePath()), shouldCreateUser: false },
     });
     setLoading(false);
     if (error) setMsg({ type: "error", text: portalAuthErrorMessage(error.message) });

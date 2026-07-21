@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/supabase/client";
 import { Button } from "@/components/ui/button";
+import { safePortalRedirect } from "@/lib/portal-redirect";
 
 export default function ResetForm() {
   const router = useRouter();
+  const params = useSearchParams();
   const [supabase] = useState(() => createClient());
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,7 +22,11 @@ export default function ResetForm() {
     setLoading(false);
     if (error) setError(error.message);
     else {
-      router.push("/portal");
+      router.push(safePortalRedirect(params.get("next"), "/portal", [
+        "/portal/auth",
+        "/portal/login",
+        "/portal/reset",
+      ]));
       router.refresh();
     }
   }

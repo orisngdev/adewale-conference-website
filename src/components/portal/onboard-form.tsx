@@ -29,7 +29,7 @@ export default function OnboardForm({ token, email }: { token: string; email: st
         if (error) {
           // Account exists with the password they just set — worst case they log
           // in manually.
-          router.push("/portal/login");
+          router.push("/portal/login?redirectTo=%2Fportal%2Fschool");
         } else {
           router.push("/portal/school");
         }
@@ -47,7 +47,7 @@ export default function OnboardForm({ token, email }: { token: string; email: st
           school and your students&apos; access codes.
         </p>
         <Link
-          href="/portal/login"
+          href="/portal/login?redirectTo=%2Fportal%2Fschool"
           className="inline-block text-xs uppercase tracking-[0.2em] text-primary hover:underline"
         >
           Sign in →

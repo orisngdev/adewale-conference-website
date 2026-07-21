@@ -34,7 +34,7 @@ export default function TeamInviteForm({ token, email }: { token: string; email:
         if (error) {
           // Account exists with the password they just set — worst case they log
           // in manually.
-          router.push("/portal/login");
+          router.push("/portal/login?redirectTo=%2Fportal%2Fadmin");
         } else {
           router.push("/portal/admin");
         }

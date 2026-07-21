@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
+import { safePortalRedirect } from "@/lib/portal-redirect";
 import { createClient } from "@/supabase/server";
 
 // Exchanges the magic-link code for a session, then forwards to the dashboard.
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const redirectTo = searchParams.get("redirectTo") || "/portal";
+  const redirectTo = safePortalRedirect(searchParams.get("redirectTo"));
   const loginUrl = new URL("/portal/login", origin);
   loginUrl.searchParams.set("redirectTo", redirectTo);
 
@@ -28,5 +29,5 @@ export async function GET(request: Request) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.redirect(`${origin}${redirectTo}`);
+  return NextResponse.redirect(new URL(redirectTo, origin));
 }
