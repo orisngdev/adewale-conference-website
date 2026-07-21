@@ -21,7 +21,8 @@ export default function LoginPage() {
         </h1>
         <p className="serif-display italic text-muted-foreground mt-3 mb-8 leading-relaxed">
           Schools, students, and staff — sign in with your email and password.
-          First time here? Use a one-time email link, then set your password.
+          If your account is active but you need access, request a one-time email
+          link and set a new password.
         </p>
 
         {isSupabaseConfigured ? (

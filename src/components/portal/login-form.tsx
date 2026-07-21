@@ -1,17 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/supabase/client";
 import { Button } from "@/components/ui/button";
 
-// No public sign-up: accounts come from registration + the Airtable sync, which
-// stage each educator as an approved school member. First-timers sign in with a
-// one-time email link, then set a password (they land on /portal/reset).
+// No public sign-up: accounts are activated from registration/team-invite links.
+// Existing users can request a one-time email link, then set or reset a password.
 type Mode = "password" | "magic";
 
 const inputCls =
   "w-full rounded-md border border-foreground/15 bg-card px-4 py-3 text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/20";
+
+function portalAuthErrorMessage(message: string) {
+  const lower = message.toLowerCase();
+
+  if (lower.includes("signups not allowed")) {
+    return "No active portal account was found for this email. Use the activation link sent after registration, or ask the organisers to resend your portal activation email.";
+  }
+
+  if (lower.includes("invalid login credentials")) {
+    return "The email or password is incorrect. Check the details, or request a one-time email link if your account is already active.";
+  }
+
+  if (lower.includes("expired") || lower.includes("invalid")) {
+    return "That email link or code is invalid or has expired. Enter your email to request a fresh code, then paste the code from the email.";
+  }
+
+  return message;
+}
 
 export default function LoginForm() {
   const params = useSearchParams();
@@ -26,7 +43,7 @@ export default function LoginForm() {
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  // Once the email is sent, we also accept the 6-digit code from that email.
+  // Once the email is sent, we also accept the one-time code from that email.
   // Link-scanners (Outlook SafeLinks, corporate filters) pre-fetch the sign-in
   // link and burn its single-use token; typing the code sidesteps that.
   const [codeSent, setCodeSent] = useState(false);
@@ -43,6 +60,22 @@ export default function LoginForm() {
   // page (harmless for returning users, who can keep their existing password).
   const WELCOME = "/portal/reset?welcome=1";
 
+  useEffect(() => {
+    const queryError = params.get("authError");
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const authError = queryError || hashParams.get("error_description");
+    if (!authError) return;
+
+    setMode("magic");
+    setMsg({
+      type: "error",
+      text: portalAuthErrorMessage(authError),
+    });
+    if (!queryError) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    }
+  }, [params]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -51,7 +84,7 @@ export default function LoginForm() {
     if (mode === "password") {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       setLoading(false);
-      if (error) setMsg({ type: "error", text: error.message });
+      if (error) setMsg({ type: "error", text: portalAuthErrorMessage(error.message) });
       else {
         router.push(redirectTo);
         router.refresh();
@@ -59,7 +92,7 @@ export default function LoginForm() {
       return;
     }
 
-    // Second magic-mode step: verify the 6-digit code the user typed from the
+    // Second magic-mode step: verify the code the user typed from the
     // email. Succeeds even if the clickable link was already consumed/expired.
     if (codeSent) {
       const { error } = await supabase.auth.verifyOtp({
@@ -68,7 +101,7 @@ export default function LoginForm() {
         type: "email",
       });
       setLoading(false);
-      if (error) setMsg({ type: "error", text: error.message });
+      if (error) setMsg({ type: "error", text: portalAuthErrorMessage(error.message) });
       else {
         router.push(WELCOME);
         router.refresh();
@@ -79,15 +112,15 @@ export default function LoginForm() {
     // First magic-mode step: send the email (contains both a link and a code).
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: callbackUrl(WELCOME) },
+      options: { emailRedirectTo: callbackUrl(WELCOME), shouldCreateUser: false },
     });
     setLoading(false);
-    if (error) setMsg({ type: "error", text: error.message });
+    if (error) setMsg({ type: "error", text: portalAuthErrorMessage(error.message) });
     else {
       setCodeSent(true);
       setMsg({
         type: "info",
-        text: `We sent a sign-in link and a 6-digit code to ${email}. Click the link, or enter the code below.`,
+        text: `We sent a sign-in link and a one-time code to ${email}. Click the link, or enter the code below.`,
       });
     }
   }
@@ -103,7 +136,7 @@ export default function LoginForm() {
       redirectTo: callbackUrl("/portal/reset"),
     });
     setLoading(false);
-    if (error) setMsg({ type: "error", text: error.message });
+    if (error) setMsg({ type: "error", text: portalAuthErrorMessage(error.message) });
     else
       setMsg({ type: "info", text: `We sent a password reset link to ${email}.` });
   }
@@ -155,18 +188,16 @@ export default function LoginForm() {
             htmlFor="code"
             className="block text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground"
           >
-            6-digit code from the email
+            One-time code from the email
           </label>
           <input
             id="code"
-            inputMode="numeric"
             autoComplete="one-time-code"
-            pattern="[0-9]*"
-            maxLength={6}
+            maxLength={64}
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-            placeholder="123456"
-            className={`${inputCls} tracking-[0.4em] font-mono`}
+            onChange={(e) => setCode(e.target.value.replace(/\s/g, ""))}
+            placeholder="Enter code"
+            className={`${inputCls} font-mono`}
           />
           <button
             type="button"
@@ -221,7 +252,7 @@ export default function LoginForm() {
       <Button
         type="submit"
         size="lg"
-        disabled={loading || !email || (mode === "magic" && codeSent && code.length < 6)}
+        disabled={loading || !email || (mode === "magic" && codeSent && code.trim().length < 6)}
         className="w-full"
       >
         {submitLabel}
@@ -230,7 +261,7 @@ export default function LoginForm() {
       <div className="text-sm text-muted-foreground space-y-2 pt-1">
         {mode === "password" ? (
           <p>
-            First time here, or no password yet?{" "}
+            Account already active, but no password yet?{" "}
             <button
               type="button"
               onClick={() => {
