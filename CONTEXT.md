@@ -75,3 +75,13 @@ Who a Resource is shown to — **Students**, **Coordinators**, or **both**. A St
 **Study Pack**:
 A free, Public-tier Resource of study material (past questions, study guide, syllabus). The portal logs who opens/downloads each one, which feeds a Student's Progress.
 _Avoid_: study resource (use Resource for the umbrella).
+
+### Analytics
+
+**Active Student**:
+A Student counted as active within a chosen time window: a distinct portal identity with at least one tracked engagement event — an Assessment attempt, a Resource open, a Lab step, a Plan Item marked done, or a Challenge entry — in that window. Activity is derived from actions, not sign-ins; there is no login/session signal.
+_Avoid_: online, logged-in (there is no session metric).
+
+**Competition ladder**:
+How far schools progressed in an Edition, read as a funnel: Registered → Accepted → Qualified → Finalist. Derived from acceptance (a **verified** Registration) plus stage advancement — the same ladder an [Access tier](#programme) mirrors — not from a single status flag.
+_Avoid_: pipeline, conversion funnel (reserve "funnel" for the visual).

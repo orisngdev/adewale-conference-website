@@ -2,6 +2,7 @@
 
 import {
   LayoutDashboard,
+  BarChart3,
   CalendarDays,
   ClipboardList,
   ClipboardCheck,
@@ -20,6 +21,7 @@ import {
 import PortalSidebar, { type SidebarConfig, type NavLink } from "@/components/portal/portal-sidebar";
 
 const OVERVIEW: NavLink = { href: "/portal/admin", label: "Overview", icon: LayoutDashboard, exact: true, short: "Home" };
+const ANALYTICS: NavLink = { href: "/portal/admin/analytics", label: "Analytics", icon: BarChart3, short: "Stats" };
 const EDITIONS: NavLink = { href: "/portal/admin/editions", label: "Editions", icon: CalendarDays };
 const REGISTRATIONS: NavLink = { href: "/portal/admin/registrations", label: "Registrations", icon: ClipboardList, short: "Regs" };
 const WAITLIST: NavLink = { href: "/portal/admin/waitlist", label: "Waitlist", icon: Hourglass, short: "Wait" };
@@ -39,12 +41,13 @@ const CONFIG: SidebarConfig = {
   ariaLabel: "Admin sections",
   overview: OVERVIEW,
   groups: [
+    { title: "Insights", links: [ANALYTICS] },
     { title: "Program", links: [EDITIONS, REGISTRATIONS, WAITLIST, ASSESSMENTS, LABS, CHALLENGES, QUESTION_BANK, RESOURCES] },
     { title: "People", links: [PARTICIPANTS, REPLACEMENTS, USERS, SCHOOLS, SPONSORS] },
     { title: "Site", links: [SETTINGS] },
   ],
-  bottom: [OVERVIEW, REGISTRATIONS, ASSESSMENTS, USERS],
-  more: [PARTICIPANTS, REPLACEMENTS, EDITIONS, WAITLIST, LABS, CHALLENGES, QUESTION_BANK, RESOURCES, SCHOOLS, SPONSORS, SETTINGS],
+  bottom: [OVERVIEW, ANALYTICS, REGISTRATIONS, USERS],
+  more: [ASSESSMENTS, PARTICIPANTS, REPLACEMENTS, EDITIONS, WAITLIST, LABS, CHALLENGES, QUESTION_BANK, RESOURCES, SCHOOLS, SPONSORS, SETTINGS],
 };
 
 export default function AdminNav() {
