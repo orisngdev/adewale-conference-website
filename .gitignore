@@ -42,15 +42,22 @@ next-env.d.ts
 *.sln
 *.sw?
 
+# Secrets: ignore every .env* by default; the placeholder template is the sole exception.
 .env
-.env.local
-.env.development
+.env.*
+!.env.example
+
+# Stray credential/key files must never be committed (public repo).
+*.pem
+*.key
+*.p12
+*-service-account*.json
+secrets.*
 
 
 # Supabase CLI local state — holds the project ref and a pooler URL WITH the DB password.
 supabase/.temp/
 supabase/.branches/
-.env.prod
 
 # Internal ops docs/scripts — kept local, not in the public repo (they map the
 # prod/dev/staging project refs, orgs, and backup buckets).
