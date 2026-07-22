@@ -1,0 +1,81 @@
+# Continuous integration — runs on every push to main and every PR.
+#
+#   typecheck        — `tsc --noEmit`. Always runs, needs no secrets. Hard gate.
+#   build            — `next build`. Prerenders SSG pages that read Sanity, so it
+#                      only runs when the SANITY_PROJECT_ID Actions secret is set;
+#                      otherwise it skips (green) with a notice.
+#   dependency-review— flags newly-introduced vulnerable/again-licensed deps on PRs.
+#
+# Optional repository secrets (for the build job):
+#   SANITY_PROJECT_ID       — Sanity project id (public dataset reads need no token)
+#   SANITY_API_READ_TOKEN   — only if the dataset is private
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on Sanity config
+        id: gate
+        run: |
+          if [ -n "${{ secrets.SANITY_PROJECT_ID }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping build — set the SANITY_PROJECT_ID Actions secret to enable the production-build check."
+          fi
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - if: steps.gate.outputs.enabled == 'true'
+        run: npm ci
+      - if: steps.gate.outputs.enabled == 'true'
+        name: Build
+        env:
+          NEXT_PUBLIC_SANITY_PROJECT_ID: ${{ secrets.SANITY_PROJECT_ID }}
+          NEXT_PUBLIC_SANITY_DATASET: production
+          NEXT_PUBLIC_SANITY_API_VERSION: "2024-10-01"
+          NEXT_PUBLIC_SITE_URL: https://adewaleconference.org
+          SANITY_API_READ_TOKEN: ${{ secrets.SANITY_API_READ_TOKEN }}
+        run: npm run build
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
