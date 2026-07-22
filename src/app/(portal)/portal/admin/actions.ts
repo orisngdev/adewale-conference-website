@@ -18,30 +18,14 @@ import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
 
 // Provision each approved school's reps as student rows. Each rep is an
-// auth-user create, so doing it inline in the approve path 504'd a bulk approve.
-// On Netlify this hands off to a background function (returns 202 at once, runs
-// up to 15 min); locally it runs inline. Idempotent either way, and the
-// per-school "Sync roster" button remains the manual backstop.
+// auth-user create, so a large bulk approve can run long. Runs inline on Vercel
+// for now — idempotent (ensureRoster reuses students by school + name), and the
+// per-school "Sync roster" button on the Participants hub is the manual backstop
+// if a very large batch ever exceeds the function budget.
 async function triggerRosterProvision(ids: string[]) {
   const unique = [...new Set(ids.filter(Boolean))];
   if (unique.length === 0) return;
 
-  const base = process.env.URL; // set only on Netlify
-  const secret = process.env.SYNC_SECRET;
-  if (base && secret) {
-    try {
-      await fetch(`${base}/.netlify/functions/roster-provision-background`, {
-        method: "POST",
-        headers: { "x-sync-secret": secret, "content-type": "application/json" },
-        body: JSON.stringify({ ids: unique }),
-      });
-    } catch {
-      // best-effort — provisioning is idempotent and re-runnable from the hub
-    }
-    return;
-  }
-
-  // Local dev (no Netlify runtime): provision inline — no serverless timeout.
   const supabase = await createClient();
   const { data } = await supabase
     .from("registrations")
@@ -242,36 +226,11 @@ export async function syncAirtableRegistrations() {
   if (!admin) return;
   const supabase = await createClient();
 
-  // The full Airtable pull runs longer than a serverless request allows (it was
-  // 504-ing). On Netlify, hand it to a background function (15-min budget) that
-  // returns 202 at once, so the button responds instantly and the sync + its
-  // notification happen out of band. process.env.URL is set only on Netlify.
-  const base = process.env.URL;
-  const secret = process.env.SYNC_SECRET;
-  if (base && secret) {
-    let ok = false;
-    try {
-      const res = await fetch(
-        `${base}/.netlify/functions/airtable-sync-background?profile=${encodeURIComponent(admin.user.id)}`,
-        { method: "POST", headers: { "x-sync-secret": secret } },
-      );
-      ok = res.status === 202 || res.ok;
-    } catch {
-      ok = false;
-    }
-    await supabase.from("notifications").insert({
-      profile_id: admin.user.id,
-      title: ok ? "Airtable sync started" : "Couldn't start Airtable sync",
-      body: ok
-        ? "Pulling schools and registrations from Airtable in the background — you'll get another notification when it finishes."
-        : "The background sync couldn't be triggered. Check the deploy and SYNC_SECRET, then try again.",
-      link: "/portal/admin/registrations",
-    });
-    revalidatePath("/portal/admin/registrations");
-    return;
-  }
-
-  // Local dev (no Netlify runtime): run inline — no serverless timeout here.
+  // Runs inline on Vercel for now. A very large manual pull can approach the
+  // function budget, but the scheduled GitHub Action (.github/workflows/
+  // sync-airtable.yml) runs the same idempotent sync directly against Supabase
+  // every 6 hours, so anything a manual run doesn't finish is picked up out of
+  // band. The outcome lands as a notification for the admin who triggered it.
   let title = "Airtable sync complete";
   let body: string;
   try {
