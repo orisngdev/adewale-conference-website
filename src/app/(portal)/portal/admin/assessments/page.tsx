@@ -10,6 +10,8 @@ import {
 } from "@/components/portal/ui";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { SUBJECTS, LEVELS } from "@/lib/assessments";
 import type { Assessment } from "@/supabase/types";
 import { createAssessment, toggleAssessmentPublished } from "./actions";
@@ -23,6 +25,8 @@ const inputCls =
 type Row = Assessment & { assessment_questions: { count: number }[] };
 
 export default async function AdminAssessments() {
+  await requireModuleView("content");
+  const canManage = await canManageModule("content");
   const supabase = await createClient();
   const { data } = await supabase
     .from("assessments")
@@ -37,35 +41,43 @@ export default async function AdminAssessments() {
         subtitle="Practice drills (offline, ungraded) and exams (online, graded)"
       />
       <PortalBody>
-        <div>
-          <SectionHeading action={{ href: "/portal/admin/question-bank", label: "Question bank →" }}>
-            New assessment
-          </SectionHeading>
-          <Card className="p-5 md:p-6">
-            <form action={createAssessment} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-              <input name="title" required placeholder="Title" className={`sm:col-span-2 ${inputCls}`} />
-              <select name="mode" defaultValue="practice" className={inputCls}>
-                <option value="practice">Practice drill</option>
-                <option value="exam">Exam (graded)</option>
-              </select>
-              <select name="subject" defaultValue="" className={inputCls}>
-                <option value="">Subject…</option>
-                {SUBJECTS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              <select name="level" defaultValue="" className={inputCls}>
-                <option value="">Level…</option>
-                {LEVELS.map((l) => (
-                  <option key={l} value={l}>{l}</option>
-                ))}
-              </select>
-              <SubmitButton size="sm" pendingText="Creating…" className="sm:col-span-2 lg:col-span-5 lg:w-40">
-                Create
-              </SubmitButton>
-            </form>
-          </Card>
-        </div>
+        {!canManage ? (
+          <div>
+            <ReadOnlyBadge />
+          </div>
+        ) : null}
+
+        {canManage ? (
+          <div>
+            <SectionHeading action={{ href: "/portal/admin/question-bank", label: "Question bank →" }}>
+              New assessment
+            </SectionHeading>
+            <Card className="p-5 md:p-6">
+              <form action={createAssessment} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                <input name="title" required placeholder="Title" className={`sm:col-span-2 ${inputCls}`} />
+                <select name="mode" defaultValue="practice" className={inputCls}>
+                  <option value="practice">Practice drill</option>
+                  <option value="exam">Exam (graded)</option>
+                </select>
+                <select name="subject" defaultValue="" className={inputCls}>
+                  <option value="">Subject…</option>
+                  {SUBJECTS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <select name="level" defaultValue="" className={inputCls}>
+                  <option value="">Level…</option>
+                  {LEVELS.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+                <SubmitButton size="sm" pendingText="Creating…" className="sm:col-span-2 lg:col-span-5 lg:w-40">
+                  Create
+                </SubmitButton>
+              </form>
+            </Card>
+          </div>
+        ) : null}
 
         <div>
           <SectionHeading>
@@ -99,26 +111,32 @@ export default async function AdminAssessments() {
                       {a.published ? "Published" : "Draft"}
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    <form action={toggleAssessmentPublished.bind(null, a.id, !a.published)}>
-                      <ConfirmSubmitButton
-                        size="sm"
-                        variant={a.published ? "outline" : "default"}
-                        title={a.published ? "Unpublish this assessment?" : "Publish this assessment?"}
-                        description={
-                          a.published
-                            ? "Students lose access to it immediately."
-                            : "It becomes visible to students right away."
-                        }
-                        confirmLabel={a.published ? "Yes, unpublish" : "Yes, publish"}
-                      >
-                        {a.published ? "Unpublish" : "Publish"}
-                      </ConfirmSubmitButton>
-                    </form>
+                  {canManage ? (
+                    <div className="flex gap-2">
+                      <form action={toggleAssessmentPublished.bind(null, a.id, !a.published)}>
+                        <ConfirmSubmitButton
+                          size="sm"
+                          variant={a.published ? "outline" : "default"}
+                          title={a.published ? "Unpublish this assessment?" : "Publish this assessment?"}
+                          description={
+                            a.published
+                              ? "Students lose access to it immediately."
+                              : "It becomes visible to students right away."
+                          }
+                          confirmLabel={a.published ? "Yes, unpublish" : "Yes, publish"}
+                        >
+                          {a.published ? "Unpublish" : "Publish"}
+                        </ConfirmSubmitButton>
+                      </form>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/portal/admin/assessments/${a.id}`}>Edit</Link>
+                      </Button>
+                    </div>
+                  ) : (
                     <Button asChild size="sm" variant="outline">
-                      <Link href={`/portal/admin/assessments/${a.id}`}>Edit</Link>
+                      <Link href={`/portal/admin/assessments/${a.id}`}>View</Link>
                     </Button>
-                  </div>
+                  )}
                 </Card>
               ))}
             </div>

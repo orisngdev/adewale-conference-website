@@ -38,7 +38,7 @@ export async function completeTeamInvite(
 
   const { data: invite } = await admin
     .from("team_invites")
-    .select("id, email, role, accepted_at, expires_at")
+    .select("id, email, role, admin_role, permissions, accepted_at, expires_at")
     .eq("verify_token", token)
     .maybeSingle();
   if (!invite)
@@ -78,9 +78,16 @@ export async function completeTeamInvite(
       .maybeSingle();
     if (!profile)
       return { ok: false, error: "This email already has an account — sign in with it instead." };
-    if (profile.role !== invite.role) {
-      await admin.from("profiles").update({ role: invite.role }).eq("id", profile.id);
-    }
+    // Apply the invited role AND its access profile (the trigger only runs for a
+    // brand-new signup, so an already-existing account is updated here).
+    await admin
+      .from("profiles")
+      .update({
+        role: invite.role,
+        admin_role: invite.admin_role,
+        permissions: invite.permissions,
+      })
+      .eq("id", profile.id);
     await admin
       .from("team_invites")
       .update({

@@ -4,8 +4,10 @@ import { SubmitButton } from "@/components/portal/submit-button";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { Card, PortalBody, PortalHeader, SectionHeading } from "@/components/portal/ui";
 import LabLessonsEditor from "./lessons-editor";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { LAB_WORKBENCHES, type Lab, type LabStep, type QuizAssessmentOption } from "@/lib/labs";
 import { createLab, updateLab, toggleLabPublished, deleteLab } from "./actions";
 
@@ -22,6 +24,8 @@ export default async function AdminLabs({
 }: {
   searchParams: Promise<{ lab?: string }>;
 }) {
+  await requireModuleView("labs");
+  const canManage = await canManageModule("labs");
   const { lab: labParam } = await searchParams;
   const supabase = await createClient();
 
@@ -77,19 +81,27 @@ export default async function AdminLabs({
               </Link>
             );
           })}
-          <Link
-            href="/portal/admin/labs?lab=new"
-            className={`inline-flex items-center px-3 py-2 text-sm font-bold uppercase tracking-wide transition-colors ${
-              creating ? "bg-primary/15 text-gold-ink" : "bg-foreground/5 text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            + New lab
-          </Link>
+          {canManage ? (
+            <Link
+              href="/portal/admin/labs?lab=new"
+              className={`inline-flex items-center px-3 py-2 text-sm font-bold uppercase tracking-wide transition-colors ${
+                creating ? "bg-primary/15 text-gold-ink" : "bg-foreground/5 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              + New lab
+            </Link>
+          ) : null}
+          {!canManage ? <ReadOnlyBadge className="ml-auto" /> : null}
         </div>
 
         {creating ? (
           <div>
             <SectionHeading>New lab</SectionHeading>
+            {!canManage ? (
+              <p className="serif-display italic text-muted-foreground">
+                No labs to view yet.
+              </p>
+            ) : (
             <Card className="p-5 md:p-6">
               <form action={createLab} className="grid gap-3 max-w-2xl">
                 <label className="text-sm">
@@ -124,6 +136,7 @@ export default async function AdminLabs({
                 </SubmitButton>
               </form>
             </Card>
+            )}
           </div>
         ) : active ? (
           <div className="space-y-8">
@@ -134,6 +147,7 @@ export default async function AdminLabs({
               >
                 Lab settings
               </SectionHeading>
+              {canManage ? (
               <Card className="p-5 md:p-6 space-y-4">
                 <form action={updateLab.bind(null, active.id, active.slug)} className="grid gap-3 max-w-2xl">
                   <p className="text-xs text-muted-foreground">
@@ -209,6 +223,22 @@ export default async function AdminLabs({
                   </form>
                 </div>
               </Card>
+              ) : (
+              <Card className="p-5 md:p-6 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Slug: <code className="px-1 py-0.5 rounded bg-foreground/6">{active.slug}</code>
+                </p>
+                {active.track ? (
+                  <p className="text-sm text-muted-foreground">Track: {active.track}</p>
+                ) : null}
+                {active.summary ? (
+                  <p className="text-sm text-foreground/90">{active.summary}</p>
+                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  {active.published ? "Live for students." : "Draft — hidden from students."}
+                </p>
+              </Card>
+              )}
             </div>
 
             {/* ── Lessons ───────────────────────────────────────────────── */}
@@ -221,6 +251,7 @@ export default async function AdminLabs({
                 slug={active.slug}
                 steps={active.lab_steps}
                 assessments={assessments}
+                canManage={canManage}
               />
             </div>
           </div>

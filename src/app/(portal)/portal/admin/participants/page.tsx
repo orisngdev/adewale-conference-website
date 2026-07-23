@@ -18,9 +18,11 @@ import {
 } from "@/components/portal/participant-school-card";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { FilterBar, parsePage } from "@/components/portal/list-controls";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
 import { searchHaystackMatches, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { bulkRegistrationDecision, sendSchoolBack } from "../actions";
 import type { Edition, Rep, StageResult, StudentStageResult } from "@/supabase/types";
 
@@ -72,6 +74,9 @@ export default async function AdminParticipants({
 }: {
   searchParams: Promise<{ q?: string; edition?: string; page?: string }>;
 }) {
+  await requireModuleView("participants");
+  const canManage = await canManageModule("participants");
+
   const { q, edition, page: pageParam } = await searchParams;
   const supabase = await createClient();
 
@@ -212,7 +217,7 @@ export default async function AdminParticipants({
             ) : (
               <p className="text-sm text-muted-foreground">Not marked at any stage yet.</p>
             )}
-            {completed ? (
+            {canManage && completed ? (
               <form action={sendSchoolBack.bind(null, r.id)}>
                 <input type="hidden" name="from_stage" value={stageTabs[stageTabs.length - 1]} />
                 <ConfirmSubmitButton
@@ -252,57 +257,61 @@ export default async function AdminParticipants({
           </p>
         ) : (
           <div>
-            <form id={bulkId} action={bulkRegistrationDecision}>
-              <input type="hidden" name="stage" value={stage} />
-              <Card className="p-4 mb-6">
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                  <SelectAllCheckbox formId={bulkId} targetName="ids" />
-                  {matchingIds.length > here.length ? (
-                    <SelectAllMatching formId={bulkId} ids={matchingIds} />
-                  ) : null}
-                  <p className="text-sm text-muted-foreground flex-1 min-w-40">
-                    Tick schools, then mark them at the{" "}
-                    <span className="font-bold text-foreground">{stage}</span> (reps are marked
-                    separately below):
-                  </p>
-                  <ConfirmDecisionButton
-                    name="decision"
-                    value="advance"
-                    size="sm"
-                    variant="outline"
-                    title={`Mark selected advanced at ${stage}?`}
-                    description="Records the ticked schools as advanced past this stage (moving them to the next stage) and notifies each coordinator. Reps are unaffected — advance them per school below."
-                    confirmLabel="Yes, mark advanced"
-                  >
-                    Mark advanced
-                  </ConfirmDecisionButton>
-                  <ConfirmDecisionButton
-                    name="decision"
-                    value="eliminate"
-                    size="sm"
-                    variant="outline"
-                    destructive
-                    title={`Mark selected not advanced at ${stage}?`}
-                    description="Records the ticked schools as not advancing past this stage and notifies each coordinator. Portal access stays open."
-                    confirmLabel="Yes, mark"
-                  >
-                    Mark not advanced
-                  </ConfirmDecisionButton>
-                </div>
-              </Card>
-            </form>
+            {canManage ? (
+              <form id={bulkId} action={bulkRegistrationDecision}>
+                <input type="hidden" name="stage" value={stage} />
+                <Card className="p-4 mb-6">
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    <SelectAllCheckbox formId={bulkId} targetName="ids" />
+                    {matchingIds.length > here.length ? (
+                      <SelectAllMatching formId={bulkId} ids={matchingIds} />
+                    ) : null}
+                    <p className="text-sm text-muted-foreground flex-1 min-w-40">
+                      Tick schools, then mark them at the{" "}
+                      <span className="font-bold text-foreground">{stage}</span> (reps are marked
+                      separately below):
+                    </p>
+                    <ConfirmDecisionButton
+                      name="decision"
+                      value="advance"
+                      size="sm"
+                      variant="outline"
+                      title={`Mark selected advanced at ${stage}?`}
+                      description="Records the ticked schools as advanced past this stage (moving them to the next stage) and notifies each coordinator. Reps are unaffected — advance them per school below."
+                      confirmLabel="Yes, mark advanced"
+                    >
+                      Mark advanced
+                    </ConfirmDecisionButton>
+                    <ConfirmDecisionButton
+                      name="decision"
+                      value="eliminate"
+                      size="sm"
+                      variant="outline"
+                      destructive
+                      title={`Mark selected not advanced at ${stage}?`}
+                      description="Records the ticked schools as not advancing past this stage and notifies each coordinator. Portal access stays open."
+                      confirmLabel="Yes, mark"
+                    >
+                      Mark not advanced
+                    </ConfirmDecisionButton>
+                  </div>
+                </Card>
+              </form>
+            ) : null}
 
             <div className="space-y-6">
               {here.map((r) => (
                 <div key={r.id} className="flex gap-3">
-                  <input
-                    type="checkbox"
-                    name="ids"
-                    value={r.id}
-                    form={bulkId}
-                    aria-label={`Select ${r.schools?.name ?? "school"}`}
-                    className="mt-6 size-4 accent-primary shrink-0"
-                  />
+                  {canManage ? (
+                    <input
+                      type="checkbox"
+                      name="ids"
+                      value={r.id}
+                      form={bulkId}
+                      aria-label={`Select ${r.schools?.name ?? "school"}`}
+                      className="mt-6 size-4 accent-primary shrink-0"
+                    />
+                  ) : null}
                   <div className="flex-1 min-w-0">
                     <StageSchoolCard
                       registrationId={r.id}
@@ -313,6 +322,7 @@ export default async function AdminParticipants({
                       schoolResults={schoolResultsByReg.get(r.id) ?? []}
                       students={rosterOf(r)}
                       studentResultsById={studentResultsById}
+                      canManage={canManage}
                     />
                   </div>
                 </div>
@@ -334,6 +344,7 @@ export default async function AdminParticipants({
           students={rosterOf(r)}
           schoolCerts={schoolCertsByReg[r.id] ?? []}
           studentCertsById={studentCertsById}
+          canManage={canManage}
         />
       ))}
     </div>
@@ -354,10 +365,13 @@ export default async function AdminParticipants({
       <PortalBody>
         <div>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
-            <SectionHeading>
-              {filtered.length} approved school{filtered.length === 1 ? "" : "s"}
-              {activeEdition ? ` · ${activeEdition.year}` : ""}
-            </SectionHeading>
+            <div className="flex flex-wrap items-center gap-3">
+              <SectionHeading>
+                {filtered.length} approved school{filtered.length === 1 ? "" : "s"}
+                {activeEdition ? ` · ${activeEdition.year}` : ""}
+              </SectionHeading>
+              {!canManage ? <ReadOnlyBadge /> : null}
+            </div>
             {activeEdition ? (
               <span className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
                 Current stage: <span className="text-gold-ink">{activeEdition.current_stage}</span>

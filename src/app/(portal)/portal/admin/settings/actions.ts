@@ -2,15 +2,16 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
-import { getSessionUser } from "@/supabase/auth";
+import { requireManage } from "@/supabase/auth";
 import { extractYouTubeId } from "@/lib/youtube";
 
 export async function setHomeVideo(formData: FormData) {
   const raw = String(formData.get("url") ?? "").trim();
 
+  const admin = await requireManage("team");
+  if (!admin) return;
   const supabase = await createClient();
-  const user = await getSessionUser();
-  if (!user) return;
+  const user = admin.user;
 
   // RLS (site_settings_admin_write with is_admin()) restricts writes to admins.
   if (!raw) {

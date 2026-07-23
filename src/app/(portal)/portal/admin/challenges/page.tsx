@@ -4,6 +4,7 @@ import { SubmitButton } from "@/components/portal/submit-button";
 import { ChallengeChip, ChallengeTypeBadge } from "@/components/portal/challenge-ui";
 import { ChallengeTypePicker } from "@/components/portal/challenge-type-picker";
 import { Card, EmptyState, PortalBody, PortalHeader, SectionHeading, StatTile } from "@/components/portal/ui";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import {
   FilterBar,
   Pagination,
@@ -13,6 +14,7 @@ import {
 } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
 import {
   CHALLENGE_TYPES,
   CHALLENGE_TYPE_LABEL,
@@ -43,6 +45,8 @@ export default async function AdminChallenges({
 }: {
   searchParams: Promise<{ q?: string; type?: string; published?: string; page?: string }>;
 }) {
+  await requireModuleView("labs");
+  const canManage = await canManageModule("labs");
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const typeFilter = isChallengeType(sp.type) ? sp.type : "";
@@ -108,6 +112,7 @@ export default async function AdminChallenges({
         </div>
 
         {/* ── Create ────────────────────────────────────────────────────── */}
+        {canManage ? (
         <div>
           <SectionHeading>New challenge</SectionHeading>
           <Card className="p-5 md:p-6">
@@ -155,10 +160,14 @@ export default async function AdminChallenges({
             </form>
           </Card>
         </div>
+        ) : null}
 
         {/* ── List ──────────────────────────────────────────────────────── */}
         <div>
-          <SectionHeading>All challenges</SectionHeading>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+            <SectionHeading>All challenges</SectionHeading>
+            {!canManage ? <ReadOnlyBadge /> : null}
+          </div>
           <FilterBar q={q} placeholder="Search by title…">
             <select name="type" defaultValue={typeFilter} className={filterSelectCls}>
               <option value="">All types</option>

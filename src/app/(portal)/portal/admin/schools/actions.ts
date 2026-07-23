@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
+import { requireManage } from "@/supabase/auth";
 
 export async function approveMembership(memberId: string) {
+  if (!(await requireManage("registrations"))) return;
   const supabase = await createClient();
   // RLS (members_admin_all) restricts this to admins.
   await supabase
@@ -40,6 +42,7 @@ export async function approveMembership(memberId: string) {
 }
 
 export async function rejectMembership(memberId: string) {
+  if (!(await requireManage("registrations"))) return;
   const supabase = await createClient();
   await supabase.from("school_members").delete().eq("id", memberId);
   revalidatePath("/portal/admin/schools");

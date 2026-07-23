@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/supabase/server";
-import { requireAdmin } from "@/supabase/auth";
+import { requireManage } from "@/supabase/auth";
 import { AUTHORABLE_TYPES, type ChallengeType } from "@/lib/challenges";
 
 // Admin challenge authoring + review. RLS already restricts writes to admins;
@@ -56,7 +56,7 @@ function challengeFields(formData: FormData) {
 }
 
 export async function createChallenge(formData: FormData) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const type = readType(formData);
   const fields = challengeFields(formData);
   if (!type || !fields.title) return;
@@ -79,7 +79,7 @@ export async function createChallenge(formData: FormData) {
 }
 
 export async function updateChallenge(challengeId: string, formData: FormData) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const type = readType(formData);
   const fields = challengeFields(formData);
   if (!type || !fields.title) return;
@@ -93,7 +93,7 @@ export async function updateChallenge(challengeId: string, formData: FormData) {
 }
 
 export async function toggleChallengePublished(challengeId: string, published: boolean) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const supabase = await createClient();
   await supabase.from("challenges").update({ published }).eq("id", challengeId);
   revalidatePath("/portal/admin/challenges");
@@ -102,7 +102,7 @@ export async function toggleChallengePublished(challengeId: string, published: b
 }
 
 export async function deleteChallenge(challengeId: string) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const supabase = await createClient();
   await supabase.from("challenges").delete().eq("id", challengeId);
   revalidatePath("/portal/admin/challenges");
@@ -112,7 +112,7 @@ export async function deleteChallenge(challengeId: string) {
 
 // Score + feedback an entry, lock it, and notify the student (once).
 export async function reviewEntry(challengeId: string, entryId: string, formData: FormData) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const score = Number(String(formData.get("score") ?? "").trim());
   if (!Number.isInteger(score) || score < 0 || score > 100) return;
   const feedback = String(formData.get("feedback") ?? "").trim() || null;

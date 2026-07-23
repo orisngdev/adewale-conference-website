@@ -1,5 +1,6 @@
 import { Card, PortalBody, PortalHeader, SectionHeading, StatTile } from "@/components/portal/ui";
 import { pageMetadata } from "@/lib/seo";
+import { requireModuleView } from "@/supabase/auth";
 import { getAdminAnalytics, type BarPoint, type Slice } from "@/lib/analytics";
 import { BRAND, STATUS_COLOR } from "@/components/portal/analytics/chart-theme";
 import {
@@ -56,6 +57,7 @@ export default async function AdminAnalyticsPage({
 }: {
   searchParams: Promise<{ window?: string; edition?: string }>;
 }) {
+  await requireModuleView("analytics");
   const sp = await searchParams;
   const windowKey = resolveWindow(sp.window);
   const sinceDays = windowDays(sp.window);

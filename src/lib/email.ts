@@ -384,6 +384,7 @@ export function buildTeamInviteEmail(data: {
     email: data.email,
     inviteUrl: `${SITE_URL}/portal/team-invite?token=${encodeURIComponent(data.verifyToken)}`,
   });
+  console.log("Email sent")
   return { to: [{ email: data.email }], subject, html };
 }
 

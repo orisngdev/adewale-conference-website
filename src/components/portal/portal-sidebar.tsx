@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MoreHorizontal, X, type LucideIcon } from "lucide-react";
+import type { PermissionModule } from "@/supabase/types";
 
 export type NavLink = {
   href: string;
@@ -12,6 +13,9 @@ export type NavLink = {
   exact?: boolean;
   /** Short label for the mobile bottom bar (falls back to label). */
   short?: string;
+  /** Admin permission module this link belongs to; used to hide it when the
+   *  signed-in admin has no view access. Links without a module are always shown. */
+  module?: PermissionModule;
 };
 
 export type SidebarConfig = {

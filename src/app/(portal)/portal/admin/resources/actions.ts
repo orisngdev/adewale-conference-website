@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
-import { requireAdmin } from "@/supabase/auth";
+import { requireManage } from "@/supabase/auth";
 import { resourceStorage } from "@/lib/storage";
 import { slugifyResource } from "@/lib/resources";
 import { accessRank } from "@/lib/resource-access";
@@ -20,7 +20,7 @@ function revalidateResourceViews() {
 // URL (or neither, for a page-only entry). The file goes to object storage; only
 // its key is stored in the row.
 export async function createResource(formData: FormData) {
-  const admin = await requireAdmin();
+  const admin = await requireManage("content");
   if (!admin) return;
   const supabase = await createClient();
 
@@ -86,7 +86,7 @@ export async function createResource(formData: FormData) {
 }
 
 export async function setResourcePublished(id: string, published: boolean) {
-  const admin = await requireAdmin();
+  const admin = await requireManage("content");
   if (!admin) return;
   const supabase = await createClient();
   await supabase
@@ -97,7 +97,7 @@ export async function setResourcePublished(id: string, published: boolean) {
 }
 
 export async function deleteResource(id: string) {
-  const admin = await requireAdmin();
+  const admin = await requireManage("content");
   if (!admin) return;
   const supabase = await createClient();
 

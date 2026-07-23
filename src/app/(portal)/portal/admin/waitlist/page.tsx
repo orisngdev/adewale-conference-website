@@ -12,7 +12,9 @@ import {
   pageBounds,
   parsePage,
 } from "@/components/portal/list-controls";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { createClient } from "@/supabase/server";
 import { inviteWaitlist } from "../actions";
 
@@ -38,6 +40,8 @@ export default async function AdminWaitlist({
 }: {
   searchParams: Promise<{ q?: string; page?: string }>;
 }) {
+  await requireModuleView("registrations");
+  const canManage = await canManageModule("registrations");
   const { q, page: pageParam } = await searchParams;
   const page = parsePage(pageParam);
   const { from, to } = pageBounds(page, PAGE_SIZE);
@@ -74,6 +78,7 @@ export default async function AdminWaitlist({
         subtitle="Schools that asked to be told when registration opens"
       />
       <PortalBody>
+        {!canManage ? <ReadOnlyBadge /> : null}
         <div>
           <SectionHeading>
             {total} school{total === 1 ? "" : "s"} waiting
@@ -81,22 +86,24 @@ export default async function AdminWaitlist({
 
           {/* One-click announce: emails every un-notified entry the open
               registration link. Requires an open edition; never double-sends. */}
-          <form action={inviteWaitlist}>
-            <Card className="p-4 mb-4 flex flex-wrap items-center gap-3">
-              <p className="text-sm text-muted-foreground flex-1 min-w-40">
-                <span className="font-bold text-foreground">{pending}</span> not yet
-                notified — when registration opens:
-              </p>
-              <ConfirmSubmitButton
-                size="sm"
-                title="Invite the waitlist?"
-                description={`${pending} school(s) are emailed the registration link for the open edition. Already-notified entries are skipped.`}
-                confirmLabel="Yes, send invites"
-              >
-                Invite waitlist
-              </ConfirmSubmitButton>
-            </Card>
-          </form>
+          {canManage ? (
+            <form action={inviteWaitlist}>
+              <Card className="p-4 mb-4 flex flex-wrap items-center gap-3">
+                <p className="text-sm text-muted-foreground flex-1 min-w-40">
+                  <span className="font-bold text-foreground">{pending}</span> not yet
+                  notified — when registration opens:
+                </p>
+                <ConfirmSubmitButton
+                  size="sm"
+                  title="Invite the waitlist?"
+                  description={`${pending} school(s) are emailed the registration link for the open edition. Already-notified entries are skipped.`}
+                  confirmLabel="Yes, send invites"
+                >
+                  Invite waitlist
+                </ConfirmSubmitButton>
+              </Card>
+            </form>
+          ) : null}
 
           <FilterBar q={q} placeholder="Search school, contact, or email…" />
 

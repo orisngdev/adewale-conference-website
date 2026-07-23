@@ -19,22 +19,26 @@ import {
   Settings,
 } from "lucide-react";
 import PortalSidebar, { type SidebarConfig, type NavLink } from "@/components/portal/portal-sidebar";
+import type { AdminPermissionsMap } from "@/supabase/types";
+import { canView } from "@/lib/admin-permissions";
 
 const OVERVIEW: NavLink = { href: "/portal/admin", label: "Overview", icon: LayoutDashboard, exact: true, short: "Home" };
-const ANALYTICS: NavLink = { href: "/portal/admin/analytics", label: "Analytics", icon: BarChart3, short: "Stats" };
-const EDITIONS: NavLink = { href: "/portal/admin/editions", label: "Editions", icon: CalendarDays };
-const REGISTRATIONS: NavLink = { href: "/portal/admin/registrations", label: "Registrations", icon: ClipboardList, short: "Regs" };
-const WAITLIST: NavLink = { href: "/portal/admin/waitlist", label: "Waitlist", icon: Hourglass, short: "Wait" };
-const ASSESSMENTS: NavLink = { href: "/portal/admin/assessments", label: "Assessments", icon: ClipboardCheck, short: "Tests" };
-const LABS: NavLink = { href: "/portal/admin/labs", label: "Labs", icon: FlaskConical };
-const CHALLENGES: NavLink = { href: "/portal/admin/challenges", label: "Challenges", icon: Trophy, short: "Arena" };
-const QUESTION_BANK: NavLink = { href: "/portal/admin/question-bank", label: "Question bank", icon: FileQuestion, short: "Bank" };
-const RESOURCES: NavLink = { href: "/portal/admin/resources", label: "Resources", icon: FolderDown, short: "Guides" };
-const USERS: NavLink = { href: "/portal/admin/users", label: "Users", icon: Users };
-const SCHOOLS: NavLink = { href: "/portal/admin/schools", label: "Schools", icon: School };
-const PARTICIPANTS: NavLink = { href: "/portal/admin/participants", label: "Participants", icon: UserRound, short: "People" };
-const REPLACEMENTS: NavLink = { href: "/portal/admin/replacements", label: "Replacements", icon: UserRoundCheck, short: "Swaps" };
+const ANALYTICS: NavLink = { href: "/portal/admin/analytics", label: "Analytics", icon: BarChart3, short: "Stats", module: "analytics" };
+const EDITIONS: NavLink = { href: "/portal/admin/editions", label: "Editions", icon: CalendarDays, module: "registrations" };
+const REGISTRATIONS: NavLink = { href: "/portal/admin/registrations", label: "Registrations", icon: ClipboardList, short: "Regs", module: "registrations" };
+const WAITLIST: NavLink = { href: "/portal/admin/waitlist", label: "Waitlist", icon: Hourglass, short: "Wait", module: "registrations" };
+const ASSESSMENTS: NavLink = { href: "/portal/admin/assessments", label: "Assessments", icon: ClipboardCheck, short: "Tests", module: "content" };
+const LABS: NavLink = { href: "/portal/admin/labs", label: "Labs", icon: FlaskConical, module: "labs" };
+const CHALLENGES: NavLink = { href: "/portal/admin/challenges", label: "Challenges", icon: Trophy, short: "Arena", module: "labs" };
+const QUESTION_BANK: NavLink = { href: "/portal/admin/question-bank", label: "Question bank", icon: FileQuestion, short: "Bank", module: "content" };
+const RESOURCES: NavLink = { href: "/portal/admin/resources", label: "Resources", icon: FolderDown, short: "Guides", module: "content" };
+const USERS: NavLink = { href: "/portal/admin/users", label: "Users", icon: Users, module: "team" };
+const SCHOOLS: NavLink = { href: "/portal/admin/schools", label: "Schools", icon: School, module: "registrations" };
+const PARTICIPANTS: NavLink = { href: "/portal/admin/participants", label: "Participants", icon: UserRound, short: "People", module: "participants" };
+const REPLACEMENTS: NavLink = { href: "/portal/admin/replacements", label: "Replacements", icon: UserRoundCheck, short: "Swaps", module: "participants" };
 const SPONSORS: NavLink = { href: "/portal/admin/sponsors", label: "Sponsors", icon: HandCoins };
+// Settings is always shown — it also hosts each admin's own account settings. The
+// team-management + site-settings tabs inside it are gated by the "team" module.
 const SETTINGS: NavLink = { href: "/portal/admin/settings", label: "Settings", icon: Settings };
 
 const CONFIG: SidebarConfig = {
@@ -50,6 +54,28 @@ const CONFIG: SidebarConfig = {
   more: [ASSESSMENTS, PARTICIPANTS, REPLACEMENTS, EDITIONS, WAITLIST, LABS, CHALLENGES, QUESTION_BANK, RESOURCES, SCHOOLS, SPONSORS, SETTINGS],
 };
 
-export default function AdminNav() {
-  return <PortalSidebar config={CONFIG} />;
+// A link is shown when it has no module (always-open, e.g. Overview / Sponsors)
+// or the admin has at least view access to its module. Backend page gates and
+// server-action checks enforce the same rules — this just keeps the rail honest.
+function visible(link: NavLink, perms: AdminPermissionsMap): boolean {
+  return !link.module || canView(perms, link.module);
+}
+
+function filterConfig(config: SidebarConfig, perms: AdminPermissionsMap): SidebarConfig {
+  const keep = (l: NavLink) => visible(l, perms);
+  const bottom = config.bottom.filter(keep);
+  const more = (config.more ?? []).filter(keep);
+  return {
+    ...config,
+    groups: config.groups
+      .map((g) => ({ ...g, links: g.links.filter(keep) }))
+      .filter((g) => g.links.length > 0),
+    // Overview always stays as a bottom tab so the mobile bar is never empty.
+    bottom: bottom.length ? bottom : [config.overview],
+    more,
+  };
+}
+
+export default function AdminNav({ perms }: { perms: AdminPermissionsMap }) {
+  return <PortalSidebar config={filterConfig(CONFIG, perms)} />;
 }

@@ -10,6 +10,8 @@ import {
 } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { SUBJECTS, LEVELS } from "@/lib/assessments";
 import type { Question } from "@/supabase/types";
 import { deleteBankQuestion } from "./actions";
@@ -30,6 +32,8 @@ export default async function QuestionBank({
     page?: string;
   }>;
 }) {
+  await requireModuleView("content");
+  const canManage = await canManageModule("content");
   const sp = await searchParams;
   const page = parsePage(sp.page);
   const { from, to } = pageBounds(page, PAGE_SIZE);
@@ -57,10 +61,18 @@ export default async function QuestionBank({
     <>
       <PortalHeader title="Question bank" subtitle="The shared pool. Practice answers may reach devices; exam answers never do." />
       <PortalBody>
-        <div>
-          <SectionHeading>Bulk import (CSV or JSON)</SectionHeading>
-          <BulkImport />
-        </div>
+        {!canManage ? (
+          <div>
+            <ReadOnlyBadge />
+          </div>
+        ) : null}
+
+        {canManage ? (
+          <div>
+            <SectionHeading>Bulk import (CSV or JSON)</SectionHeading>
+            <BulkImport />
+          </div>
+        ) : null}
 
         <div>
           <SectionHeading>{total} question{total === 1 ? "" : "s"}</SectionHeading>
@@ -93,19 +105,21 @@ export default async function QuestionBank({
                       {" · "}✓ {String.fromCharCode(65 + q.correct_index)}
                     </p>
                   </div>
-                  <form action={deleteBankQuestion.bind(null, q.id)}>
-                    <ConfirmSubmitButton
-                      size="sm"
-                      variant="ghost"
-                      className="h-auto p-0 text-xs uppercase tracking-wide text-red-600 hover:text-red-600 hover:underline hover:bg-transparent shrink-0"
-                      destructive
-                      title="Delete this question?"
-                      description="It's removed from the question bank permanently."
-                      confirmLabel="Yes, delete"
-                    >
-                      Delete
-                    </ConfirmSubmitButton>
-                  </form>
+                  {canManage ? (
+                    <form action={deleteBankQuestion.bind(null, q.id)}>
+                      <ConfirmSubmitButton
+                        size="sm"
+                        variant="ghost"
+                        className="h-auto p-0 text-xs uppercase tracking-wide text-red-600 hover:text-red-600 hover:underline hover:bg-transparent shrink-0"
+                        destructive
+                        title="Delete this question?"
+                        description="It's removed from the question bank permanently."
+                        confirmLabel="Yes, delete"
+                      >
+                        Delete
+                      </ConfirmSubmitButton>
+                    </form>
+                  ) : null}
                 </Card>
               ))}
             </div>

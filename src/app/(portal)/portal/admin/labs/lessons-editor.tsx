@@ -155,6 +155,7 @@ function LessonRow({
   assessments,
   index,
   count,
+  canManage,
 }: {
   labId: string;
   slug: string;
@@ -162,6 +163,7 @@ function LessonRow({
   assessments: QuizAssessmentOption[];
   index: number;
   count: number;
+  canManage: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -169,28 +171,30 @@ function LessonRow({
     <div className="bg-card">
       <div className="flex items-center gap-3 px-4 py-3">
         {/* Reorder */}
-        <div className="flex flex-col">
-          <form action={moveStep.bind(null, step.id, labId, slug, "up")}>
-            <button
-              type="submit"
-              disabled={index === 0}
-              aria-label="Move up"
-              className="block text-muted-foreground hover:text-foreground disabled:opacity-30 leading-none text-xs"
-            >
-              ▲
-            </button>
-          </form>
-          <form action={moveStep.bind(null, step.id, labId, slug, "down")}>
-            <button
-              type="submit"
-              disabled={index === count - 1}
-              aria-label="Move down"
-              className="block text-muted-foreground hover:text-foreground disabled:opacity-30 leading-none text-xs"
-            >
-              ▼
-            </button>
-          </form>
-        </div>
+        {canManage ? (
+          <div className="flex flex-col">
+            <form action={moveStep.bind(null, step.id, labId, slug, "up")}>
+              <button
+                type="submit"
+                disabled={index === 0}
+                aria-label="Move up"
+                className="block text-muted-foreground hover:text-foreground disabled:opacity-30 leading-none text-xs"
+              >
+                ▲
+              </button>
+            </form>
+            <form action={moveStep.bind(null, step.id, labId, slug, "down")}>
+              <button
+                type="submit"
+                disabled={index === count - 1}
+                aria-label="Move down"
+                className="block text-muted-foreground hover:text-foreground disabled:opacity-30 leading-none text-xs"
+              >
+                ▼
+              </button>
+            </form>
+          </div>
+        ) : null}
 
         <span className="grid size-6 shrink-0 place-items-center rounded bg-foreground/5 text-sm" aria-hidden>
           {LAB_KIND_GLYPH[step.kind]}
@@ -204,24 +208,28 @@ function LessonRow({
           </p>
         </div>
 
-        <Button type="button" size="sm" variant="outline" onClick={() => setOpen((o) => !o)}>
-          {open ? "Close" : "Edit"}
-        </Button>
-        <form action={deleteStep.bind(null, step.id, labId, slug)}>
-          <ConfirmSubmitButton
-            size="sm"
-            variant="outline"
-            destructive
-            title="Delete this lesson?"
-            description="It's removed for all students. Their progress on other lessons is unaffected."
-            confirmLabel="Yes, delete"
-          >
-            Delete
-          </ConfirmSubmitButton>
-        </form>
+        {canManage ? (
+          <>
+            <Button type="button" size="sm" variant="outline" onClick={() => setOpen((o) => !o)}>
+              {open ? "Close" : "Edit"}
+            </Button>
+            <form action={deleteStep.bind(null, step.id, labId, slug)}>
+              <ConfirmSubmitButton
+                size="sm"
+                variant="outline"
+                destructive
+                title="Delete this lesson?"
+                description="It's removed for all students. Their progress on other lessons is unaffected."
+                confirmLabel="Yes, delete"
+              >
+                Delete
+              </ConfirmSubmitButton>
+            </form>
+          </>
+        ) : null}
       </div>
 
-      {open ? (
+      {canManage && open ? (
         <div className="border-t border-foreground/5 px-4 py-4">
           <form action={updateStep.bind(null, step.id, labId, slug)} className="space-y-3">
             <LessonFields initial={step} assessments={assessments} />
@@ -245,11 +253,13 @@ export default function LabLessonsEditor({
   slug,
   steps,
   assessments,
+  canManage,
 }: {
   labId: string;
   slug: string;
   steps: LabStep[];
   assessments: QuizAssessmentOption[];
+  canManage: boolean;
 }) {
   const [adding, setAdding] = useState(false);
 
@@ -257,7 +267,7 @@ export default function LabLessonsEditor({
     <div className="space-y-4">
       {steps.length === 0 ? (
         <p className="serif-display italic text-muted-foreground">
-          No lessons yet — add the first one below.
+          {canManage ? "No lessons yet — add the first one below." : "No lessons yet."}
         </p>
       ) : (
         <div className="divide-y divide-foreground/5 border border-foreground/10">
@@ -270,12 +280,13 @@ export default function LabLessonsEditor({
               assessments={assessments}
               index={i}
               count={steps.length}
+              canManage={canManage}
             />
           ))}
         </div>
       )}
 
-      {adding ? (
+      {!canManage ? null : adding ? (
         <div className="bg-card border border-primary/40 p-4">
           <p className="font-bebas text-lg text-foreground mb-3">New lesson</p>
           <form action={addStep.bind(null, labId, slug)} className="space-y-3">

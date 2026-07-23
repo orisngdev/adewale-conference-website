@@ -6,6 +6,9 @@ import {
   sendEmailSafely,
 } from "@/lib/email";
 import { mapRegistrationFields, type RegistrationFormData } from "@/lib/forms";
+import { repLabel } from "@/lib/age";
+import { canView, resolveStoredPermissions } from "@/lib/admin-permissions";
+import type { AdminPermissionsMap } from "@/supabase/types";
 
 const EDITION_YEAR =
   Number(process.env.ASC_EDITION_YEAR) || new Date().getFullYear();
@@ -72,11 +75,14 @@ export async function mirrorRegistrationToSupabase(
     schoolId = created?.id ?? null;
   }
 
-  const reps = [
-    { name: input.studentRep1FullName, level: input.studentRep1Class },
-    { name: input.studentRep2FullName, level: input.studentRep2Class },
-    { name: input.studentRep3FullName, level: input.studentRep3Class },
+  const repEntries = [
+    { name: input.studentRep1FullName, level: input.studentRep1Class, dob: input.studentRep1DOB },
+    { name: input.studentRep2FullName, level: input.studentRep2Class, dob: input.studentRep2DOB },
+    { name: input.studentRep3FullName, level: input.studentRep3Class, dob: input.studentRep3DOB },
   ].filter((r) => r.name);
+  // Stored reps stay name+level; DOB lives in `details`. The admin heads-up email
+  // gets the richer "Name (Class, age N)" label computed from each DOB.
+  const reps = repEntries.map((r) => ({ name: r.name, level: r.level }));
 
   // The coordinating teacher is the intended portal user.
   const contactEmail =
@@ -178,13 +184,20 @@ export async function mirrorRegistrationToSupabase(
   }
 
   // Heads-up to the conference team (awareness only — never a gate, never fatal):
-  // an in-portal notification for every admin + one email to them all.
+  // an in-portal notification for every admin, plus an email to each admin who can
+  // actually SEE registrations (no point paging someone with no registrations
+  // access). Reps carry each student's age, computed from their DOB.
   try {
     const { data: admins } = await supabase
       .from("profiles")
-      .select("id, email")
+      .select("id, email, admin_role, permissions")
       .eq("role", "admin");
-    const adminRows = (admins ?? []) as { id: string; email: string | null }[];
+    const adminRows = (admins ?? []) as {
+      id: string;
+      email: string | null;
+      admin_role: string | null;
+      permissions: AdminPermissionsMap | null;
+    }[];
     if (adminRows.length > 0) {
       await supabase.from("notifications").insert(
         adminRows.map((a) => ({
@@ -196,6 +209,7 @@ export async function mirrorRegistrationToSupabase(
       );
       const recipients = adminRows
         .filter((a) => a.email)
+        .filter((a) => canView(resolveStoredPermissions(a.admin_role, a.permissions), "registrations"))
         .map((a) => ({ email: a.email as string }));
       if (recipients.length > 0) {
         await sendEmailSafely(
@@ -206,7 +220,7 @@ export async function mirrorRegistrationToSupabase(
             teacherFullName: input.teacherFullName,
             contactEmail: contactEmail ?? "—",
             editionYear: edition,
-            reps: reps.map((r) => (r.level ? `${r.name} (${r.level})` : r.name)).join(", "),
+            reps: repEntries.map((r) => repLabel(r.name, r.level, r.dob)).join(", "),
           }),
         );
       }

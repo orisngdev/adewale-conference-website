@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
-import { requireAdmin } from "@/supabase/auth";
+import { requireManage } from "@/supabase/auth";
 
 export interface ImportError {
   row: number;
@@ -155,7 +155,8 @@ export async function importQuestions(
   _prev: ImportState,
   formData: FormData,
 ): Promise<ImportState> {
-  if (!(await requireAdmin())) return { stage: "error", message: "Admins only." };
+  if (!(await requireManage("content")))
+    return { stage: "error", message: "You have read-only access to content." };
   const supabase = await createClient();
 
   const payload = String(formData.get("payload") ?? "");
@@ -219,6 +220,7 @@ export async function importQuestions(
 }
 
 export async function deleteBankQuestion(id: string) {
+  if (!(await requireManage("content"))) return;
   const supabase = await createClient();
   await supabase.from("question_bank").delete().eq("id", id);
   revalidatePath("/portal/admin/question-bank");

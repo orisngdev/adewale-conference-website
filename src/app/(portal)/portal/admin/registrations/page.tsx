@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FileSpreadsheet, Sheet } from "lucide-react";
 import EmptyState from "@/components/ui/empty-state";
 import {
   Card,
@@ -21,6 +22,8 @@ import {
 import { pageMetadata } from "@/lib/seo";
 import { searchHaystackMatches, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import type { AdminRegistrationRow, RegistrationStatus, Rep } from "@/supabase/types";
 import {
   bulkRegistrationDecision,
@@ -50,6 +53,8 @@ export default async function AdminRegistrations({
 }: {
   searchParams: Promise<{ edition?: string; q?: string; status?: string; page?: string }>;
 }) {
+  await requireModuleView("registrations");
+  const canManage = await canManageModule("registrations");
   const { edition, q, status, page: pageParam } = await searchParams;
   const supabase = await createClient();
   const { data: regData } = await supabase
@@ -100,19 +105,42 @@ export default async function AdminRegistrations({
             <SectionHeading>
               {activeYear ? `${activeYear} edition` : "All editions"}
             </SectionHeading>
-            {/* Airtable stays source of truth — this pulls its rows into the
-                portal (idempotent; result arrives as a notification). */}
-            <form action={syncAirtableRegistrations}>
-              <ConfirmSubmitButton
-                size="sm"
-                variant="outline"
-                title="Sync from Airtable?"
-                description="Pulls every school and registration from Airtable into the portal — new rows are added, edited rows refreshed. No emails are sent. The result arrives as a notification."
-                confirmLabel="Yes, sync"
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Export the current edition scope. CSV opens straight into Google
+                  Sheets; XLSX is a real Excel workbook. A read, so read-only
+                  admins can export too. */}
+              <a
+                href={`/portal/admin/registrations/export?format=csv&edition=${activeYear ?? "all"}`}
+                className="inline-flex items-center gap-2 rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary"
               >
-                Sync from Airtable
-              </ConfirmSubmitButton>
-            </form>
+                <Sheet className="size-4" strokeWidth={2} />
+                Google Sheets (CSV)
+              </a>
+              <a
+                href={`/portal/admin/registrations/export?format=xlsx&edition=${activeYear ?? "all"}`}
+                className="inline-flex items-center gap-2 rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary"
+              >
+                <FileSpreadsheet className="size-4" strokeWidth={2} />
+                Excel (.xlsx)
+              </a>
+              {/* Airtable stays source of truth — this pulls its rows into the
+                  portal (idempotent; result arrives as a notification). */}
+              {canManage ? (
+                <form action={syncAirtableRegistrations}>
+                  <ConfirmSubmitButton
+                    size="sm"
+                    variant="outline"
+                    title="Sync from Airtable?"
+                    description="Pulls every school and registration from Airtable into the portal — new rows are added, edited rows refreshed. No emails are sent. The result arrives as a notification."
+                    confirmLabel="Yes, sync"
+                  >
+                    Sync from Airtable
+                  </ConfirmSubmitButton>
+                </form>
+              ) : (
+                <ReadOnlyBadge />
+              )}
+            </div>
           </div>
 
           {years.length > 1 || edition === "all" ? (
@@ -163,6 +191,7 @@ export default async function AdminRegistrations({
               the school's competition roster); decline sends a polite not-selected
               email. Neither touches portal access. Everything after acceptance —
               stage advancement, certificates — lives on the Participants hub. */}
+          {canManage ? (
           <form id={BULK_FORM_ID} action={bulkRegistrationDecision}>
             <Card className="p-4 mb-6 space-y-3">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -203,6 +232,7 @@ export default async function AdminRegistrations({
               </div>
             </Card>
           </form>
+          ) : null}
 
           {registrations.length === 0 ? (
             <EmptyState title={needle || status ? "No matches" : "No registrations yet"}>
@@ -216,14 +246,16 @@ export default async function AdminRegistrations({
                 <Card key={r.id} className="p-5 md:p-6 space-y-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0">
-                      <input
-                        type="checkbox"
-                        name="ids"
-                        value={r.id}
-                        form={BULK_FORM_ID}
-                        aria-label={`Select ${r.schools?.name ?? "registration"}`}
-                        className="mt-2 size-4 accent-primary shrink-0"
-                      />
+                      {canManage ? (
+                        <input
+                          type="checkbox"
+                          name="ids"
+                          value={r.id}
+                          form={BULK_FORM_ID}
+                          aria-label={`Select ${r.schools?.name ?? "registration"}`}
+                          className="mt-2 size-4 accent-primary shrink-0"
+                        />
+                      ) : null}
                       <div className="min-w-0">
                         <span className="font-bebas text-2xl text-foreground">
                           {r.schools?.name ?? "Unassigned school"}
@@ -273,6 +305,7 @@ export default async function AdminRegistrations({
                     );
                   })()}
 
+                  {canManage ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <form
                       action={setRegistrationStatus.bind(null, r.id)}
@@ -327,6 +360,7 @@ export default async function AdminRegistrations({
                       </form>
                     ) : null}
                   </div>
+                  ) : null}
                 </Card>
               ))}
             </div>
