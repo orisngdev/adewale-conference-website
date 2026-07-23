@@ -56,9 +56,9 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
 
 /** One-line description of what each module covers, shown in the settings matrix. */
 export const MODULE_DESCRIPTIONS: Record<PermissionModule, string> = {
-  team: "Team members, invites, and site settings",
-  registrations: "Registrations, waitlist, editions, schools",
-  participants: "Participant rosters, advancement, certificates, swaps",
+  team: "Team members, invites, sponsors and site settings",
+  registrations: "Registrations, waitlist, editions, schools, replacements",
+  participants: "Participant rosters, advancement, certificates",
   content: "Assessments, question bank, resources",
   labs: "Tech labs, challenges, workbench submissions",
   analytics: "Analytics charts and registration statistics",

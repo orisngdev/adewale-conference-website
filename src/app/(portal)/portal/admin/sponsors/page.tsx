@@ -19,6 +19,7 @@ import {
   type AirtableRecord,
 } from "@/lib/airtable";
 import { SPONSORSHIP_TIER_OPTIONS } from "@/lib/forms";
+import { requireModuleView } from "@/supabase/auth";
 
 export const metadata = pageMetadata("Sponsors", "Sponsorship enquiries from the public form.");
 export const dynamic = "force-dynamic";
@@ -55,7 +56,8 @@ export default async function AdminSponsors({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; tier?: string; page?: string }>;
-}) {
+  }) {
+  await requireModuleView("team");
   const { q, tier, page: pageParam } = await searchParams;
 
   // Pulled live from the Airtable Sponsorship table — the same table the public

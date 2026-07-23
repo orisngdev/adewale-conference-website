@@ -20,8 +20,8 @@ export const metadata = pageMetadata(
 export const dynamic = "force-dynamic";
 
 export default async function AdminReplacements() {
-  await requireModuleView("participants");
-  const canManage = await canManageModule("participants");
+  await requireModuleView("registrations");
+  const canManage = await canManageModule("registrations");
 
   const supabase = await createClient();
 

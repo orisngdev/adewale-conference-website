@@ -35,8 +35,8 @@ const RESOURCES: NavLink = { href: "/portal/admin/resources", label: "Resources"
 const USERS: NavLink = { href: "/portal/admin/users", label: "Users", icon: Users, module: "team" };
 const SCHOOLS: NavLink = { href: "/portal/admin/schools", label: "Schools", icon: School, module: "registrations" };
 const PARTICIPANTS: NavLink = { href: "/portal/admin/participants", label: "Participants", icon: UserRound, short: "People", module: "participants" };
-const REPLACEMENTS: NavLink = { href: "/portal/admin/replacements", label: "Replacements", icon: UserRoundCheck, short: "Swaps", module: "participants" };
-const SPONSORS: NavLink = { href: "/portal/admin/sponsors", label: "Sponsors", icon: HandCoins };
+const REPLACEMENTS: NavLink = { href: "/portal/admin/replacements", label: "Replacements", icon: UserRoundCheck, short: "Swaps", module: "registrations" };
+const SPONSORS: NavLink = { href: "/portal/admin/sponsors", label: "Sponsors", icon: HandCoins, module: "team" };
 // Settings is always shown — it also hosts each admin's own account settings. The
 // team-management + site-settings tabs inside it are gated by the "team" module.
 const SETTINGS: NavLink = { href: "/portal/admin/settings", label: "Settings", icon: Settings };
