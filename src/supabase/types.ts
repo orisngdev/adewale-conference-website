@@ -1,5 +1,87 @@
 export type UserRole = "student" | "coordinator" | "admin";
 
+// ── Admin permissions (two-tier: view vs. manage, per module) ─────────────────
+// Every admin is role="admin" in the DB, so RLS (is_admin()) can't distinguish
+// these levels — enforcement lives in the application layer (server actions +
+// UI). See src/lib/admin-permissions.ts for route↔module mapping and labels.
+export type PermissionModule =
+  | "team"
+  | "registrations"
+  | "participants"
+  | "content"
+  | "labs"
+  | "analytics";
+
+export type AccessLevel = "none" | "view" | "manage";
+
+export type AdminPermissionsMap = Record<PermissionModule, AccessLevel>;
+
+export type AdminRolePreset =
+  | "super_admin"
+  | "operations"
+  | "academic"
+  | "lab_manager"
+  | "viewer"
+  | "custom";
+
+/** No access to anything — the safe default for a non-admin or missing profile. */
+export const DEFAULT_EMPTY_PERMISSIONS: AdminPermissionsMap = {
+  team: "none",
+  registrations: "none",
+  participants: "none",
+  content: "none",
+  labs: "none",
+  analytics: "none",
+};
+
+export const DEFAULT_SUPER_ADMIN_PERMISSIONS: AdminPermissionsMap = {
+  team: "manage",
+  registrations: "manage",
+  participants: "manage",
+  content: "manage",
+  labs: "manage",
+  analytics: "manage",
+};
+
+export const PRESET_ROLE_PERMISSIONS: Record<
+  Exclude<AdminRolePreset, "custom">,
+  AdminPermissionsMap
+> = {
+  super_admin: DEFAULT_SUPER_ADMIN_PERMISSIONS,
+  operations: {
+    team: "none",
+    registrations: "manage",
+    participants: "manage",
+    content: "view",
+    labs: "none",
+    analytics: "view",
+  },
+  academic: {
+    team: "none",
+    registrations: "none",
+    participants: "view",
+    content: "manage",
+    labs: "none",
+    analytics: "view",
+  },
+  lab_manager: {
+    team: "none",
+    registrations: "none",
+    participants: "none",
+    content: "view",
+    labs: "manage",
+    analytics: "view",
+  },
+  viewer: {
+    team: "none",
+    registrations: "view",
+    participants: "view",
+    content: "view",
+    labs: "view",
+    analytics: "view",
+  },
+};
+
 // Registration status records ONLY the acceptance decision. Competition
 // progress (past-zonals, finalist) lives in the stage-results tables and, for
 // resource unlocks, is derived from stage advancement — see resource-access.ts.

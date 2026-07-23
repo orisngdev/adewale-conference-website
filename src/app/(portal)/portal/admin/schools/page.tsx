@@ -13,9 +13,11 @@ import {
   pageBounds,
   parsePage,
 } from "@/components/portal/list-controls";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
 import { LGA_OPTIONS, SCHOOL_CATEGORY_OPTIONS } from "@/lib/forms";
 import { escapeLikePattern, searchTokens } from "@/lib/search";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { createClient } from "@/supabase/server";
 import { approveMembership, rejectMembership } from "./actions";
 
@@ -43,6 +45,8 @@ export default async function AdminSchools({
 }: {
   searchParams: Promise<{ q?: string; lga?: string; category?: string; page?: string }>;
 }) {
+  await requireModuleView("registrations");
+  const canManage = await canManageModule("registrations");
   const { q, lga, category, page: pageParam } = await searchParams;
   const page = parsePage(pageParam);
   const { from, to } = pageBounds(page, PAGE_SIZE);
@@ -81,6 +85,7 @@ export default async function AdminSchools({
     <>
       <PortalHeader title="Schools" subtitle="Access requests and registered schools" />
       <PortalBody>
+        {!canManage ? <ReadOnlyBadge /> : null}
         <div>
           <SectionHeading>
             Pending access {pending.length > 0 ? `(${pending.length})` : ""}
@@ -102,30 +107,32 @@ export default async function AdminSchools({
                     </span>
                     <p className="text-sm text-muted-foreground">{m.email}</p>
                   </div>
-                  <div className="flex gap-2">
-                    <form action={approveMembership.bind(null, m.id)}>
-                      <ConfirmSubmitButton
-                        size="sm"
-                        title="Approve this access request?"
-                        description={`${m.email} gets educator access to ${m.schools?.name ?? "this school"}.`}
-                        confirmLabel="Yes, approve"
-                      >
-                        Approve
-                      </ConfirmSubmitButton>
-                    </form>
-                    <form action={rejectMembership.bind(null, m.id)}>
-                      <ConfirmSubmitButton
-                        size="sm"
-                        variant="outline"
-                        destructive
-                        title="Reject this access request?"
-                        description={`${m.email} will not get access to ${m.schools?.name ?? "this school"}.`}
-                        confirmLabel="Yes, reject"
-                      >
-                        Reject
-                      </ConfirmSubmitButton>
-                    </form>
-                  </div>
+                  {canManage ? (
+                    <div className="flex gap-2">
+                      <form action={approveMembership.bind(null, m.id)}>
+                        <ConfirmSubmitButton
+                          size="sm"
+                          title="Approve this access request?"
+                          description={`${m.email} gets educator access to ${m.schools?.name ?? "this school"}.`}
+                          confirmLabel="Yes, approve"
+                        >
+                          Approve
+                        </ConfirmSubmitButton>
+                      </form>
+                      <form action={rejectMembership.bind(null, m.id)}>
+                        <ConfirmSubmitButton
+                          size="sm"
+                          variant="outline"
+                          destructive
+                          title="Reject this access request?"
+                          description={`${m.email} will not get access to ${m.schools?.name ?? "this school"}.`}
+                          confirmLabel="Yes, reject"
+                        >
+                          Reject
+                        </ConfirmSubmitButton>
+                      </form>
+                    </div>
+                  ) : null}
                 </Card>
               ))}
             </div>

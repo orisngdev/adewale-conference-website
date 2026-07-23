@@ -14,7 +14,7 @@ import {
 } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
-import { getSessionUser } from "@/supabase/auth";
+import { getSessionUser, requireModuleView } from "@/supabase/auth";
 import type { UserRole } from "@/supabase/types";
 
 export const metadata = pageMetadata("Users", "Everyone with a portal account.");
@@ -36,6 +36,7 @@ export default async function AdminUsers({
 }: {
   searchParams: Promise<{ q?: string; role?: string; page?: string }>;
 }) {
+  await requireModuleView("team");
   const { q, role, page: pageParam } = await searchParams;
   const page = parsePage(pageParam);
   const { from, to } = pageBounds(page, PAGE_SIZE);

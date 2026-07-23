@@ -6,8 +6,10 @@ import {
   SectionHeading,
   StatusBadge,
 } from "@/components/portal/ui";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
 import type { StudentReplacementRow } from "@/supabase/types";
 import { approveReplacement, declineReplacement } from "./actions";
 
@@ -18,6 +20,9 @@ export const metadata = pageMetadata(
 export const dynamic = "force-dynamic";
 
 export default async function AdminReplacements() {
+  await requireModuleView("participants");
+  const canManage = await canManageModule("participants");
+
   const supabase = await createClient();
 
   // RLS (sr_read) returns all rows to admins.
@@ -39,9 +44,12 @@ export default async function AdminReplacements() {
       />
       <PortalBody>
         <div>
-          <SectionHeading>
-            Pending {pending.length > 0 ? `(${pending.length})` : ""}
-          </SectionHeading>
+          <div className="flex flex-wrap items-center gap-3">
+            <SectionHeading>
+              Pending {pending.length > 0 ? `(${pending.length})` : ""}
+            </SectionHeading>
+            {!canManage ? <ReadOnlyBadge /> : null}
+          </div>
           {pending.length === 0 ? (
             <p className="serif-display italic text-muted-foreground">
               No replacement requests awaiting review.
@@ -71,35 +79,37 @@ export default async function AdminReplacements() {
                       </p>
                     ) : null}
                   </div>
-                  <div className="flex gap-2">
-                    <form action={approveReplacement.bind(null, r.id)}>
-                      <ConfirmSubmitButton
-                        size="sm"
-                        title="Approve this replacement?"
-                        description={`${r.old_name}'s access code will stop working and ${r.new_name} gets a new one. The registration and Airtable are updated.`}
-                        confirmLabel="Yes, approve"
-                      >
-                        Approve
-                      </ConfirmSubmitButton>
-                    </form>
-                    <form action={declineReplacement.bind(null, r.id)} className="flex items-center gap-2">
-                      <input
-                        name="note"
-                        placeholder="Reason (optional)"
-                        className="rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary"
-                      />
-                      <ConfirmSubmitButton
-                        size="sm"
-                        variant="outline"
-                        destructive
-                        title="Decline this replacement?"
-                        description={`No student changes. ${r.new_name} will not replace ${r.old_name}.`}
-                        confirmLabel="Yes, decline"
-                      >
-                        Decline
-                      </ConfirmSubmitButton>
-                    </form>
-                  </div>
+                  {canManage ? (
+                    <div className="flex gap-2">
+                      <form action={approveReplacement.bind(null, r.id)}>
+                        <ConfirmSubmitButton
+                          size="sm"
+                          title="Approve this replacement?"
+                          description={`${r.old_name}'s access code will stop working and ${r.new_name} gets a new one. The registration and Airtable are updated.`}
+                          confirmLabel="Yes, approve"
+                        >
+                          Approve
+                        </ConfirmSubmitButton>
+                      </form>
+                      <form action={declineReplacement.bind(null, r.id)} className="flex items-center gap-2">
+                        <input
+                          name="note"
+                          placeholder="Reason (optional)"
+                          className="rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                        <ConfirmSubmitButton
+                          size="sm"
+                          variant="outline"
+                          destructive
+                          title="Decline this replacement?"
+                          description={`No student changes. ${r.new_name} will not replace ${r.old_name}.`}
+                          confirmLabel="Yes, decline"
+                        >
+                          Decline
+                        </ConfirmSubmitButton>
+                      </form>
+                    </div>
+                  ) : null}
                 </Card>
               ))}
             </div>

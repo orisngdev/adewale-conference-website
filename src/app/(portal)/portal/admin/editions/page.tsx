@@ -9,7 +9,9 @@ import {
 } from "@/components/portal/ui";
 import { SubmitButton } from "@/components/portal/submit-button";
 import { EditionStages, nextStage } from "@/components/portal/edition-stages";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { createClient } from "@/supabase/server";
 import type { Edition, RegistrationStatus } from "@/supabase/types";
 import {
@@ -30,6 +32,8 @@ const inputCls =
 const ACCEPTED: RegistrationStatus[] = ["verified"];
 
 export default async function AdminEditions() {
+  await requireModuleView("registrations");
+  const canManage = await canManageModule("registrations");
   const supabase = await createClient();
   const [{ data: editionData }, { data: regData }] = await Promise.all([
     supabase
@@ -59,6 +63,7 @@ export default async function AdminEditions() {
         subtitle="Registration, stages, and the year's numbers — all in one place"
       />
       <PortalBody>
+        {!canManage ? <ReadOnlyBadge /> : null}
         {!current ? (
           <p className="serif-display italic text-muted-foreground">
             No editions yet — add the first one below.
@@ -95,25 +100,27 @@ export default async function AdminEditions() {
                     />
                     {current.registration_open ? "Registration open" : "Registration closed"}
                   </span>
-                  <form action={toggleRegistration.bind(null, current.year, !current.registration_open)}>
-                    <ConfirmSubmitButton
-                      size="sm"
-                      variant={current.registration_open ? "outline" : "default"}
-                      title={
-                        current.registration_open
-                          ? `Close ${current.year} registration?`
-                          : `Open ${current.year} registration?`
-                      }
-                      description={
-                        current.registration_open
-                          ? "New registrations are rejected everywhere, public form included."
-                          : "The public form and in-portal registration start accepting schools."
-                      }
-                      confirmLabel={current.registration_open ? "Yes, close" : "Yes, open"}
-                    >
-                      {current.registration_open ? "Close registration" : "Open registration"}
-                    </ConfirmSubmitButton>
-                  </form>
+                  {canManage ? (
+                    <form action={toggleRegistration.bind(null, current.year, !current.registration_open)}>
+                      <ConfirmSubmitButton
+                        size="sm"
+                        variant={current.registration_open ? "outline" : "default"}
+                        title={
+                          current.registration_open
+                            ? `Close ${current.year} registration?`
+                            : `Open ${current.year} registration?`
+                        }
+                        description={
+                          current.registration_open
+                            ? "New registrations are rejected everywhere, public form included."
+                            : "The public form and in-portal registration start accepting schools."
+                        }
+                        confirmLabel={current.registration_open ? "Yes, close" : "Yes, open"}
+                      >
+                        {current.registration_open ? "Close registration" : "Open registration"}
+                      </ConfirmSubmitButton>
+                    </form>
+                  ) : null}
                 </div>
               </div>
               <p className="text-sm text-muted-foreground -mt-3">
@@ -139,46 +146,50 @@ export default async function AdminEditions() {
 
               <div className="space-y-3">
                 <EditionStages stages={current.stages} current={current.current_stage} />
-                <div className="flex flex-wrap items-center gap-2">
-                  {nextStage(current.stages, current.current_stage) ? (
-                    <form action={advanceEditionStage.bind(null, current.year)}>
-                      <ConfirmSubmitButton
-                        size="sm"
-                        title={`Advance to ${nextStage(current.stages, current.current_stage)}?`}
-                        description="Every registered school and student is notified in the portal."
-                        confirmLabel="Yes, advance"
-                      >
-                        Advance to {nextStage(current.stages, current.current_stage)} →
-                      </ConfirmSubmitButton>
-                    </form>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">Final stage reached.</span>
-                  )}
-                  <details className="relative">
-                    <summary className="cursor-pointer list-none text-xs uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground px-2 py-1.5">
-                      Jump to a stage…
-                    </summary>
-                    <form action={setEditionStage.bind(null, current.year)} className="flex gap-2 mt-2">
-                      <select name="stage" defaultValue={current.current_stage} className={inputCls}>
-                        {current.stages.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                      <ConfirmSubmitButton
-                        size="sm"
-                        variant="outline"
-                        title="Jump to this stage?"
-                        description="Changing the stage notifies every registered school and student in the portal."
-                        confirmLabel="Yes, set stage"
-                      >
-                        Set stage
-                      </ConfirmSubmitButton>
-                    </form>
-                  </details>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Advancing a stage notifies every registered school and student in the portal.
-                </p>
+                {canManage ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {nextStage(current.stages, current.current_stage) ? (
+                        <form action={advanceEditionStage.bind(null, current.year)}>
+                          <ConfirmSubmitButton
+                            size="sm"
+                            title={`Advance to ${nextStage(current.stages, current.current_stage)}?`}
+                            description="Every registered school and student is notified in the portal."
+                            confirmLabel="Yes, advance"
+                          >
+                            Advance to {nextStage(current.stages, current.current_stage)} →
+                          </ConfirmSubmitButton>
+                        </form>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Final stage reached.</span>
+                      )}
+                      <details className="relative">
+                        <summary className="cursor-pointer list-none text-xs uppercase tracking-[0.15em] text-muted-foreground hover:text-foreground px-2 py-1.5">
+                          Jump to a stage…
+                        </summary>
+                        <form action={setEditionStage.bind(null, current.year)} className="flex gap-2 mt-2">
+                          <select name="stage" defaultValue={current.current_stage} className={inputCls}>
+                            {current.stages.map((s) => (
+                              <option key={s} value={s}>{s}</option>
+                            ))}
+                          </select>
+                          <ConfirmSubmitButton
+                            size="sm"
+                            variant="outline"
+                            title="Jump to this stage?"
+                            description="Changing the stage notifies every registered school and student in the portal."
+                            confirmLabel="Yes, set stage"
+                          >
+                            Set stage
+                          </ConfirmSubmitButton>
+                        </form>
+                      </details>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Advancing a stage notifies every registered school and student in the portal.
+                    </p>
+                  </>
+                ) : null}
               </div>
             </Card>
           </div>
@@ -201,50 +212,56 @@ export default async function AdminEditions() {
                           {e.registration_open ? " · ⚠ registration still open" : ""}
                         </span>
                       </div>
-                      <span className="text-xs uppercase tracking-[0.15em] text-primary group-open:hidden">
-                        Manage
-                      </span>
-                      <span className="text-xs uppercase tracking-[0.15em] text-muted-foreground hidden group-open:inline">
-                        Close
-                      </span>
+                      {canManage ? (
+                        <>
+                          <span className="text-xs uppercase tracking-[0.15em] text-primary group-open:hidden">
+                            Manage
+                          </span>
+                          <span className="text-xs uppercase tracking-[0.15em] text-muted-foreground hidden group-open:inline">
+                            Close
+                          </span>
+                        </>
+                      ) : null}
                     </summary>
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      <form action={toggleRegistration.bind(null, e.year, !e.registration_open)}>
-                        <ConfirmSubmitButton
-                          size="sm"
-                          variant="outline"
-                          title={
-                            e.registration_open
-                              ? `Close ${e.year} registration?`
-                              : `Reopen ${e.year} registration?`
-                          }
-                          description={
-                            e.registration_open
-                              ? "New registrations for this past edition are rejected everywhere."
-                              : "Schools can register for this past edition again, public form included."
-                          }
-                          confirmLabel={e.registration_open ? "Yes, close" : "Yes, reopen"}
-                        >
-                          {e.registration_open ? "Close registration" : "Reopen registration"}
-                        </ConfirmSubmitButton>
-                      </form>
-                      <form action={setEditionStage.bind(null, e.year)} className="flex gap-2">
-                        <select name="stage" defaultValue={e.current_stage} className={inputCls}>
-                          {e.stages.map((st) => (
-                            <option key={st} value={st}>{st}</option>
-                          ))}
-                        </select>
-                        <ConfirmSubmitButton
-                          size="sm"
-                          variant="outline"
-                          title={`Change the ${e.year} stage?`}
-                          description="Changing the stage notifies every registered school and student in the portal."
-                          confirmLabel="Yes, set stage"
-                        >
-                          Set stage
-                        </ConfirmSubmitButton>
-                      </form>
-                    </div>
+                    {canManage ? (
+                      <div className="mt-4 flex flex-wrap items-center gap-2">
+                        <form action={toggleRegistration.bind(null, e.year, !e.registration_open)}>
+                          <ConfirmSubmitButton
+                            size="sm"
+                            variant="outline"
+                            title={
+                              e.registration_open
+                                ? `Close ${e.year} registration?`
+                                : `Reopen ${e.year} registration?`
+                            }
+                            description={
+                              e.registration_open
+                                ? "New registrations for this past edition are rejected everywhere."
+                                : "Schools can register for this past edition again, public form included."
+                            }
+                            confirmLabel={e.registration_open ? "Yes, close" : "Yes, reopen"}
+                          >
+                            {e.registration_open ? "Close registration" : "Reopen registration"}
+                          </ConfirmSubmitButton>
+                        </form>
+                        <form action={setEditionStage.bind(null, e.year)} className="flex gap-2">
+                          <select name="stage" defaultValue={e.current_stage} className={inputCls}>
+                            {e.stages.map((st) => (
+                              <option key={st} value={st}>{st}</option>
+                            ))}
+                          </select>
+                          <ConfirmSubmitButton
+                            size="sm"
+                            variant="outline"
+                            title={`Change the ${e.year} stage?`}
+                            description="Changing the stage notifies every registered school and student in the portal."
+                            confirmLabel="Yes, set stage"
+                          >
+                            Set stage
+                          </ConfirmSubmitButton>
+                        </form>
+                      </div>
+                    ) : null}
                   </details>
                 );
               })}
@@ -252,29 +269,31 @@ export default async function AdminEditions() {
           </div>
         ) : null}
 
-        <div>
-          <SectionHeading>Add an edition</SectionHeading>
-          <Card className="p-5 md:p-6">
-            <form action={createEdition} className="flex flex-col sm:flex-row gap-2">
-              <input
-                name="year"
-                type="number"
-                required
-                placeholder="Year (e.g. 2027)"
-                className={`sm:w-40 ${inputCls}`}
-              />
-              <input
-                name="title"
-                placeholder="Theme (optional)"
-                className={`flex-1 ${inputCls}`}
-              />
-              <SubmitButton size="sm" pendingText="Adding…">Add edition</SubmitButton>
-            </form>
-            <p className="text-xs text-muted-foreground mt-2">
-              New editions start closed with the default stages — open registration above when you&apos;re ready.
-            </p>
-          </Card>
-        </div>
+        {canManage ? (
+          <div>
+            <SectionHeading>Add an edition</SectionHeading>
+            <Card className="p-5 md:p-6">
+              <form action={createEdition} className="flex flex-col sm:flex-row gap-2">
+                <input
+                  name="year"
+                  type="number"
+                  required
+                  placeholder="Year (e.g. 2027)"
+                  className={`sm:w-40 ${inputCls}`}
+                />
+                <input
+                  name="title"
+                  placeholder="Theme (optional)"
+                  className={`flex-1 ${inputCls}`}
+                />
+                <SubmitButton size="sm" pendingText="Adding…">Add edition</SubmitButton>
+              </form>
+              <p className="text-xs text-muted-foreground mt-2">
+                New editions start closed with the default stages — open registration above when you&apos;re ready.
+              </p>
+            </Card>
+          </div>
+        ) : null}
       </PortalBody>
     </>
   );

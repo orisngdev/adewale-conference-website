@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/supabase/server";
-import { requireAdmin } from "@/supabase/auth";
+import { requireManage } from "@/supabase/auth";
 import { LAB_KINDS, type LabStepKind } from "@/lib/labs";
 
 // Admin-only lab authoring. RLS already restricts writes to admins; these
@@ -57,7 +57,7 @@ function stepFields(formData: FormData) {
 
 // ── Labs ──────────────────────────────────────────────────────────────────────
 export async function createLab(formData: FormData) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return;
   const track = String(formData.get("track") ?? "").trim() || null;
@@ -76,7 +76,7 @@ export async function createLab(formData: FormData) {
 }
 
 export async function updateLab(labId: string, slug: string, formData: FormData) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return;
   const track = String(formData.get("track") ?? "").trim() || null;
@@ -90,7 +90,7 @@ export async function updateLab(labId: string, slug: string, formData: FormData)
 }
 
 export async function toggleLabPublished(labId: string, slug: string, published: boolean) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const supabase = await createClient();
   await supabase.from("labs").update({ published }).eq("id", labId);
   revalidatePath("/portal/admin/labs");
@@ -99,7 +99,7 @@ export async function toggleLabPublished(labId: string, slug: string, published:
 }
 
 export async function deleteLab(labId: string) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const supabase = await createClient();
   await supabase.from("labs").delete().eq("id", labId);
   revalidatePath("/portal/admin/labs");
@@ -109,7 +109,7 @@ export async function deleteLab(labId: string) {
 
 // ── Lessons (lab_steps) ─────────────────────────────────────────────────────────
 export async function addStep(labId: string, slug: string, formData: FormData) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const fields = stepFields(formData);
   if (!fields.title) return;
 
@@ -125,7 +125,7 @@ export async function addStep(labId: string, slug: string, formData: FormData) {
 }
 
 export async function updateStep(stepId: string, labId: string, slug: string, formData: FormData) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const fields = stepFields(formData);
   if (!fields.title) return;
 
@@ -136,7 +136,7 @@ export async function updateStep(stepId: string, labId: string, slug: string, fo
 }
 
 export async function deleteStep(stepId: string, labId: string, slug: string) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const supabase = await createClient();
   await supabase.from("lab_steps").delete().eq("id", stepId).eq("lab_id", labId);
   revalidatePath("/portal/admin/labs");
@@ -146,7 +146,7 @@ export async function deleteStep(stepId: string, labId: string, slug: string) {
 // Swap a lesson with its neighbour, then renumber sort sequentially so the
 // order is always dense and unambiguous.
 export async function moveStep(stepId: string, labId: string, slug: string, dir: "up" | "down") {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("labs"))) return;
   const supabase = await createClient();
   const { data } = await supabase
     .from("lab_steps")

@@ -7,10 +7,12 @@ import { Markdown } from "@/components/portal/markdown";
 import { BmcSnapshot, ChallengeChip, ChallengeTypeBadge } from "@/components/portal/challenge-ui";
 import { ChallengeTypePicker } from "@/components/portal/challenge-type-picker";
 import { Card, EmptyState, PortalBody, PortalHeader, SectionHeading, StatTile } from "@/components/portal/ui";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { FilterBar, Pagination, filterSelectCls, pageBounds, parsePage } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
 import { searchHaystackMatches, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
 import {
   deadlineInfo,
   linkFields,
@@ -60,6 +62,8 @@ export default async function AdminChallengeDetail({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ q?: string; status?: string; page?: string }>;
 }) {
+  await requireModuleView("labs");
+  const canManage = await canManageModule("labs");
   const { id } = await params;
   const sp = await searchParams;
   const supabase = await createClient();
@@ -90,7 +94,10 @@ export default async function AdminChallengeDetail({
     </form>
   );
 
-  if (c.type === "data") return <DataAdminView c={c} supabase={supabase} publishToggle={publishToggle} />;
+  if (c.type === "data")
+    return (
+      <DataAdminView c={c} supabase={supabase} publishToggle={publishToggle} canManage={canManage} />
+    );
 
   // ── Entries ─────────────────────────────────────────────────────────────
   const { data: entryData } = await supabase
@@ -177,6 +184,7 @@ export default async function AdminChallengeDetail({
           >
             Challenge settings
           </SectionHeading>
+          {canManage ? (
           <Card className="space-y-4 p-5 md:p-6">
             <form action={updateChallenge.bind(null, c.id)} className="grid max-w-2xl gap-4">
               <div className="space-y-1">
@@ -240,6 +248,24 @@ export default async function AdminChallengeDetail({
               </form>
             </div>
           </Card>
+          ) : (
+          <Card className="space-y-3 p-5 md:p-6">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <ChallengeTypeBadge type={c.type} />
+              <ChallengeChip label={c.published ? "Published" : "Draft"} tone={c.published ? "green" : "grey"} />
+              <ReadOnlyBadge className="ml-auto" />
+            </div>
+            <p className="text-sm text-muted-foreground">{dl.label}</p>
+            {c.description_md ? (
+              <Markdown source={c.description_md} />
+            ) : (
+              <p className="text-sm italic text-muted-foreground">No brief.</p>
+            )}
+            {c.edition_year ? (
+              <p className="text-xs text-muted-foreground">Edition {c.edition_year}</p>
+            ) : null}
+          </Card>
+          )}
         </div>
 
         {/* ── Reviewing ─────────────────────────────────────────────────── */}
@@ -286,33 +312,39 @@ export default async function AdminChallengeDetail({
                         <EntryPayload type={c.type} entry={e} />
                       </div>
 
-                      <form
-                        action={reviewEntry.bind(null, c.id, e.id)}
-                        className="mt-4 flex flex-wrap items-center gap-2 border-t border-foreground/5 pt-4"
-                      >
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                          Score
-                        </span>
-                        <input
-                          name="score"
-                          type="number"
-                          min={0}
-                          max={100}
-                          required
-                          defaultValue={e.score ?? ""}
-                          placeholder="0–100"
-                          className="w-24 rounded-md border border-foreground/15 bg-card px-3 py-2 text-center text-sm tabular-nums outline-none focus:border-primary"
-                        />
-                        <input
-                          name="feedback"
-                          defaultValue={e.feedback ?? ""}
-                          placeholder="Feedback for the student…"
-                          className={`${inputCls} min-w-56 flex-1`}
-                        />
-                        <SubmitButton size="sm" pendingText="Saving…">
-                          {e.status === "reviewed" ? "Update review" : "Save review"}
-                        </SubmitButton>
-                      </form>
+                      {canManage ? (
+                        <form
+                          action={reviewEntry.bind(null, c.id, e.id)}
+                          className="mt-4 flex flex-wrap items-center gap-2 border-t border-foreground/5 pt-4"
+                        >
+                          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                            Score
+                          </span>
+                          <input
+                            name="score"
+                            type="number"
+                            min={0}
+                            max={100}
+                            required
+                            defaultValue={e.score ?? ""}
+                            placeholder="0–100"
+                            className="w-24 rounded-md border border-foreground/15 bg-card px-3 py-2 text-center text-sm tabular-nums outline-none focus:border-primary"
+                          />
+                          <input
+                            name="feedback"
+                            defaultValue={e.feedback ?? ""}
+                            placeholder="Feedback for the student…"
+                            className={`${inputCls} min-w-56 flex-1`}
+                          />
+                          <SubmitButton size="sm" pendingText="Saving…">
+                            {e.status === "reviewed" ? "Update review" : "Save review"}
+                          </SubmitButton>
+                        </form>
+                      ) : e.status === "reviewed" && e.feedback ? (
+                        <p className="mt-4 border-t border-foreground/5 pt-4 text-sm text-muted-foreground">
+                          <span className="font-semibold text-foreground">Feedback:</span> {e.feedback}
+                        </p>
+                      ) : null}
                     </div>
                   ))}
                 </Card>
@@ -365,10 +397,12 @@ async function DataAdminView({
   c,
   supabase,
   publishToggle,
+  canManage,
 }: {
   c: Challenge;
   supabase: Awaited<ReturnType<typeof createClient>>;
   publishToggle: React.ReactNode;
+  canManage: boolean;
 }) {
   const { data: lbData } = await supabase.rpc("get_challenge_leaderboard", { p_challenge_id: c.id });
   const leaderboard = (lbData ?? []) as LbRow[];
@@ -396,7 +430,7 @@ async function DataAdminView({
             no entry review here — submissions are scored automatically.
           </p>
           <div className="flex flex-wrap items-center gap-2 border-t border-foreground/5 pt-4">
-            {publishToggle}
+            {canManage ? publishToggle : <ReadOnlyBadge />}
             {c.published ? (
               <Button asChild size="sm" variant="outline">
                 <Link href={`/portal/student/challenges/${c.id}`}>Open arena →</Link>

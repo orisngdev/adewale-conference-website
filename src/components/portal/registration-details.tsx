@@ -1,4 +1,5 @@
 import type { Rep } from "@/supabase/types";
+import { ageFromDob } from "@/lib/age";
 
 // Full entry details for a registration. The data lives in `registrations.details`
 // (jsonb) keyed by the Airtable field names — populated by the live mirror on
@@ -145,6 +146,13 @@ export function RegistrationDetails({
                 {s.dob || s.guardianName || s.guardianNumber ? (
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
                     <Field label="Date of birth" value={s.dob} />
+                    <Field
+                      label="Age"
+                      value={(() => {
+                        const age = ageFromDob(s.dob);
+                        return age != null ? `${age} yrs` : "";
+                      })()}
+                    />
                     <Field label="Guardian" value={s.guardianName} />
                     <Field label="Guardian phone" value={s.guardianNumber} />
                   </dl>

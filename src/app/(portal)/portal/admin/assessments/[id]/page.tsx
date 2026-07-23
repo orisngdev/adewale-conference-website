@@ -10,7 +10,9 @@ import {
   SectionHeading,
 } from "@/components/portal/ui";
 import BulkImport from "@/components/portal/bulk-import";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { createClient } from "@/supabase/server";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
 import type { Assessment, Question } from "@/supabase/types";
 import {
   addQuestion,
@@ -30,6 +32,8 @@ export default async function AssessmentEditor({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  await requireModuleView("content");
+  const canManage = await canManageModule("content");
   const { id } = await params;
   const supabase = await createClient();
 
@@ -96,35 +100,44 @@ export default async function AssessmentEditor({
           ← All assessments
         </Link>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <form action={toggleAssessmentPublished.bind(null, a.id, !a.published)}>
-            <ConfirmSubmitButton
-              size="sm"
-              variant={a.published ? "outline" : "default"}
-              title={a.published ? "Unpublish this assessment?" : "Publish this assessment?"}
-              description={
-                a.published
-                  ? "Students lose access to it immediately."
-                  : "It becomes visible to students right away."
-              }
-              confirmLabel={a.published ? "Yes, unpublish" : "Yes, publish"}
-            >
-              {a.published ? "Published — unpublish" : "Publish"}
-            </ConfirmSubmitButton>
-          </form>
-          <form action={deleteAssessment.bind(null, a.id)}>
-            <ConfirmSubmitButton
-              size="sm"
-              variant="outline"
-              destructive
-              title="Delete this assessment?"
-              description="The assessment and its question list are removed permanently."
-              confirmLabel="Yes, delete"
-            >
-              Delete
-            </ConfirmSubmitButton>
-          </form>
-        </div>
+        {canManage ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <form action={toggleAssessmentPublished.bind(null, a.id, !a.published)}>
+              <ConfirmSubmitButton
+                size="sm"
+                variant={a.published ? "outline" : "default"}
+                title={a.published ? "Unpublish this assessment?" : "Publish this assessment?"}
+                description={
+                  a.published
+                    ? "Students lose access to it immediately."
+                    : "It becomes visible to students right away."
+                }
+                confirmLabel={a.published ? "Yes, unpublish" : "Yes, publish"}
+              >
+                {a.published ? "Published — unpublish" : "Publish"}
+              </ConfirmSubmitButton>
+            </form>
+            <form action={deleteAssessment.bind(null, a.id)}>
+              <ConfirmSubmitButton
+                size="sm"
+                variant="outline"
+                destructive
+                title="Delete this assessment?"
+                description="The assessment and its question list are removed permanently."
+                confirmLabel="Yes, delete"
+              >
+                Delete
+              </ConfirmSubmitButton>
+            </form>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <ReadOnlyBadge />
+            <span className="text-sm text-muted-foreground">
+              {a.published ? "Published" : "Draft"}
+            </span>
+          </div>
+        )}
 
         <SettingsTabs
           tabs={[
@@ -169,7 +182,8 @@ export default async function AssessmentEditor({
         </div>
               ),
             },
-            {
+            ...(canManage
+              ? [{
               label: isPractice ? "Timing" : "Settings",
               content: (
         <div>
@@ -216,7 +230,8 @@ export default async function AssessmentEditor({
           </Card>
         </div>
               ),
-            },
+            }]
+              : []),
             {
               label: `Questions (${questions.length})`,
               content: (
@@ -239,19 +254,21 @@ export default async function AssessmentEditor({
                 <Card key={q.id} className="p-4 space-y-2">
                   <div className="flex justify-between gap-4">
                     <p className="font-medium text-foreground">{i + 1}. {q.prompt}</p>
-                    <form action={deleteQuestion.bind(null, q.id, a.id)}>
-                      <ConfirmSubmitButton
-                        size="sm"
-                        variant="ghost"
-                        className="h-auto p-0 text-xs uppercase tracking-wide text-red-600 hover:text-red-600 hover:underline hover:bg-transparent shrink-0"
-                        destructive
-                        title="Delete this question?"
-                        description="It's removed from this assessment permanently."
-                        confirmLabel="Yes, delete"
-                      >
-                        Delete
-                      </ConfirmSubmitButton>
-                    </form>
+                    {canManage ? (
+                      <form action={deleteQuestion.bind(null, q.id, a.id)}>
+                        <ConfirmSubmitButton
+                          size="sm"
+                          variant="ghost"
+                          className="h-auto p-0 text-xs uppercase tracking-wide text-red-600 hover:text-red-600 hover:underline hover:bg-transparent shrink-0"
+                          destructive
+                          title="Delete this question?"
+                          description="It's removed from this assessment permanently."
+                          confirmLabel="Yes, delete"
+                        >
+                          Delete
+                        </ConfirmSubmitButton>
+                      </form>
+                    ) : null}
                   </div>
                   <ul className="text-sm space-y-1">
                     {q.options.map((opt, oi) => (
@@ -273,11 +290,14 @@ export default async function AssessmentEditor({
           )}
         </div>
 
+        {canManage ? (
         <div>
           <SectionHeading>Bulk import into this assessment</SectionHeading>
           <BulkImport assessmentId={a.id} />
         </div>
+        ) : null}
 
+        {canManage ? (
         <div>
           <SectionHeading>Add a question</SectionHeading>
           <Card className="p-5 md:p-6">
@@ -318,6 +338,7 @@ export default async function AssessmentEditor({
             </form>
           </Card>
         </div>
+        ) : null}
               </div>
               ),
             },

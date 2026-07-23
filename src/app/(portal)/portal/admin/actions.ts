@@ -3,7 +3,7 @@
 import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
-import { getSessionUser, requireAdmin } from "@/supabase/auth";
+import { requireManage } from "@/supabase/auth";
 import {
   buildActivationEmail,
   buildTeamInviteEmail,
@@ -13,6 +13,7 @@ import {
 import { notifySchool, notifySchoolDecision } from "@/lib/school-notify";
 import { ensureRoster } from "@/lib/ensure-roster";
 import type { RegistrationStatus, UserRole } from "@/supabase/types";
+import { permissionsFromForm } from "@/lib/admin-permissions";
 import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 
 const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
@@ -52,26 +53,37 @@ export async function inviteTeamMember(formData: FormData) {
   const role: UserRole = "admin";
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
 
+  // Only a teammate who can MANAGE the team may add admins or set their access.
+  const admin = await requireManage("team");
+  if (!admin) return;
+  const user = admin.user;
   const supabase = await createClient();
-  const user = await getSessionUser();
-  if (!user) return;
 
-  // Already signed up? Promote directly instead of inviting.
+  // The invite carries an access profile (preset or custom per-module levels);
+  // the handle_new_user trigger copies admin_role + permissions onto the account.
+  const { adminRole, permissions } = permissionsFromForm(formData);
+
+  // Already signed up? Promote directly (and apply the chosen access) instead of inviting.
   const { data: existing } = await supabase
     .from("profiles")
     .select("id, role")
     .ilike("email", email)
     .maybeSingle();
   if (existing) {
-    if (existing.id !== user.id && existing.role !== role) {
+    if (existing.id !== user.id) {
       // RLS (profiles_admin_update with is_admin()) restricts this to admins.
-      await supabase.from("profiles").update({ role }).eq("id", existing.id);
-      await supabase.from("notifications").insert({
-        profile_id: existing.id,
-        title: "You've been added to the team",
-        body: `Your portal access was upgraded to ${role}.`,
-        link: "/portal",
-      });
+      await supabase
+        .from("profiles")
+        .update({ role, admin_role: adminRole, permissions })
+        .eq("id", existing.id);
+      if (existing.role !== role) {
+        await supabase.from("notifications").insert({
+          profile_id: existing.id,
+          title: "You've been added to the team",
+          body: `Your portal access was upgraded to ${role}.`,
+          link: "/portal",
+        });
+      }
     }
     revalidatePath("/portal/admin/settings");
     revalidatePath("/portal/admin/users");
@@ -88,14 +100,17 @@ export async function inviteTeamMember(formData: FormData) {
     .maybeSingle();
   const verifyToken = randomBytes(32).toString("hex");
   const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const invitePayload = {
+    role,
+    admin_role: adminRole,
+    permissions,
+    invited_by: user.id,
+    expires_at: expires,
+    verify_token: verifyToken,
+  };
   const { error } = pending
-    ? await supabase
-        .from("team_invites")
-        .update({ role, invited_by: user.id, expires_at: expires, verify_token: verifyToken })
-        .eq("id", pending.id)
-    : await supabase
-        .from("team_invites")
-        .insert({ email, role, invited_by: user.id, expires_at: expires, verify_token: verifyToken });
+    ? await supabase.from("team_invites").update(invitePayload).eq("id", pending.id)
+    : await supabase.from("team_invites").insert({ email, ...invitePayload });
   if (error) return;
 
   await sendEmailSafely(
@@ -110,9 +125,10 @@ export async function inviteTeamMember(formData: FormData) {
 
 // Regenerates the token (fresh 30-day window) and re-sends the invitation email.
 export async function resendTeamInvite(inviteId: string) {
+  const admin = await requireManage("team");
+  if (!admin) return;
   const supabase = await createClient();
-  const user = await getSessionUser();
-  if (!user) return;
+  const user = admin.user;
 
   const { data: invite } = await supabase
     .from("team_invites")
@@ -152,9 +168,36 @@ async function inviterName(userId: string) {
 }
 
 export async function revokeTeamInvite(inviteId: string) {
+  if (!(await requireManage("team"))) return;
   const supabase = await createClient();
   // RLS (team_invites_admin_all) restricts this to admins.
   await supabase.from("team_invites").delete().eq("id", inviteId).is("accepted_at", null);
+  revalidatePath("/portal/admin/settings");
+}
+
+// Update an existing admin's access profile (preset or custom per-module levels).
+// Team-manage only; you can't demote your own access (avoids self-lockout).
+export async function updateTeamMemberPermissions(profileId: string, formData: FormData) {
+  const admin = await requireManage("team");
+  if (!admin) return;
+  if (!profileId || profileId === admin.user.id) return;
+
+  const { adminRole, permissions } = permissionsFromForm(formData);
+  const supabase = await createClient();
+  // RLS (profiles_admin_update with is_admin()) restricts this to admins.
+  const { error } = await supabase
+    .from("profiles")
+    .update({ admin_role: adminRole, permissions })
+    .eq("id", profileId)
+    .eq("role", "admin");
+  if (error) return;
+
+  await supabase.from("notifications").insert({
+    profile_id: profileId,
+    title: "Your admin access was updated",
+    body: "A team manager changed the sections you can see and manage.",
+    link: "/portal/admin",
+  });
   revalidatePath("/portal/admin/settings");
 }
 
@@ -163,8 +206,9 @@ export async function revokeTeamInvite(inviteId: string) {
 // stamps notified_at so re-running never double-sends. Uses the session client,
 // so RLS (waitlist is admin-only) is the permission gate.
 export async function inviteWaitlist() {
-  const user = await getSessionUser();
-  if (!user) return;
+  const admin = await requireManage("registrations");
+  if (!admin) return;
+  const user = admin.user;
   const supabase = await createClient();
 
   const { data: openEdition } = await supabase
@@ -222,7 +266,7 @@ export async function inviteWaitlist() {
 // role (RLS can't gate it), so the caller's admin role is checked explicitly.
 // The outcome lands as a notification for the acting admin.
 export async function syncAirtableRegistrations() {
-  const admin = await requireAdmin();
+  const admin = await requireManage("registrations");
   if (!admin) return;
   const supabase = await createClient();
 
@@ -252,6 +296,7 @@ export async function setRegistrationStatus(
   registrationId: string,
   formData: FormData,
 ) {
+  if (!(await requireManage("registrations"))) return;
   const status = String(formData.get("status") ?? "");
   if (!STATUSES.includes(status as RegistrationStatus)) return;
 
@@ -314,8 +359,10 @@ export async function bulkRegistrationDecision(formData: FormData) {
   if (ids.length === 0) return;
 
   // Stage marking (advance / not-advanced at a chosen stage) shares this
-  // selection form but is a different flow from acceptance (approve / decline).
+  // selection form but is a different flow from acceptance (approve / decline) —
+  // and belongs to the Participants module, so it's gated separately.
   if (decision === "advance" || decision === "eliminate") {
+    if (!(await requireManage("participants"))) return;
     await bulkStageOutcome(
       ids,
       decision === "advance" ? "advanced" : "eliminated",
@@ -325,6 +372,7 @@ export async function bulkRegistrationDecision(formData: FormData) {
   }
 
   if (decision !== "approve" && decision !== "decline") return;
+  if (!(await requireManage("registrations"))) return;
 
   const supabase = await createClient();
   // RLS (reg_owner_update with is_admin()) restricts the writes to admins.
@@ -446,6 +494,7 @@ async function bulkStageOutcome(
 // corrected it) and re-sends the branded activation email. Only for
 // not-yet-onboarded registrations.
 export async function resendActivation(registrationId: string, formData: FormData) {
+  if (!(await requireManage("registrations"))) return;
   const newEmail = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) return;
 
@@ -487,7 +536,7 @@ export async function resendActivation(registrationId: string, formData: FormDat
 // before roster-at-approval existed, or after reps were edited. ensureRoster
 // uses the service-role client (bypasses RLS), so gate explicitly on admin.
 export async function syncRoster(registrationId: string) {
-  if (!(await requireAdmin())) return;
+  if (!(await requireManage("participants"))) return;
   const supabase = await createClient();
   const { data: reg } = await supabase
     .from("registrations")
@@ -510,6 +559,7 @@ export async function issueCertificate(
   registrationId: string,
   formData: FormData,
 ) {
+  if (!(await requireManage("participants"))) return;
   const type = String(formData.get("type") ?? "").trim();
   const assetUrl = String(formData.get("asset_url") ?? "").trim();
   const studentId = String(formData.get("student_id") ?? "").trim() || null;
@@ -559,6 +609,7 @@ export async function issueCertificate(
 // the upsert to admins. No per-student notification (visible on dashboards) —
 // coordinators are notified on the school-level milestones instead.
 export async function advanceStudent(studentId: string, formData: FormData) {
+  if (!(await requireManage("participants"))) return;
   const stage = String(formData.get("stage") ?? "").trim();
   const outcome = String(formData.get("outcome") ?? "");
   if (!stage || !["advanced", "eliminated", "pending"].includes(outcome)) return;
@@ -646,6 +697,7 @@ async function cascadeAdvance(
 //   advance-all / eliminate-all   → the school AND every rep
 //   advance-reps / eliminate-reps → the reps only (school standing unchanged)
 export async function cascadeAdvanceAction(registrationId: string, formData: FormData) {
+  if (!(await requireManage("participants"))) return;
   const stage = String(formData.get("stage") ?? "").trim();
   const op = String(formData.get("op") ?? "");
   const outcome = op.startsWith("advance")
@@ -662,6 +714,7 @@ export async function cascadeAdvanceAction(registrationId: string, formData: For
 // returns to be re-decided at that stage. Fixes a mistaken advance without
 // leaving stale downstream results. RLS (admin_write, for all) gates the deletes.
 export async function sendSchoolBack(registrationId: string, formData: FormData) {
+  if (!(await requireManage("participants"))) return;
   const fromStage = String(formData.get("from_stage") ?? "").trim();
   if (!fromStage) return;
 

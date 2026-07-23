@@ -13,6 +13,8 @@ import { ResourceAudienceFields } from "@/components/portal/resource-audience-fi
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
+import { canManageModule, requireModuleView } from "@/supabase/auth";
+import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { SUBJECTS, LEVELS } from "@/lib/assessments";
 import {
   RESOURCE_ACCESS_OPTIONS,
@@ -34,6 +36,8 @@ const inputCls =
   "rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
 
 export default async function AdminResources() {
+  await requireModuleView("content");
+  const canManage = await canManageModule("content");
   const supabase = await createClient();
   // Admins read all rows (published + drafts) via RLS.
   const { data } = await supabase
@@ -65,7 +69,13 @@ export default async function AdminResources() {
         subtitle="Upload and manage study packs, guides & links — right here in the portal"
       />
       <PortalBody>
-        {!storageReady ? (
+        {!canManage ? (
+          <div>
+            <ReadOnlyBadge />
+          </div>
+        ) : null}
+
+        {canManage && !storageReady ? (
           <Card className="p-4 border-l-4 border-l-red-500">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-600">
               File storage not configured
@@ -88,6 +98,7 @@ export default async function AdminResources() {
         </div>
 
         {/* Add a resource — file OR external link, with metadata + access tier. */}
+        {canManage ? (
         <div>
           <SectionHeading>Add a resource</SectionHeading>
           <Card className="p-5 md:p-6">
@@ -149,6 +160,7 @@ export default async function AdminResources() {
             </form>
           </Card>
         </div>
+        ) : null}
 
         <div>
           <SectionHeading action={{ href: "/portal/student/resources", label: "View as student →" }}>
@@ -220,23 +232,27 @@ export default async function AdminResources() {
                         Open ↗
                       </a>
                     ) : null}
-                    <form action={setResourcePublished.bind(null, r.id, !r.published)}>
-                      <SubmitButton size="sm" variant="outline">
-                        {r.published ? "Unpublish" : "Publish"}
-                      </SubmitButton>
-                    </form>
-                    <form action={deleteResource.bind(null, r.id)}>
-                      <ConfirmSubmitButton
-                        size="sm"
-                        variant="outline"
-                        destructive
-                        title="Delete this resource?"
-                        description="Removes the file from storage and the entry from the library. This can't be undone."
-                        confirmLabel="Yes, delete"
-                      >
-                        Delete
-                      </ConfirmSubmitButton>
-                    </form>
+                    {canManage ? (
+                      <>
+                        <form action={setResourcePublished.bind(null, r.id, !r.published)}>
+                          <SubmitButton size="sm" variant="outline">
+                            {r.published ? "Unpublish" : "Publish"}
+                          </SubmitButton>
+                        </form>
+                        <form action={deleteResource.bind(null, r.id)}>
+                          <ConfirmSubmitButton
+                            size="sm"
+                            variant="outline"
+                            destructive
+                            title="Delete this resource?"
+                            description="Removes the file from storage and the entry from the library. This can't be undone."
+                            confirmLabel="Yes, delete"
+                          >
+                            Delete
+                          </ConfirmSubmitButton>
+                        </form>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ))}

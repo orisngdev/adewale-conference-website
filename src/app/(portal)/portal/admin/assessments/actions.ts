@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/supabase/server";
+import { requireManage } from "@/supabase/auth";
 
 type Db = Awaited<ReturnType<typeof createClient>>;
 
@@ -20,6 +21,7 @@ async function bumpVersion(supabase: Db, id: string) {
 }
 
 export async function createAssessment(formData: FormData) {
+  if (!(await requireManage("content"))) return;
   const title = String(formData.get("title") ?? "").trim();
   if (!title) return;
   const subject = String(formData.get("subject") ?? "").trim() || null;
@@ -37,6 +39,7 @@ export async function createAssessment(formData: FormData) {
 }
 
 export async function toggleAssessmentPublished(id: string, published: boolean) {
+  if (!(await requireManage("content"))) return;
   const supabase = await createClient();
   await supabase.from("assessments").update({ published }).eq("id", id);
   revalidatePath("/portal/admin/assessments");
@@ -44,6 +47,7 @@ export async function toggleAssessmentPublished(id: string, published: boolean) 
 }
 
 export async function updateAssessmentSettings(id: string, formData: FormData) {
+  if (!(await requireManage("content"))) return;
   const maxAttempts = Math.max(1, Number(formData.get("max_attempts") ?? 1));
   const rawLimit = String(formData.get("time_limit_minutes") ?? "").trim();
   const timeLimit = rawLimit ? Math.max(1, Number(rawLimit)) : null;
@@ -57,6 +61,7 @@ export async function updateAssessmentSettings(id: string, formData: FormData) {
 }
 
 export async function deleteAssessment(id: string) {
+  if (!(await requireManage("content"))) return;
   const supabase = await createClient();
   await supabase.from("assessments").delete().eq("id", id);
   revalidatePath("/portal/admin/assessments");
@@ -64,6 +69,7 @@ export async function deleteAssessment(id: string) {
 }
 
 export async function addQuestion(assessmentId: string, formData: FormData) {
+  if (!(await requireManage("content"))) return;
   const prompt = String(formData.get("prompt") ?? "").trim();
   const options = [1, 2, 3, 4]
     .map((i) => String(formData.get(`opt${i}`) ?? "").trim())
@@ -110,6 +116,7 @@ export async function addQuestion(assessmentId: string, formData: FormData) {
 }
 
 export async function deleteQuestion(questionId: string, assessmentId: string) {
+  if (!(await requireManage("content"))) return;
   const supabase = await createClient();
   await supabase.from("question_bank").delete().eq("id", questionId);
   await bumpVersion(supabase, assessmentId);

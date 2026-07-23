@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
-import { getSessionUser, getUserRole } from "@/supabase/auth";
+import { canManageModule, getSessionUser } from "@/supabase/auth";
 import { createAdminClient } from "@/supabase/admin";
 import {
   provisionStudent,
@@ -20,7 +20,7 @@ import type { Rep, StudentReplacementRow } from "@/supabase/types";
 // the one-way sync doesn't revert it. Service-role work, so admin is verified
 // explicitly (createAdminClient bypasses RLS).
 export async function approveReplacement(id: string) {
-  if ((await getUserRole()) !== "admin") return;
+  if (!(await canManageModule("participants"))) return;
   const reviewer = await getSessionUser();
   const admin = createAdminClient();
   if (!admin) return;
@@ -142,7 +142,7 @@ export async function approveReplacement(id: string) {
 }
 
 export async function declineReplacement(id: string, formData: FormData) {
-  if ((await getUserRole()) !== "admin") return;
+  if (!(await canManageModule("participants"))) return;
   const reviewer = await getSessionUser();
   const supabase = await createClient();
 

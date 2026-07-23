@@ -57,6 +57,7 @@ export function StageSchoolCard({
   schoolResults,
   students,
   studentResultsById,
+  canManage,
 }: {
   registrationId: string;
   schoolName: string;
@@ -68,6 +69,7 @@ export function StageSchoolCard({
   schoolResults: StageResult[];
   students: RosterStudent[];
   studentResultsById: Record<string, StudentStageResult[]>;
+  canManage: boolean;
 }) {
   const schoolAt = schoolResults.find((r) => r.stage === stage);
 
@@ -80,7 +82,7 @@ export function StageSchoolCard({
         </div>
         <div className="flex flex-col items-end gap-1">
           <OutcomeBadge outcome={schoolAt?.outcome} score={schoolAt?.score} />
-          {prevStage ? (
+          {canManage && prevStage ? (
             <form action={sendSchoolBack.bind(null, registrationId)}>
               <input type="hidden" name="from_stage" value={prevStage} />
               <ConfirmSubmitButton
@@ -101,6 +103,7 @@ export function StageSchoolCard({
 
       {/* Advance / eliminate at this stage. Each button confirms and shows a
           pending state; "reps only" is tucked away for the rare case. */}
+      {canManage ? (
       <form
         action={cascadeAdvanceAction.bind(null, registrationId)}
         className="border-t border-foreground/5 pt-3 space-y-2"
@@ -164,6 +167,7 @@ export function StageSchoolCard({
           </div>
         </details>
       </form>
+      ) : null}
 
       {/* Roster at this stage */}
       <details className="border-t border-foreground/5 pt-3">
@@ -176,23 +180,25 @@ export function StageSchoolCard({
             <p className="text-sm text-muted-foreground">
               No roster yet — build it from this school&apos;s registered reps.
             </p>
-            <form action={syncRoster.bind(null, registrationId)}>
-              <ConfirmSubmitButton
-                size="sm"
-                variant="outline"
-                title="Build the roster?"
-                description="Creates a student record for each of the school's reps so they can be advanced and certified individually. Idempotent."
-                confirmLabel="Yes, build"
-              >
-                Sync roster
-              </ConfirmSubmitButton>
-            </form>
+            {canManage ? (
+              <form action={syncRoster.bind(null, registrationId)}>
+                <ConfirmSubmitButton
+                  size="sm"
+                  variant="outline"
+                  title="Build the roster?"
+                  description="Creates a student record for each of the school's reps so they can be advanced and certified individually. Idempotent."
+                  confirmLabel="Yes, build"
+                >
+                  Sync roster
+                </ConfirmSubmitButton>
+              </form>
+            ) : null}
           </div>
         ) : (
           <div className="mt-3 space-y-2">
             {students.map((st) => {
               const at = (studentResultsById[st.id] ?? []).find((r) => r.stage === stage);
-              return (
+              return canManage ? (
                 <form
                   key={st.id}
                   action={advanceStudent.bind(null, st.id)}
@@ -225,6 +231,17 @@ export function StageSchoolCard({
                   />
                   <SubmitButton size="sm" variant="outline" pendingText="Saving…">Save</SubmitButton>
                 </form>
+              ) : (
+                <div
+                  key={st.id}
+                  className="flex flex-wrap items-center gap-2 border border-foreground/10 bg-card/50 p-2"
+                >
+                  <span className="min-w-32 flex-1 text-sm font-medium text-foreground">
+                    {st.name}
+                    {st.level ? <span className="text-muted-foreground"> · {st.level}</span> : null}
+                  </span>
+                  <OutcomeBadge outcome={at?.outcome} score={at?.score} />
+                </div>
               );
             })}
           </div>
@@ -242,12 +259,14 @@ export function SchoolCertificatesCard({
   students,
   schoolCerts,
   studentCertsById,
+  canManage,
 }: {
   registrationId: string;
   schoolName: string;
   students: RosterStudent[];
   schoolCerts: { id: string; type: string | null }[];
   studentCertsById: Record<string, { id: string; type: string | null }[]>;
+  canManage: boolean;
 }) {
   return (
     <Card className="p-5 space-y-3">
@@ -258,11 +277,13 @@ export function SchoolCertificatesCard({
           School certificate
           {schoolCerts.length ? `: ${schoolCerts.map((c) => c.type ?? "—").join(", ")}` : ""}
         </p>
-        <form action={issueCertificate.bind(null, registrationId)} className="flex flex-col sm:flex-row gap-2">
-          <input name="type" required placeholder="Certificate type (e.g. Participant)" className={`flex-1 ${inputCls}`} />
-          <input name="asset_url" placeholder="Asset URL (optional)" className={`flex-1 ${inputCls}`} />
-          <SubmitButton size="sm" pendingText="Issuing…">Issue</SubmitButton>
-        </form>
+        {canManage ? (
+          <form action={issueCertificate.bind(null, registrationId)} className="flex flex-col sm:flex-row gap-2">
+            <input name="type" required placeholder="Certificate type (e.g. Participant)" className={`flex-1 ${inputCls}`} />
+            <input name="asset_url" placeholder="Asset URL (optional)" className={`flex-1 ${inputCls}`} />
+            <SubmitButton size="sm" pendingText="Issuing…">Issue</SubmitButton>
+          </form>
+        ) : null}
       </div>
 
       {students.length ? (
@@ -273,7 +294,7 @@ export function SchoolCertificatesCard({
           <div className="mt-3 space-y-2">
             {students.map((st) => {
               const certs = studentCertsById[st.id] ?? [];
-              return (
+              return canManage ? (
                 <form
                   key={st.id}
                   action={issueCertificate.bind(null, registrationId)}
@@ -290,6 +311,20 @@ export function SchoolCertificatesCard({
                     </span>
                   ) : null}
                 </form>
+              ) : (
+                <div
+                  key={st.id}
+                  className="flex flex-wrap items-center gap-2 border border-foreground/10 bg-card/50 p-2"
+                >
+                  <span className="min-w-32 flex-1 text-sm font-medium text-foreground">{st.name}</span>
+                  {certs.length ? (
+                    <span className="w-full text-xs text-muted-foreground">
+                      Issued: {certs.map((c) => c.type ?? "—").join(", ")}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">No certificate issued</span>
+                  )}
+                </div>
               );
             })}
           </div>
