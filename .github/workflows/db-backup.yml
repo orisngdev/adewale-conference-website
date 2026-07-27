@@ -9,7 +9,8 @@
 #   AWS_SECRET_ACCESS_KEY
 #   AWS_REGION             — e.g. eu-west-3
 #   BACKUP_S3_BUCKET       — bucket name (retention is best handled by an S3
-#                            lifecycle rule, e.g. expire objects after 90 days)
+#                            lifecycle rule, e.g. expire objects after 90 days;
+#                            defaults to adewale-student-conf if unset)
 #                            S3_BACKUP_BUCKET is also accepted for compatibility
 name: Weekly DB backup
 
@@ -48,7 +49,9 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-          BUCKET: ${{ secrets.BACKUP_S3_BUCKET || secrets.S3_BACKUP_BUCKET }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
         run: |
+          BUCKET="${BACKUP_S3_BUCKET:-${S3_BACKUP_BUCKET:-adewale-student-conf}}"
           test -n "$BUCKET" || { echo "BACKUP_S3_BUCKET or S3_BACKUP_BUCKET secret is not set"; exit 1; }
           aws s3 cp adewale-db-*.sql.gz "s3://${BUCKET}/supabase/"

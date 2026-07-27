@@ -12,7 +12,8 @@
 #   AWS_ACCESS_KEY_ID      — IAM user with s3:PutObject on the bucket
 #   AWS_SECRET_ACCESS_KEY
 #   AWS_REGION             — e.g. eu-west-1
-#   BACKUP_S3_BUCKET       — bucket name (no s3:// prefix)
+#   BACKUP_S3_BUCKET       — bucket name (no s3:// prefix; defaults to
+#                            adewale-student-conf if unset)
 #                            S3_BACKUP_BUCKET is also accepted for compatibility
 #
 # Restore (see docs/backups.md):
@@ -61,8 +62,10 @@ jobs:
 
       - name: Upload to S3 (SSE encrypted)
         env:
-          BUCKET: ${{ secrets.BACKUP_S3_BUCKET || secrets.S3_BACKUP_BUCKET }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          S3_BACKUP_BUCKET: ${{ secrets.S3_BACKUP_BUCKET }}
         run: |
+          BUCKET="${BACKUP_S3_BUCKET:-${S3_BACKUP_BUCKET:-adewale-student-conf}}"
           test -n "$BUCKET" || { echo "BACKUP_S3_BUCKET or S3_BACKUP_BUCKET secret is not set"; exit 1; }
           STAMP="$(date -u +%Y-%m-%d)"
           aws s3 cp backup.dump "s3://${BUCKET}/adewale-portal/${STAMP}.dump" --sse AES256
