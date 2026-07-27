@@ -17,6 +17,18 @@ import { permissionsFromForm } from "@/lib/admin-permissions";
 import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 
 const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
+const CONTACT_KINDS = ["teacher", "principal"] as const;
+type ContactKind = (typeof CONTACT_KINDS)[number];
+export type ContactUpdateState = { ok: boolean; message: string } | null;
+
+function isEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function detailsValue(details: Record<string, string> | null, key: string) {
+  const value = details?.[key];
+  return typeof value === "string" ? value.trim() : "";
+}
 
 // Provision each approved school's reps as student rows. Each rep is an
 // auth-user create, so a large bulk approve can run long. Runs inline on Vercel
@@ -496,7 +508,7 @@ async function bulkStageOutcome(
 export async function resendActivation(registrationId: string, formData: FormData) {
   if (!(await requireManage("registrations"))) return;
   const newEmail = String(formData.get("email") ?? "").trim().toLowerCase();
-  if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) return;
+  if (!newEmail || !isEmail(newEmail)) return;
 
   const supabase = await createClient();
   const { data: reg } = await supabase
@@ -530,6 +542,173 @@ export async function resendActivation(registrationId: string, formData: FormDat
     }),
   );
   revalidatePath("/portal/admin/registrations");
+}
+
+// Admin correction for the educator emails captured at registration. Unlike the
+// activation resend above, this remains available after activation: it updates
+// the stored registration details, replaces the school's approved membership,
+// and either links an existing profile or sends a fresh activation link.
+export async function updateRegistrationContact(
+  registrationId: string,
+  _prevState: ContactUpdateState,
+  formData: FormData,
+): Promise<ContactUpdateState> {
+  const admin = await requireManage("registrations");
+  if (!admin) return { ok: false, message: "You do not have permission to update this registration." };
+
+  const kind = String(formData.get("contact_kind") ?? "") as ContactKind;
+  const newEmail = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!CONTACT_KINDS.includes(kind)) {
+    return { ok: false, message: "Choose whether you are updating the educator or principal." };
+  }
+  if (!newEmail || !isEmail(newEmail)) {
+    return { ok: false, message: "Enter a valid email address." };
+  }
+
+  const supabase = await createClient();
+  const { data: reg } = await supabase
+    .from("registrations")
+    .select("id, school_id, contact_email, contact_name, claim_code, owner_id, onboarded_at, details, schools(name)")
+    .eq("id", registrationId)
+    .maybeSingle();
+  if (!reg) return { ok: false, message: "Registration not found." };
+
+  const details = ((reg.details as Record<string, string> | null) ?? {}) as Record<
+    string,
+    string
+  >;
+  const teacherEmail = detailsValue(details, "Teacher Email Address");
+  const principalEmail = detailsValue(details, "Principal Email Address");
+  const emailKey =
+    kind === "teacher" ? "Teacher Email Address" : "Principal Email Address";
+  const name =
+    kind === "teacher"
+      ? detailsValue(details, "Teacher Full Name") ||
+        ((reg.contact_name as string | null) ?? null)
+      : detailsValue(details, "Principal Full Name") || null;
+  const oldEmail =
+    kind === "teacher"
+      ? teacherEmail || ((reg.contact_email as string | null) ?? "")
+      : principalEmail;
+  const otherEmail = kind === "teacher" ? principalEmail : teacherEmail;
+  const schoolId = (reg.school_id as string | null) ?? null;
+
+  if (schoolId) {
+    const { data: existingMemberships } = await supabase
+      .from("school_members")
+      .select("email, school_id, schools(name)")
+      .ilike("email", newEmail)
+      .neq("school_id", schoolId);
+    const conflicts = ((existingMemberships ?? []) as unknown as {
+      email: string;
+      school_id: string;
+      schools: { name: string | null }[] | { name: string | null } | null;
+    }[]).filter(
+      (membership) =>
+        membership.email.toLowerCase() === newEmail && membership.school_id !== schoolId,
+    );
+
+    if (conflicts.length > 0) {
+      const schoolNames = conflicts
+        .map((membership) =>
+          Array.isArray(membership.schools)
+            ? membership.schools[0]?.name
+            : membership.schools?.name,
+        )
+        .filter(Boolean)
+        .join(", ");
+      return {
+        ok: false,
+        message: `${newEmail} already has access to ${schoolNames || "another school"}. Remove that access first, then try again.`,
+      };
+    }
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, role")
+    .ilike("email", newEmail)
+    .maybeSingle();
+  const profileId = (profile?.id as string | undefined) ?? null;
+  if (profileId && profile?.role === "student") {
+    await supabase.from("profiles").update({ role: "coordinator" }).eq("id", profileId);
+  }
+
+  const verifyToken = profileId ? null : randomBytes(32).toString("hex");
+  const verifyExpires = profileId
+    ? null
+    : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const nextDetails = { ...details, [emailKey]: newEmail };
+  const registrationPatch: Record<string, unknown> = { details: nextDetails };
+  if (kind === "teacher") {
+    registrationPatch.contact_email = newEmail;
+    registrationPatch.owner_id = profileId;
+    registrationPatch.onboarded_at = profileId
+      ? ((reg.onboarded_at as string | null) ?? new Date().toISOString())
+      : null;
+    registrationPatch.verify_token = verifyToken;
+    registrationPatch.verify_token_expires_at = verifyExpires;
+  }
+
+  const { error: regError } = await supabase
+    .from("registrations")
+    .update(registrationPatch)
+    .eq("id", registrationId);
+  if (regError) return { ok: false, message: "Could not update the registration email." };
+
+  if (schoolId) {
+    const { error: memberError } = await supabase.from("school_members").upsert(
+      {
+        school_id: schoolId,
+        email: newEmail,
+        full_name: name,
+        status: "approved",
+        profile_id: profileId,
+        verify_token: verifyToken,
+        verify_token_expires_at: verifyExpires,
+        onboarded_at: profileId ? new Date().toISOString() : null,
+      },
+      { onConflict: "school_id,email" },
+    );
+    if (memberError) {
+      return { ok: false, message: "The registration was updated, but school access could not be moved." };
+    }
+
+    const old = oldEmail.toLowerCase();
+    const other = otherEmail.toLowerCase();
+    if (old && old !== newEmail && old !== other) {
+      await supabase
+        .from("school_members")
+        .delete()
+        .eq("school_id", schoolId)
+        .ilike("email", old);
+    }
+  }
+
+  if (!profileId && verifyToken) {
+    await sendEmailSafely(
+      buildActivationEmail({
+        email: newEmail,
+        name,
+        schoolFullName:
+          ((reg.schools as unknown as { name: string | null } | null)?.name) ??
+          "your school",
+        verifyToken,
+        claimCode: kind === "teacher" ? ((reg.claim_code as string | null) ?? null) : null,
+      }),
+    );
+  }
+
+  revalidatePath("/portal/admin/registrations");
+  revalidatePath(`/portal/admin/registrations/${registrationId}`);
+  revalidatePath("/portal/admin/schools");
+  return {
+    ok: true,
+    message: profileId
+      ? `${newEmail} is now linked to this school.`
+      : `${newEmail} was saved and sent a fresh activation link.`,
+  };
 }
 
 // Backfill the roster for an already-approved school — for schools verified

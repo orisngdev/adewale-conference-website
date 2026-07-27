@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { FileSpreadsheet, Sheet } from "lucide-react";
+import { Eye, FileSpreadsheet, Mail, Sheet, Users } from "lucide-react";
 import EmptyState from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   PortalBody,
@@ -12,7 +13,7 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { ConfirmDecisionButton } from "@/components/portal/confirm-decision-button";
 import { SelectAllCheckbox } from "@/components/portal/select-all-checkbox";
 import { SelectAllMatching } from "@/components/portal/select-all-matching";
-import { RegistrationDetails, genderMix } from "@/components/portal/registration-details";
+import { genderMix } from "@/components/portal/registration-details";
 import {
   FilterBar,
   Pagination,
@@ -27,8 +28,6 @@ import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import type { AdminRegistrationRow, RegistrationStatus, Rep } from "@/supabase/types";
 import {
   bulkRegistrationDecision,
-  resendActivation,
-  setRegistrationStatus,
   syncAirtableRegistrations,
 } from "../actions";
 
@@ -38,9 +37,8 @@ export const dynamic = "force-dynamic";
 // Registration is now just the acceptance decision. Stage advancement and
 // certificates live on the Participants hub, per edition.
 const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
-
-const inputCls =
-  "rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
+const ACTIVATION_FILTERS = ["pending", "onboarded", "active"] as const;
+type ActivationFilter = (typeof ACTIVATION_FILTERS)[number];
 
 // Checkboxes reference this form by id (the `form` attribute), so the bulk form
 // never nests inside the per-row status forms.
@@ -51,11 +49,17 @@ const PAGE_SIZE = 20;
 export default async function AdminRegistrations({
   searchParams,
 }: {
-  searchParams: Promise<{ edition?: string; q?: string; status?: string; page?: string }>;
+  searchParams: Promise<{
+    edition?: string;
+    q?: string;
+    status?: string;
+    activation?: string;
+    page?: string;
+  }>;
 }) {
   await requireModuleView("registrations");
   const canManage = await canManageModule("registrations");
-  const { edition, q, status, page: pageParam } = await searchParams;
+  const { edition, q, status, activation, page: pageParam } = await searchParams;
   const supabase = await createClient();
   const { data: regData } = await supabase
     .from("registrations")
@@ -76,8 +80,16 @@ export default async function AdminRegistrations({
   // Search matches school, contact, coordinator, and reps; status narrows the
   // review queue. Both apply within the active edition tab.
   const needle = searchTokens(q).join(" ");
+  const activationFilter = ACTIVATION_FILTERS.includes(
+    activation as ActivationFilter,
+  )
+    ? (activation as ActivationFilter)
+    : undefined;
   const filtered = inEdition.filter((r) => {
     if (status && r.status !== status) return false;
+    if (activationFilter === "pending" && (r.profiles || r.onboarded_at)) return false;
+    if (activationFilter === "onboarded" && (r.profiles || !r.onboarded_at)) return false;
+    if (activationFilter === "active" && !r.profiles) return false;
     if (!needle) return true;
     const haystack = [
       r.schools?.name,
@@ -94,7 +106,11 @@ export default async function AdminRegistrations({
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const page = Math.min(parsePage(pageParam), pageCount);
   const registrations = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const listParams = { edition, q, status };
+  const listParams = { edition, q, status, activation: activationFilter };
+  const hasActiveFilter = Boolean(needle || status || activationFilter);
+  const statusCounts = Object.fromEntries(
+    STATUSES.map((s) => [s, inEdition.filter((r) => r.status === s).length]),
+  ) as Record<RegistrationStatus, number>;
 
   return (
     <>
@@ -184,7 +200,30 @@ export default async function AdminRegistrations({
                 </option>
               ))}
             </select>
+            <select
+              name="activation"
+              defaultValue={activationFilter ?? ""}
+              className={filterSelectCls}
+            >
+              <option value="">Any activation</option>
+              <option value="pending">Pending activation</option>
+              <option value="onboarded">Onboarded, awaiting sign-in</option>
+              <option value="active">Coordinator active</option>
+            </select>
           </FilterBar>
+
+          <div className="mb-4 grid gap-3 sm:grid-cols-3">
+            {STATUSES.map((s) => (
+              <div key={s} className="border border-foreground/10 bg-card px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                  {s}
+                </p>
+                <p className="mt-1 font-bebas text-3xl leading-none text-foreground">
+                  {statusCounts[s]}
+                </p>
+              </div>
+            ))}
+          </div>
 
           {/* Close-of-registration review: tick schools, then approve or decline
               the selection. Approve sends the guidelines email (and materialises
@@ -235,134 +274,93 @@ export default async function AdminRegistrations({
           ) : null}
 
           {registrations.length === 0 ? (
-            <EmptyState title={needle || status ? "No matches" : "No registrations yet"}>
-              {needle || status
+            <EmptyState title={hasActiveFilter ? "No matches" : "No registrations yet"}>
+              {hasActiveFilter
                 ? "No registrations match the current search or filter."
                 : "Submitted registrations will appear here for review."}
             </EmptyState>
           ) : (
-            <div className="space-y-6">
-              {registrations.map((r) => (
-                <Card key={r.id} className="p-5 md:p-6 space-y-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3 min-w-0">
-                      {canManage ? (
-                        <input
-                          type="checkbox"
-                          name="ids"
-                          value={r.id}
-                          form={BULK_FORM_ID}
-                          aria-label={`Select ${r.schools?.name ?? "registration"}`}
-                          className="mt-2 size-4 accent-primary shrink-0"
-                        />
-                      ) : null}
-                      <div className="min-w-0">
-                        <span className="font-bebas text-2xl text-foreground">
-                          {r.schools?.name ?? "Unassigned school"}
+            <div className="space-y-3">
+              {registrations.map((r) => {
+                const reps = Array.isArray(r.reps) ? (r.reps as Rep[]) : [];
+                const mix = genderMix(r.details);
+                const activationLabel = r.profiles
+                  ? "Coordinator active"
+                  : r.onboarded_at
+                    ? "Onboarded, awaiting sign-in"
+                    : "Activation pending";
+
+                return (
+                  <Card key={r.id} className="p-4">
+                    <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)_minmax(170px,0.8fr)_auto] lg:items-center">
+                      <div className="flex items-start gap-3 min-w-0">
+                        {canManage ? (
+                          <input
+                            type="checkbox"
+                            name="ids"
+                            value={r.id}
+                            form={BULK_FORM_ID}
+                            aria-label={`Select ${r.schools?.name ?? "registration"}`}
+                            className="mt-1 size-4 accent-primary shrink-0"
+                          />
+                        ) : null}
+                        <div className="min-w-0">
+                          <Link
+                            href={`/portal/admin/registrations/${r.id}`}
+                            className="font-bebas text-2xl leading-none text-foreground hover:text-primary"
+                          >
+                            {r.schools?.name ?? "Unassigned school"}
+                          </Link>
+                          <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                            <span>{r.edition_year} edition</span>
+                            <span className="inline-flex items-center gap-1 min-w-0">
+                              <Mail className="size-3.5" />
+                              <span className="truncate">
+                                {r.contact_email ?? "No coordinator email"}
+                              </span>
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="min-w-0 text-sm text-muted-foreground">
+                        <p className="font-medium text-foreground truncate">
+                          {r.profiles?.full_name ??
+                            r.profiles?.email ??
+                            r.contact_name ??
+                            "Unclaimed"}
+                        </p>
+                        <p className="mt-0.5">{activationLabel}</p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="size-3.5" />
+                          {reps.length} rep{reps.length === 1 ? "" : "s"}
                         </span>
-                        <p className="text-sm text-muted-foreground">
-                          {r.edition_year} ·{" "}
-                          {r.profiles?.full_name ?? r.profiles?.email ?? r.contact_name ?? "Unclaimed"}
-                          {r.contact_email ? ` · ${r.contact_email}` : ""}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {r.profiles
-                            ? `Coordinator active${r.provisioned_count != null ? ` · ${r.provisioned_count} students provisioned` : ""}`
-                            : r.onboarded_at
-                              ? "Onboarded — awaiting first sign-in"
-                              : "Activation pending"}
-                        </p>
+                        {mix ? (
+                          <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                            {mix}
+                          </span>
+                        ) : null}
+                        {r.provisioned_count != null ? (
+                          <span>{r.provisioned_count} provisioned</span>
+                        ) : null}
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                        <StatusBadge status={r.status} />
+                        <Button asChild size="sm" variant="outline">
+                          <Link href={`/portal/admin/registrations/${r.id}`}>
+                            <Eye className="size-4" />
+                            Details
+                          </Link>
+                        </Button>
                       </div>
                     </div>
-                    <StatusBadge status={r.status} />
-                  </div>
-
-                  {(() => {
-                    const reps = Array.isArray(r.reps) ? (r.reps as Rep[]) : [];
-                    if (reps.length === 0) return null;
-                    const mix = genderMix(r.details);
-                    return (
-                      <>
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <p className="text-sm text-muted-foreground">
-                            <span className="uppercase tracking-[0.15em] text-[11px] font-bold">
-                              Reps:{" "}
-                            </span>
-                            {reps
-                              .map((rep) =>
-                                rep.level ? `${rep.name} (${rep.level})` : rep.name,
-                              )
-                              .join(", ")}
-                          </p>
-                          {mix ? (
-                            <span className="shrink-0 rounded-full bg-foreground/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                              {mix}
-                            </span>
-                          ) : null}
-                        </div>
-                        <RegistrationDetails details={r.details} reps={reps} />
-                      </>
-                    );
-                  })()}
-
-                  {canManage ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <form
-                      action={setRegistrationStatus.bind(null, r.id)}
-                      className="flex gap-2"
-                    >
-                      <select
-                        name="status"
-                        defaultValue={r.status}
-                        className={`${inputCls} capitalize`}
-                      >
-                        {STATUSES.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                      <ConfirmSubmitButton
-                        size="sm"
-                        variant="outline"
-                        title="Change registration status?"
-                        description="The school will be emailed if this moves to verified or declined."
-                        confirmLabel="Yes, update"
-                      >
-                        Update status
-                      </ConfirmSubmitButton>
-                    </form>
-
-                    {/* Resend / correct-email — only while the coordinator hasn't
-                        activated yet. Regenerates the 30-day link. */}
-                    {!r.profiles && !r.onboarded_at ? (
-                      <form
-                        action={resendActivation.bind(null, r.id)}
-                        className="flex flex-wrap gap-2"
-                      >
-                        <input
-                          name="email"
-                          type="email"
-                          required
-                          defaultValue={r.contact_email ?? ""}
-                          placeholder="coordinator@school.edu"
-                          className={`${inputCls} w-64`}
-                        />
-                        <ConfirmSubmitButton
-                          size="sm"
-                          variant="outline"
-                          title="Send activation link?"
-                          description="Regenerates the 30-day activation link and emails it to the address entered — the old link stops working."
-                          confirmLabel="Yes, send"
-                        >
-                          Send activation link
-                        </ConfirmSubmitButton>
-                      </form>
-                    ) : null}
-                  </div>
-                  ) : null}
-                </Card>
-              ))}
+                  </Card>
+                );
+              })}
             </div>
           )}
 

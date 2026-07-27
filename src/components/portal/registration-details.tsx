@@ -68,9 +68,11 @@ export function genderMix(details: Details): string {
 export function RegistrationDetails({
   details,
   reps,
+  defaultOpen = false,
 }: {
   details: Details;
   reps: Rep[];
+  defaultOpen?: boolean;
 }) {
   // Prefer the rich `details`; fall back to the bare reps array (name + class)
   // that every registration carries, so pre-sync rows still show something.
@@ -121,7 +123,7 @@ export function RegistrationDetails({
     lga || category || address || schoolEmail || zonal || participatedLast || hearAbout;
 
   return (
-    <details className="border-t border-foreground/5 pt-3 group">
+    <details className="border-t border-foreground/5 pt-3 group" open={defaultOpen}>
       <summary className="cursor-pointer select-none text-xs font-bold uppercase tracking-wide text-muted-foreground hover:text-foreground">
         Full entry details ({fallbackStudents.length} student
         {fallbackStudents.length === 1 ? "" : "s"})

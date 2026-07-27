@@ -3,6 +3,13 @@ import "server-only";
 import { createClient } from "@/supabase/server";
 import { requireAdmin } from "@/supabase/auth";
 import { tierRank } from "@/lib/resource-access";
+import { LGA_OPTIONS, SCHOOL_CATEGORY_OPTIONS } from "@/lib/forms";
+import {
+  orderedBuckets,
+  tally,
+  topN,
+  type AnalyticsBarPoint,
+} from "@/lib/analytics-buckets";
 
 // Admin analytics: read-only aggregation over the RLS-respecting server client.
 // An admin's is_admin() policy lets these reads see every row, so no
@@ -13,7 +20,7 @@ import { tierRank } from "@/lib/resource-access";
 // ── Public shapes ────────────────────────────────────────────────────────────
 
 export type TrendPoint = { label: string; [series: string]: number | string };
-export type BarPoint = { label: string; value: number; color?: string };
+export type BarPoint = AnalyticsBarPoint;
 export type Slice = { name: string; value: number; color?: string };
 
 export type AdminAnalytics = {
@@ -186,26 +193,63 @@ function activeTrend(
 
 // ── Small helpers ────────────────────────────────────────────────────────────
 
-function topN(counts: Map<string, number>, n: number): BarPoint[] {
-  const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  const out: BarPoint[] = sorted.slice(0, n).map(([label, value]) => ({ label: label || "—", value }));
-  const rest = sorted.slice(n).reduce((s, [, v]) => s + v, 0);
-  if (rest > 0) out.push({ label: "Other", value: rest });
-  return out;
-}
-function tally<T>(rows: T[], keyOf: (r: T) => string | null | undefined): Map<string, number> {
-  const m = new Map<string, number>();
-  for (const r of rows) {
-    const k = keyOf(r);
-    if (k == null) continue;
-    m.set(k, (m.get(k) ?? 0) + 1);
-  }
-  return m;
-}
 function distinct(ids: (string | null | undefined)[]): Set<string> {
   const s = new Set<string>();
   for (const id of ids) if (id) s.add(id);
   return s;
+}
+
+function normalizeBucketLabel(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+const lgaByKey = new Map(LGA_OPTIONS.map((label) => [label.toLowerCase().replace(/[^a-z0-9]/g, ""), label]));
+
+function lgaBucket(value: string | null | undefined): string {
+  const label = normalizeBucketLabel(value);
+  if (!label) return "Unknown LGA";
+  return lgaByKey.get(label.toLowerCase().replace(/[^a-z0-9]/g, "")) ?? label;
+}
+
+function categoryBucket(value: string | null | undefined): string {
+  const label = normalizeBucketLabel(value);
+  if (!label) return "Unknown category";
+  const match = SCHOOL_CATEGORY_OPTIONS.find((option) => option.toLowerCase() === label.toLowerCase());
+  return match ?? label;
+}
+
+function registrationBreakdownDetails(
+  point: BarPoint,
+  editionYear: number | null,
+  total: number,
+  registrations: RegRow[],
+): BarPoint {
+  const value = point.value;
+  const pct = total > 0 ? `${Math.round((value / total) * 100)}%` : "0%";
+  const names = registrations
+    .map((r) => r.schools?.name?.trim() || "Unassigned school")
+    .sort((a, b) => a.localeCompare(b));
+  const visibleNames = names.slice(0, 12);
+  const hidden = names.length - visibleNames.length;
+  return {
+    ...point,
+    detail: {
+      title: point.label,
+      description:
+        value === 0
+          ? `No ${editionYear ?? "selected"} edition registrations currently reference this bucket.`
+          : `${value} ${value === 1 ? "registration" : "registrations"} in the ${editionYear ?? "selected"} edition.`,
+      rows: [
+        { label: "Edition", value: editionYear ?? "No edition selected" },
+        { label: "Registrations", value },
+        { label: "Share", value: pct },
+        ...(hidden > 0 ? [{ label: "More", value: `${hidden} not shown` }] : []),
+      ],
+      itemsTitle: value === 1 ? "Registered school" : "Registered schools",
+      items: visibleNames,
+    },
+  };
 }
 
 const WINDOW_LABEL: Record<string, string> = {
@@ -224,7 +268,7 @@ type RegRow = {
   status: string;
   edition_year: number;
   created_at: string;
-  schools: { lga: string | null; category: string | null } | null;
+  schools: { name: string | null; lga: string | null; category: string | null } | null;
 };
 type AttemptRow = {
   created_at: string;
@@ -294,7 +338,7 @@ export async function getAdminAnalytics(opts: {
     win(supabase.from("resource_downloads").select("id", { count: "exact", head: true }), "created_at"),
     supabase
       .from("registrations")
-      .select("id, status, edition_year, created_at, schools(lga, category)")
+      .select("id, status, edition_year, created_at, schools(name, lga, category)")
       .order("created_at", { ascending: false })
       .limit(MAX_ROWS),
     supabase.from("registration_stage_results").select("registration_id, stage, outcome").limit(MAX_ROWS),
@@ -394,8 +438,24 @@ export async function getAdminAnalytics(opts: {
   const byEdition: BarPoint[] = [...tally(regs, (r) => String(r.edition_year)).entries()]
     .sort((a, b) => Number(b[0]) - Number(a[0]))
     .map(([label, value]) => ({ label, value }));
-  const byLga = topN(tally(editionRegs, (r) => r.schools?.lga ?? "Unknown"), 10);
-  const byCategory = topN(tally(editionRegs, (r) => r.schools?.category ?? "Unknown"), 8);
+  const byLgaCounts = tally(editionRegs, (r) => lgaBucket(r.schools?.lga));
+  const byCategoryCounts = tally(editionRegs, (r) => categoryBucket(r.schools?.category));
+  const byLga = orderedBuckets(byLgaCounts, LGA_OPTIONS).map((point) =>
+    registrationBreakdownDetails(
+      point,
+      editionYear,
+      editionRegs.length,
+      editionRegs.filter((r) => lgaBucket(r.schools?.lga) === point.label),
+    ),
+  );
+  const byCategory = orderedBuckets(byCategoryCounts, SCHOOL_CATEGORY_OPTIONS).map((point) =>
+    registrationBreakdownDetails(
+      point,
+      editionYear,
+      editionRegs.length,
+      editionRegs.filter((r) => categoryBucket(r.schools?.category) === point.label),
+    ),
+  );
 
   // ── Growth ─────────────────────────────────────────────────────────────────
   const roleKeys = [

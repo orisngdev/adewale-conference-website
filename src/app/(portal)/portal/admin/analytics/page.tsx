@@ -115,7 +115,7 @@ export default async function AdminAnalyticsPage({
               title="Competition ladder"
               subtitle={a.editionYear ? `${a.editionYear} edition · ${a.registrations.editionTotal} entries` : "No edition"}
             >
-              <BarChartCard data={ladder} series={[{ key: "value", name: "Schools" }]} horizontal />
+              <BarChartCard data={ladder} series={[{ key: "value", name: "Registrations" }]} horizontal />
             </Panel>
 
             <Panel title="Registrations by edition">
@@ -125,12 +125,22 @@ export default async function AdminAnalyticsPage({
               />
             </Panel>
 
-            <Panel title="By LGA" subtitle={a.editionYear ? `${a.editionYear} edition` : undefined}>
-              <BarChartCard data={a.registrations.byLga} series={[{ key: "value", name: "Schools", color: BRAND.gold }]} horizontal />
+            <Panel title="By LGA" subtitle={a.editionYear ? `${a.editionYear} edition · registrations by school LGA` : undefined} className="lg:col-span-2">
+              <BarChartCard
+                data={a.registrations.byLga}
+                series={[{ key: "value", name: "Registrations", color: BRAND.gold }]}
+                height={360}
+                minWidth={920}
+                wrapXAxisLabels
+              />
             </Panel>
 
             <Panel title="By category" subtitle={a.editionYear ? `${a.editionYear} edition` : undefined}>
-              <BarChartCard data={a.registrations.byCategory} series={[{ key: "value", name: "Schools", color: BRAND.navy }]} horizontal />
+              <BarChartCard
+                data={a.registrations.byCategory}
+                series={[{ key: "value", name: "Registrations", color: BRAND.navy }]}
+                horizontal
+              />
             </Panel>
           </div>
 

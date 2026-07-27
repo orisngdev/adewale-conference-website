@@ -8,12 +8,15 @@ import {
   getSchoolDatabaseTableId,
   listAirtableRecords,
 } from "@/lib/airtable";
+import { airtableCreatedAt } from "@/lib/airtable-created-at";
 
 // One-way sync: Airtable (source of truth) → Supabase portal mirror.
 // Idempotent — keyed by airtable_id on both schools and registrations, so it
 // doubles as the historical backfill and the ongoing refresh. Never sends
 // email and never touches admin-owned registration state (status, owner,
-// claim/verify tokens) on rows that already exist.
+// claim/verify tokens) on rows that already exist. Airtable registration
+// creation time is mirrored into registrations.created_at so analytics reflect
+// submission time rather than sync/import time.
 //
 // All database work is BATCHED (a steady-state run is ~a dozen round-trips,
 // not one per row) so the sync also completes within a serverless function's
@@ -196,7 +199,7 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
     const f = rec.fields;
     const name = f["School Full Name"]?.trim();
     if (!name) continue;
-    const groupKey = `${schoolKey(name, f["School LGA"], f["School Category"])}#${new Date(rec.createdTime).getFullYear()}`;
+    const groupKey = `${schoolKey(name, f["School LGA"], f["School Category"])}#${new Date(airtableCreatedAt(rec)).getFullYear()}`;
     const group = groups.get(groupKey);
     if (group) group.push(rec);
     else groups.set(groupKey, [rec]);
@@ -264,7 +267,8 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
       continue;
     }
 
-    const editionYear = new Date(rec.createdTime).getFullYear();
+    const createdAt = airtableCreatedAt(rec);
+    const editionYear = new Date(createdAt).getFullYear();
     const teacherEmail = f["Teacher Email Address"]?.toLowerCase() || null;
     const principalEmail = f["Principal Email Address"]?.toLowerCase() || null;
     const contactEmail = teacherEmail ?? principalEmail;
@@ -283,6 +287,7 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
       details: f,
       contact_email: contactEmail,
       contact_name: contactName,
+      created_at: createdAt,
     };
 
     const existing = regsByAirtableId.get(rec.id);

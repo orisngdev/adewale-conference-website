@@ -10,6 +10,7 @@
 #   AWS_REGION             — e.g. eu-west-3
 #   BACKUP_S3_BUCKET       — bucket name (retention is best handled by an S3
 #                            lifecycle rule, e.g. expire objects after 90 days)
+#                            S3_BACKUP_BUCKET is also accepted for compatibility
 name: Weekly DB backup
 
 on:
@@ -34,6 +35,7 @@ jobs:
         env:
           DB_URL: ${{ secrets.BACKUP_DB_URL }}
         run: |
+          test -n "$DB_URL" || { echo "BACKUP_DB_URL secret is not set"; exit 1; }
           STAMP=$(date -u +%Y-%m-%dT%H%MZ)
           /usr/lib/postgresql/17/bin/pg_dump "$DB_URL" \
             --no-owner --no-privileges \
@@ -46,4 +48,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
-        run: aws s3 cp adewale-db-*.sql.gz "s3://${{ secrets.BACKUP_S3_BUCKET }}/supabase/"
+          BUCKET: ${{ secrets.BACKUP_S3_BUCKET || secrets.S3_BACKUP_BUCKET }}
+        run: |
+          test -n "$BUCKET" || { echo "BACKUP_S3_BUCKET or S3_BACKUP_BUCKET secret is not set"; exit 1; }
+          aws s3 cp adewale-db-*.sql.gz "s3://${BUCKET}/supabase/"

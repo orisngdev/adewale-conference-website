@@ -28,7 +28,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://owpyzqlwqwmytlalrval.supabase.co
           SUPABASE_SECRET_KEY: ${{ secrets.PROD_SUPABASE_SECRET_KEY }}
           AIRTABLE_API_TOKEN: ${{ secrets.AIRTABLE_API_TOKEN }}
-          AIRTABLE_BASE_ID: apppcnjdT5iHZuflw
-          AIRTABLE_PARTICIPANTS_TABLE_ID: tblbSNTckK3aRxu6N
-          AIRTABLE_SCHOOLS_TABLE_ID: tblMmGw7SY2dHzQOj
+          AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID }}
+          AIRTABLE_PARTICIPANTS_TABLE_ID: ${{ secrets.AIRTABLE_PARTICIPANTS_TABLE_ID }}
+          AIRTABLE_SCHOOLS_TABLE_ID: ${{ secrets.AIRTABLE_SCHOOLS_TABLE_ID }}
         run: npx tsx --experimental-websocket --tsconfig tsconfig.json scripts/sync-airtable.ts
