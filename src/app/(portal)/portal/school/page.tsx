@@ -85,6 +85,19 @@ export default async function SchoolOverview() {
   const entryEdition = entry
     ? editions.find((e) => e.year === entry.edition_year) ?? latest
     : null;
+  const registrationIds = registrations.map((r) => r.id);
+  const { data: allStageData } = registrationIds.length
+    ? await supabase
+        .from("registration_stage_results")
+        .select("id, registration_id, stage, outcome, score, note")
+        .in("registration_id", registrationIds)
+    : { data: [] as StageResult[] };
+  const stageResultsByRegistration = new Map<string, StageResult[]>();
+  for (const result of (allStageData ?? []) as StageResult[]) {
+    const list = stageResultsByRegistration.get(result.registration_id) ?? [];
+    list.push(result);
+    stageResultsByRegistration.set(result.registration_id, list);
+  }
 
   // Each rep's individual progress + certificates (coordinator view). The roster
   // is materialised at approval; empty until then or until "Sync roster".
@@ -226,6 +239,41 @@ export default async function SchoolOverview() {
                       ))}
                     </div>
                   ) : null}
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {registrations.length > 1 ? (
+        <div>
+          <SectionHeading>Competition history</SectionHeading>
+          <div className="space-y-3">
+            {registrations.map((r) => {
+              const edition = editions.find((e) => e.year === r.edition_year) ?? null;
+              const results = stageResultsByRegistration.get(r.id) ?? [];
+              return (
+                <Card key={r.id} className="p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-bebas text-2xl text-foreground leading-none">
+                        {r.edition_year} edition
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {r.schools?.name ?? "Your school"} · {r.status}
+                      </p>
+                    </div>
+                  </div>
+                  {edition && results.length ? (
+                    <div className="mt-3 border-t border-foreground/5 pt-3">
+                      <StageResults stages={edition.stages} results={results} />
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      No stage results recorded for this edition.
+                    </p>
+                  )}
                 </Card>
               );
             })}

@@ -74,6 +74,8 @@ export default async function AdminRegistrations({
   // Default to the newest edition — the close-of-registration review works one
   // edition at a time.
   const activeYear = edition === "all" ? null : Number(edition) || years[0] || null;
+  const currentYear = years[0] ?? null;
+  const canEditRegistrations = canManage && activeYear != null && activeYear === currentYear;
   const inEdition = activeYear ? all.filter((r) => r.edition_year === activeYear) : all;
   const underReview = inEdition.filter((r) => r.status === "submitted").length;
 
@@ -114,7 +116,10 @@ export default async function AdminRegistrations({
 
   return (
     <>
-      <PortalHeader title="Registrations" subtitle="Review entries, resend activations, accept or decline" />
+      <PortalHeader
+        title="Registrations"
+        subtitle="Approve schools into the competition, then run them from Participants"
+      />
       <PortalBody>
         <div>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
@@ -141,7 +146,7 @@ export default async function AdminRegistrations({
               </a>
               {/* Airtable stays source of truth — this pulls its rows into the
                   portal (idempotent; result arrives as a notification). */}
-              {canManage ? (
+              {canManage && activeYear === currentYear ? (
                 <form action={syncAirtableRegistrations}>
                   <ConfirmSubmitButton
                     size="sm"
@@ -212,6 +217,24 @@ export default async function AdminRegistrations({
             </select>
           </FilterBar>
 
+          <Card className="mb-4 border border-primary/25 bg-primary/10 p-4">
+            <p className="text-sm text-foreground">
+              Approving a school enters it into the competition and moves it to{" "}
+              <Link href="/portal/admin/participants" className="font-bold text-gold-ink hover:underline">
+                Participants
+              </Link>{" "}
+              at Qualifications.
+            </p>
+          </Card>
+
+          {canManage && !canEditRegistrations ? (
+            <Card className="mb-4 border border-foreground/10 bg-foreground/5 p-4">
+              <p className="text-sm text-muted-foreground">
+                This view is read-only. Past editions and the all-editions view are locked for normal review actions.
+              </p>
+            </Card>
+          ) : null}
+
           <div className="mb-4 grid gap-3 sm:grid-cols-3">
             {STATUSES.map((s) => (
               <div key={s} className="border border-foreground/10 bg-card px-4 py-3">
@@ -230,7 +253,7 @@ export default async function AdminRegistrations({
               the school's competition roster); decline sends a polite not-selected
               email. Neither touches portal access. Everything after acceptance —
               stage advancement, certificates — lives on the Participants hub. */}
-          {canManage ? (
+          {canEditRegistrations ? (
           <form id={BULK_FORM_ID} action={bulkRegistrationDecision}>
             <Card className="p-4 mb-6 space-y-3">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -251,10 +274,10 @@ export default async function AdminRegistrations({
                   value="approve"
                   size="sm"
                   title="Approve selected schools?"
-                  description="Every ticked school is approved, sent the guidelines email, and its reps become the school's competition roster."
+                  description="Every ticked school enters the competition, moves to Participants at Qualifications, receives the guidelines email, and gets its competition roster."
                   confirmLabel="Yes, approve"
                 >
-                  Approve selected
+                  Approve and move to Participants
                 </ConfirmDecisionButton>
                 <ConfirmDecisionButton
                   name="decision"
@@ -294,7 +317,7 @@ export default async function AdminRegistrations({
                   <Card key={r.id} className="p-4">
                     <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)_minmax(170px,0.8fr)_auto] lg:items-center">
                       <div className="flex items-start gap-3 min-w-0">
-                        {canManage ? (
+                        {canEditRegistrations ? (
                           <input
                             type="checkbox"
                             name="ids"

@@ -18,6 +18,10 @@ _Avoid in code_: Educator, Teacher, Mentor (UI may show "Educator").
 A Student who is a member of a school's registered contest team (a `students` row), provisioned by a Coordinator, able to log in by access code.
 _Avoid_: Contestant, participant.
 
+**Participant**:
+An approved school team competing in an Edition. A Participant advances as a school team; its Students are called Reps.
+_Avoid_: contestant, individual participant, rep.
+
 **Link code**:
 A one-time code that merges a self-signed-up Student identity with a Coordinator-provisioned Rep account so one human keeps a single progress history. Mirrors the registration claim code.
 
@@ -61,6 +65,30 @@ A Student's completion state across a Plan's required Items (a %). Assessment It
 **Edition**:
 One yearly run of the programme (e.g. 2026), with its own roster, stages, and registration window (`editions` table). Rosters, assignments, and progress are always scoped to an Edition; a Coordinator only ever sees or assigns the current Edition's Students.
 _Avoid_: cohort, season, year (as a bare noun).
+
+**Zone**:
+A regional competition grouping used during Qualifications. A Participant qualifies from within a Zone before reaching the Grand Finale.
+_Avoid_: location (too weak), venue (the physical place only).
+
+**Grand Finale**:
+The final event/phase of an Edition after Qualifications. It contains competition stages such as Group Stage, knockout rounds, and Finals; it is not itself a pass/fail stage.
+_Avoid_: stage (unless referring to a named stage inside the Grand Finale).
+
+**Competition stage**:
+A named advancement step for Participants within an Edition. The canonical stages are Qualifications, Grand Finale Group Stage, Round of 16, Quarter Finals, Semi Finals, and Finals, with Registration and Completed as bookends; Round of 24 is an optional play-in stage when an Edition needs it.
+_Avoid_: Approved (entry decision), Grand Finale (event/phase).
+
+**Face-off**:
+A tie-breaker contest attached to a qualification decision, group ranking, or knockout match. It is not a normal stage; it exists to produce one winner or advancement decision.
+_Avoid_: round, ordinary match.
+
+**Wildcard**:
+A reason a Participant qualifies beyond the usual zone or group advancement rule. It explains an advancement decision; it is not a Competition stage.
+_Avoid_: stage, round.
+
+**Individual Award**:
+A Rep-level recognition within an Edition, independent of the Participant's final team standing. A Rep can receive an Individual Award even if their school team did not win the tournament.
+_Avoid_: champion (reserved for the winning Participant).
 
 **Resource**:
 A library item admins publish in the portal for Students and Coordinators to open or download — a Study Pack, the competition guidelines, a syllabus, a video, or an external link. Every Resource carries an **Access tier** and an **Audience**. Managed entirely in the portal (admins upload, tier, publish, delete).

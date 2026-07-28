@@ -14,10 +14,10 @@ export const TIME_WINDOWS: { key: WindowKey; label: string; days: number | null 
   { key: "all", label: "All time", days: null },
 ];
 
-export const DEFAULT_WINDOW: WindowKey = "12mo";
+export const DEFAULT_WINDOW: WindowKey = "all";
 
 export function windowDays(key: string | undefined): number | null {
-  return (TIME_WINDOWS.find((w) => w.key === key) ?? TIME_WINDOWS[2]).days;
+  return (TIME_WINDOWS.find((w) => w.key === key) ?? TIME_WINDOWS[3]).days;
 }
 
 export function resolveWindow(key: string | undefined): WindowKey {
@@ -29,7 +29,7 @@ const seg =
 const segOn = "bg-primary/15 text-gold-ink";
 const segOff = "bg-foreground/5 text-muted-foreground hover:text-foreground";
 
-/** Segmented time-window control. Preserves the current edition param. */
+/** Segmented activity-range control. Preserves the current edition param. */
 export function WindowFilter({
   current,
   edition,
@@ -38,7 +38,7 @@ export function WindowFilter({
   edition?: string;
 }) {
   return (
-    <div className="flex items-center gap-1" role="group" aria-label="Time window">
+    <div className="flex items-center gap-1" role="group" aria-label="Activity range">
       {TIME_WINDOWS.map((w) => (
         <Link
           key={w.key}
@@ -65,7 +65,7 @@ export function EditionFilter({
 }) {
   if (years.length <= 1) return null;
   return (
-    <div className="flex items-center gap-1" role="group" aria-label="Edition">
+    <div className="flex items-center gap-1" role="group" aria-label="Competition edition">
       {years.map((y) => (
         <Link
           key={y}

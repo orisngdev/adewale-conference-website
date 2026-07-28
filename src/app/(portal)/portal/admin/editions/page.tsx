@@ -209,59 +209,27 @@ export default async function AdminEditions() {
                         <span className="ml-3 text-sm text-muted-foreground">
                           {e.title ? `${e.title} · ` : ""}
                           {s.total} registration{s.total === 1 ? "" : "s"} · stage: {e.current_stage}
-                          {e.registration_open ? " · ⚠ registration still open" : ""}
+                          {e.registration_open ? " · registration still open" : ""}
                         </span>
                       </div>
-                      {canManage ? (
-                        <>
-                          <span className="text-xs uppercase tracking-[0.15em] text-primary group-open:hidden">
-                            Manage
-                          </span>
-                          <span className="text-xs uppercase tracking-[0.15em] text-muted-foreground hidden group-open:inline">
-                            Close
-                          </span>
-                        </>
-                      ) : null}
+                      <span className="text-xs uppercase tracking-[0.15em] text-muted-foreground group-open:hidden">
+                        View
+                      </span>
+                      <span className="text-xs uppercase tracking-[0.15em] text-muted-foreground hidden group-open:inline">
+                        Close
+                      </span>
                     </summary>
-                    {canManage ? (
-                      <div className="mt-4 flex flex-wrap items-center gap-2">
-                        <form action={toggleRegistration.bind(null, e.year, !e.registration_open)}>
-                          <ConfirmSubmitButton
-                            size="sm"
-                            variant="outline"
-                            title={
-                              e.registration_open
-                                ? `Close ${e.year} registration?`
-                                : `Reopen ${e.year} registration?`
-                            }
-                            description={
-                              e.registration_open
-                                ? "New registrations for this past edition are rejected everywhere."
-                                : "Schools can register for this past edition again, public form included."
-                            }
-                            confirmLabel={e.registration_open ? "Yes, close" : "Yes, reopen"}
-                          >
-                            {e.registration_open ? "Close registration" : "Reopen registration"}
-                          </ConfirmSubmitButton>
-                        </form>
-                        <form action={setEditionStage.bind(null, e.year)} className="flex gap-2">
-                          <select name="stage" defaultValue={e.current_stage} className={inputCls}>
-                            {e.stages.map((st) => (
-                              <option key={st} value={st}>{st}</option>
-                            ))}
-                          </select>
-                          <ConfirmSubmitButton
-                            size="sm"
-                            variant="outline"
-                            title={`Change the ${e.year} stage?`}
-                            description="Changing the stage notifies every registered school and student in the portal."
-                            confirmLabel="Yes, set stage"
-                          >
-                            Set stage
-                          </ConfirmSubmitButton>
-                        </form>
+                    <div className="mt-4 space-y-3">
+                      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+                        <StatTile label="Registrations" value={s.total} />
+                        <StatTile label="Under review" value={s.review} />
+                        <StatTile label="Accepted" value={s.accepted} />
+                        <StatTile label="Declined" value={s.declined} />
                       </div>
-                    ) : null}
+                      <p className="text-sm text-muted-foreground">
+                        Past editions are locked for normal admin edits. Use a reviewed backfill or maintenance script for corrections.
+                      </p>
+                    </div>
                   </details>
                 );
               })}

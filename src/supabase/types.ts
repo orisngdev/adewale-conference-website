@@ -94,6 +94,39 @@ export type RegistrationStatus =
 // through one shared stage list; this is the per-school result at each).
 export type StageOutcome = "pending" | "advanced" | "eliminated";
 
+export const COMPETITION_STAGES = [
+  "Qualifications",
+  "Grand Finale Group Stage",
+  "Round of 16",
+  "Quarter Finals",
+  "Semi Finals",
+  "Finals",
+] as const;
+
+export const OPTIONAL_COMPETITION_STAGES = ["Round of 24"] as const;
+
+export const DEFAULT_EDITION_STAGES = [
+  "Registration",
+  "Qualifications",
+  "Grand Finale Group Stage",
+  "Round of 16",
+  "Quarter Finals",
+  "Semi Finals",
+  "Finals",
+  "Completed",
+] as const;
+
+export const QUALIFICATION_REASONS = [
+  "Zonal Champion",
+  "Top 10",
+  "State-wide Qualification",
+  "Divisional Qualification",
+  "Wildcard",
+  "Manual Selection",
+] as const;
+
+export type QualificationReason = (typeof QUALIFICATION_REASONS)[number];
+
 export interface StageResult {
   id: string;
   registration_id: string;
@@ -101,6 +134,7 @@ export interface StageResult {
   outcome: StageOutcome;
   score: number | null;
   note: string | null;
+  reason?: string | null;
 }
 
 // The per-STUDENT mirror of StageResult — how one rep fared at a stage.
@@ -122,6 +156,63 @@ export interface Certificate {
 export interface Rep {
   name: string;
   level?: string;
+}
+
+export type TournamentMatchKind = "group" | "knockout" | "face_off" | "bye";
+export type TournamentMatchStatus =
+  | "scheduled"
+  | "in_progress"
+  | "completed"
+  | "needs_face_off"
+  | "cancelled";
+
+export interface TournamentGroup {
+  id: string;
+  edition_year: number;
+  stage: string;
+  name: string;
+  sort_order: number;
+  advance_count: number;
+}
+
+export interface TournamentGroupEntry {
+  id: string;
+  group_id: string;
+  registration_id: string;
+  seed: number | null;
+  rank: number | null;
+  score: number | null;
+  note: string | null;
+  advance_override: boolean | null;
+}
+
+export interface TournamentMatch {
+  id: string;
+  edition_year: number;
+  stage: string;
+  kind: TournamentMatchKind;
+  team_a_registration_id: string | null;
+  team_b_registration_id: string | null;
+  team_a_score: number | null;
+  team_b_score: number | null;
+  winner_registration_id: string | null;
+  status: TournamentMatchStatus;
+  scheduled_at: string | null;
+  venue: string | null;
+  note: string | null;
+  parent_match_id: string | null;
+  slot: number | null;
+  superseded_at?: string | null;
+}
+
+export interface IndividualAward {
+  id: string;
+  edition_year: number;
+  student_id: string;
+  registration_id: string | null;
+  stage: string | null;
+  title: string;
+  note: string | null;
 }
 
 export type ReplacementStatus = "pending" | "approved" | "declined";

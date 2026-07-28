@@ -12,7 +12,13 @@ import {
 } from "@/lib/email";
 import { notifySchool, notifySchoolDecision } from "@/lib/school-notify";
 import { ensureRoster } from "@/lib/ensure-roster";
-import type { RegistrationStatus, UserRole } from "@/supabase/types";
+import {
+  QUALIFICATION_REASONS,
+  type QualificationReason,
+  type RegistrationStatus,
+  type TournamentMatchStatus,
+  type UserRole,
+} from "@/supabase/types";
 import { permissionsFromForm } from "@/lib/admin-permissions";
 import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 
@@ -20,6 +26,7 @@ const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
 const CONTACT_KINDS = ["teacher", "principal"] as const;
 type ContactKind = (typeof CONTACT_KINDS)[number];
 export type ContactUpdateState = { ok: boolean; message: string } | null;
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 function isEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -28,6 +35,69 @@ function isEmail(value: string) {
 function detailsValue(details: Record<string, string> | null, key: string) {
   const value = details?.[key];
   return typeof value === "string" ? value.trim() : "";
+}
+
+async function latestEditionYear(supabase: SupabaseClient) {
+  const { data } = await supabase
+    .from("editions")
+    .select("year")
+    .order("year", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const year = Number(data?.year);
+  return Number.isInteger(year) ? year : null;
+}
+
+async function isEditableEdition(supabase: SupabaseClient, year: number | null | undefined) {
+  if (!Number.isInteger(year)) return false;
+  const latest = await latestEditionYear(supabase);
+  return latest != null && year === latest;
+}
+
+async function isEditableRegistration(supabase: SupabaseClient, registrationId: string) {
+  const { data } = await supabase
+    .from("registrations")
+    .select("edition_year")
+    .eq("id", registrationId)
+    .maybeSingle();
+  return isEditableEdition(supabase, Number(data?.edition_year));
+}
+
+async function isEditableGroup(supabase: SupabaseClient, groupId: string) {
+  const { data } = await supabase
+    .from("tournament_groups")
+    .select("edition_year")
+    .eq("id", groupId)
+    .maybeSingle();
+  return isEditableEdition(supabase, Number(data?.edition_year));
+}
+
+async function isEditableGroupEntry(supabase: SupabaseClient, entryId: string) {
+  const { data } = await supabase
+    .from("tournament_group_entries")
+    .select("group_id")
+    .eq("id", entryId)
+    .maybeSingle();
+  const groupId = String(data?.group_id ?? "");
+  return groupId ? isEditableGroup(supabase, groupId) : false;
+}
+
+async function isEditableMatch(supabase: SupabaseClient, matchId: string) {
+  const { data } = await supabase
+    .from("tournament_matches")
+    .select("edition_year")
+    .eq("id", matchId)
+    .maybeSingle();
+  return isEditableEdition(supabase, Number(data?.edition_year));
+}
+
+async function isEditableStudent(supabase: SupabaseClient, studentId: string) {
+  const { data } = await supabase
+    .from("students")
+    .select("edition_year")
+    .eq("id", studentId)
+    .maybeSingle();
+  return isEditableEdition(supabase, Number(data?.edition_year));
 }
 
 // Provision each approved school's reps as student rows. Each rep is an
@@ -318,6 +388,7 @@ export async function setRegistrationStatus(
     .select("status, edition_year, contact_email, contact_name, owner_id, school_id, reps, schools(name)")
     .eq("id", registrationId)
     .maybeSingle();
+  if (!before || !(await isEditableEdition(supabase, Number(before.edition_year)))) return;
 
   // RLS (reg_owner_update with is_admin()) restricts this to admins.
   const { error } = await supabase
@@ -403,9 +474,13 @@ export async function bulkRegistrationDecision(formData: FormData) {
     reps: unknown;
     schools: { name: string | null } | null;
   }[];
+  const editableRows: typeof rows = [];
+  for (const row of rows) {
+    if (await isEditableEdition(supabase, row.edition_year)) editableRows.push(row);
+  }
 
   const approvedIds: string[] = [];
-  for (const row of rows) {
+  for (const row of editableRows) {
     const skip =
       decision === "approve"
         ? row.status !== "submitted" // already reviewed (or further along)
@@ -467,12 +542,16 @@ async function bulkStageOutcome(
     school_id: string | null;
     schools: { name: string | null } | null;
   }[];
-  if (rows.length === 0) return;
+  const editableRows: typeof rows = [];
+  for (const row of rows) {
+    if (await isEditableEdition(supabase, row.edition_year)) editableRows.push(row);
+  }
+  if (editableRows.length === 0) return;
 
   const now = new Date().toISOString();
   // RLS (stage_results_admin_write) restricts the upsert to admins.
   const { error } = await supabase.from("registration_stage_results").upsert(
-    rows.map((r) => ({
+    editableRows.map((r) => ({
       registration_id: r.id,
       stage,
       outcome,
@@ -481,7 +560,7 @@ async function bulkStageOutcome(
     { onConflict: "registration_id,stage" },
   );
   if (!error) {
-    for (const r of rows) {
+    for (const r of editableRows) {
       const schoolName = r.schools?.name ?? "Your school";
       // Notify every educator on the school, not just the owner.
       await notifySchool(supabase, r.school_id, r.owner_id, {
@@ -723,6 +802,7 @@ export async function syncRoster(registrationId: string) {
     .eq("id", registrationId)
     .maybeSingle();
   if (!reg || reg.status !== "verified") return;
+  if (!(await isEditableEdition(supabase, reg.edition_year as number))) return;
   await ensureRoster({
     school_id: (reg.school_id as string | null) ?? null,
     edition_year: reg.edition_year as number,
@@ -745,6 +825,7 @@ export async function issueCertificate(
   if (!type) return;
 
   const supabase = await createClient();
+  if (!(await isEditableRegistration(supabase, registrationId))) return;
   // RLS (cert_admin_write) restricts inserts to admins.
   await supabase.from("certificates").insert({
     registration_id: registrationId,
@@ -797,6 +878,7 @@ export async function advanceStudent(studentId: string, formData: FormData) {
   const note = String(formData.get("note") ?? "").trim() || null;
 
   const supabase = await createClient();
+  if (!(await isEditableStudent(supabase, studentId))) return;
   const { error } = await supabase.from("student_stage_results").upsert(
     {
       student_id: studentId,
@@ -834,6 +916,7 @@ async function cascadeAdvance(
     .maybeSingle();
   const schoolId = (reg?.school_id as string | null) ?? null;
   if (!reg || !schoolId) return;
+  if (!(await isEditableEdition(supabase, reg.edition_year as number))) return;
 
   const { data: students } = await supabase
     .from("students")
@@ -904,6 +987,7 @@ export async function sendSchoolBack(registrationId: string, formData: FormData)
     .eq("id", registrationId)
     .maybeSingle();
   if (!reg) return;
+  if (!(await isEditableEdition(supabase, reg.edition_year as number))) return;
 
   const { data: ed } = await supabase
     .from("editions")
@@ -919,6 +1003,25 @@ export async function sendSchoolBack(registrationId: string, formData: FormData)
     .from("registration_stage_results")
     .delete()
     .eq("registration_id", registrationId)
+    .in("stage", toClear);
+
+  // Preserve tournament history while removing the affected artifacts from the
+  // live bracket/boards.
+  await supabase
+    .from("tournament_group_entries")
+    .update({ advance_override: false, note: "Superseded by correction", updated_at: new Date().toISOString() })
+    .eq("registration_id", registrationId);
+  await supabase
+    .from("tournament_matches")
+    .update({
+      status: "cancelled",
+      superseded_at: new Date().toISOString(),
+      note: "Superseded by correction",
+      updated_at: new Date().toISOString(),
+    })
+    .or(
+      `team_a_registration_id.eq.${registrationId},team_b_registration_id.eq.${registrationId},winner_registration_id.eq.${registrationId}`,
+    )
     .in("stage", toClear);
 
   // Bring the reps back too (a no-op for stages they were never marked at).
@@ -943,4 +1046,318 @@ export async function sendSchoolBack(registrationId: string, formData: FormData)
   revalidatePath("/portal/school");
   revalidatePath("/portal/student");
   revalidatePath("/portal");
+}
+
+function numberOrNull(value: FormDataEntryValue | null) {
+  const raw = String(value ?? "").trim();
+  if (raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
+function textOrNull(value: FormDataEntryValue | null) {
+  const raw = String(value ?? "").trim();
+  return raw || null;
+}
+
+function qualificationReason(value: FormDataEntryValue | null) {
+  const raw = String(value ?? "").trim();
+  return QUALIFICATION_REASONS.includes(raw as QualificationReason) ? raw : null;
+}
+
+async function markSchoolAndReps(
+  registrationId: string,
+  stage: string,
+  outcome: "advanced" | "eliminated" | "pending",
+  extras: { score?: number | null; note?: string | null; reason?: string | null } = {},
+) {
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+  const { data: reg } = await supabase
+    .from("registrations")
+    .select("id, school_id, edition_year")
+    .eq("id", registrationId)
+    .maybeSingle();
+  if (!reg) return;
+  if (!(await isEditableEdition(supabase, reg.edition_year as number))) return;
+
+  await supabase.from("registration_stage_results").upsert(
+    {
+      registration_id: registrationId,
+      stage,
+      outcome,
+      score: extras.score ?? null,
+      note: extras.note ?? null,
+      reason: extras.reason ?? null,
+      updated_at: now,
+    },
+    { onConflict: "registration_id,stage" },
+  );
+
+  const schoolId = (reg.school_id as string | null) ?? null;
+  if (!schoolId) return;
+  const { data: students } = await supabase
+    .from("students")
+    .select("id")
+    .eq("school_id", schoolId)
+    .is("deactivated_at", null);
+  const ids = ((students ?? []) as { id: string }[]).map((s) => s.id);
+  if (ids.length) {
+    await supabase.from("student_stage_results").upsert(
+      ids.map((student_id) => ({
+        student_id,
+        stage,
+        outcome,
+        score: null,
+        note: extras.reason ?? extras.note ?? null,
+        updated_at: now,
+      })),
+      { onConflict: "student_id,stage" },
+    );
+  }
+}
+
+export async function saveQualificationDecision(registrationId: string, formData: FormData) {
+  if (!(await requireManage("participants"))) return;
+  const outcome = String(formData.get("outcome") ?? "");
+  if (!["advanced", "eliminated", "pending"].includes(outcome)) return;
+  const zone = textOrNull(formData.get("zone"));
+  const score = numberOrNull(formData.get("score"));
+  const reason = qualificationReason(formData.get("reason"));
+  const note = textOrNull(formData.get("note"));
+
+  const supabase = await createClient();
+  await supabase
+    .from("registrations")
+    .update({ qualification_zone: zone })
+    .eq("id", registrationId);
+  await markSchoolAndReps(registrationId, "Qualifications", outcome as "advanced" | "eliminated" | "pending", {
+    score,
+    reason,
+    note,
+  });
+  revalidatePath("/portal/admin/participants");
+  revalidatePath("/portal/school");
+  revalidatePath("/portal/student");
+}
+
+export async function createTournamentGroup(formData: FormData) {
+  if (!(await requireManage("participants"))) return;
+  const editionYear = Number(formData.get("edition_year"));
+  const name = String(formData.get("name") ?? "").trim();
+  const advanceCount = Number(formData.get("advance_count") ?? 2);
+  const sortOrder = Number(formData.get("sort_order") ?? 0);
+  if (!Number.isInteger(editionYear) || !name) return;
+  const supabase = await createClient();
+  if (!(await isEditableEdition(supabase, editionYear))) return;
+  await supabase.from("tournament_groups").upsert(
+    {
+      edition_year: editionYear,
+      stage: "Grand Finale Group Stage",
+      name,
+      advance_count: Number.isFinite(advanceCount) ? advanceCount : 2,
+      sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "edition_year,stage,name" },
+  );
+  revalidatePath("/portal/admin/participants");
+}
+
+export async function assignGroupEntry(formData: FormData) {
+  if (!(await requireManage("participants"))) return;
+  const groupId = String(formData.get("group_id") ?? "").trim();
+  const registrationId = String(formData.get("registration_id") ?? "").trim();
+  const seed = numberOrNull(formData.get("seed"));
+  if (!groupId || !registrationId) return;
+  const supabase = await createClient();
+  if (!(await isEditableGroup(supabase, groupId))) return;
+  if (!(await isEditableRegistration(supabase, registrationId))) return;
+  await supabase.from("tournament_group_entries").upsert(
+    {
+      group_id: groupId,
+      registration_id: registrationId,
+      seed,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "registration_id" },
+  );
+  await markSchoolAndReps(registrationId, "Qualifications", "advanced", {
+    reason: "Manual Selection",
+    note: "Assigned to Grand Finale Group Stage",
+  });
+  revalidatePath("/portal/admin/participants");
+  revalidatePath("/portal/school");
+  revalidatePath("/portal/student");
+}
+
+export async function updateGroupEntry(entryId: string, formData: FormData) {
+  if (!(await requireManage("participants"))) return;
+  const overrideRaw = String(formData.get("advance_override") ?? "");
+  const advanceOverride =
+    overrideRaw === "advance" ? true : overrideRaw === "hold" ? false : null;
+  const supabase = await createClient();
+  if (!(await isEditableGroupEntry(supabase, entryId))) return;
+  await supabase
+    .from("tournament_group_entries")
+    .update({
+      rank: numberOrNull(formData.get("rank")),
+      score: numberOrNull(formData.get("score")),
+      note: textOrNull(formData.get("note")),
+      advance_override: advanceOverride,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", entryId);
+  revalidatePath("/portal/admin/participants");
+}
+
+export async function advanceGroupEntries(groupId: string) {
+  if (!(await requireManage("participants"))) return;
+  const supabase = await createClient();
+  if (!(await isEditableGroup(supabase, groupId))) return;
+  const { data: group } = await supabase
+    .from("tournament_groups")
+    .select("id, advance_count")
+    .eq("id", groupId)
+    .maybeSingle();
+  if (!group) return;
+  const { data } = await supabase
+    .from("tournament_group_entries")
+    .select("registration_id, rank, advance_override")
+    .eq("group_id", groupId);
+  const rows = (data ?? []) as {
+    registration_id: string;
+    rank: number | null;
+    advance_override: boolean | null;
+  }[];
+  const advanceCount = Number(group.advance_count ?? 0);
+  for (const row of rows) {
+    const autoAdvanced =
+      row.rank != null && advanceCount > 0 && row.rank <= advanceCount;
+    const advanced = row.advance_override ?? autoAdvanced;
+    await markSchoolAndReps(
+      row.registration_id,
+      "Grand Finale Group Stage",
+      advanced ? "advanced" : "eliminated",
+      { note: advanced ? "Advanced from group stage" : "Did not advance from group stage" },
+    );
+  }
+  revalidatePath("/portal/admin/participants");
+  revalidatePath("/portal/school");
+  revalidatePath("/portal/student");
+}
+
+export async function createTournamentMatch(formData: FormData) {
+  if (!(await requireManage("participants"))) return;
+  const editionYear = Number(formData.get("edition_year"));
+  const stage = String(formData.get("stage") ?? "").trim();
+  const kind = String(formData.get("kind") ?? "knockout").trim();
+  const teamA = textOrNull(formData.get("team_a_registration_id"));
+  const teamB = textOrNull(formData.get("team_b_registration_id"));
+  if (!Number.isInteger(editionYear) || !stage || !["knockout", "face_off", "bye"].includes(kind)) return;
+  const supabase = await createClient();
+  if (!(await isEditableEdition(supabase, editionYear))) return;
+  if (teamA && !(await isEditableRegistration(supabase, teamA))) return;
+  if (teamB && !(await isEditableRegistration(supabase, teamB))) return;
+  await supabase.from("tournament_matches").insert({
+    edition_year: editionYear,
+    stage,
+    kind,
+    team_a_registration_id: teamA,
+    team_b_registration_id: kind === "bye" ? null : teamB,
+    status: kind === "bye" ? "completed" : "scheduled",
+    winner_registration_id: kind === "bye" ? teamA : null,
+    slot: numberOrNull(formData.get("slot")),
+    scheduled_at: textOrNull(formData.get("scheduled_at")),
+    venue: textOrNull(formData.get("venue")),
+    note: textOrNull(formData.get("note")),
+  });
+  if (kind === "bye" && teamA) {
+    await markSchoolAndReps(teamA, stage, "advanced", {
+      note: "Advanced directly to the next round",
+    });
+  }
+  revalidatePath("/portal/admin/participants");
+  revalidatePath("/portal/school");
+  revalidatePath("/portal/student");
+}
+
+export async function recordMatchResult(matchId: string, formData: FormData) {
+  if (!(await requireManage("participants"))) return;
+  const status = String(formData.get("status") ?? "completed") as TournamentMatchStatus;
+  if (!["scheduled", "in_progress", "completed", "needs_face_off", "cancelled"].includes(status)) return;
+  const winner = textOrNull(formData.get("winner_registration_id"));
+  const supabase = await createClient();
+  if (!(await isEditableMatch(supabase, matchId))) return;
+  const { data: match } = await supabase
+    .from("tournament_matches")
+    .select("id, stage, team_a_registration_id, team_b_registration_id")
+    .eq("id", matchId)
+    .maybeSingle();
+  if (!match) return;
+  await supabase
+    .from("tournament_matches")
+    .update({
+      team_a_score: numberOrNull(formData.get("team_a_score")),
+      team_b_score: numberOrNull(formData.get("team_b_score")),
+      winner_registration_id: winner,
+      status,
+      note: textOrNull(formData.get("note")),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", matchId);
+  if (status === "completed" && winner) {
+    await markSchoolAndReps(winner, match.stage as string, "advanced", {
+      note: "Recorded as match winner",
+    });
+    const loser =
+      winner === match.team_a_registration_id
+        ? (match.team_b_registration_id as string | null)
+        : (match.team_a_registration_id as string | null);
+    if (loser) {
+      await markSchoolAndReps(loser, match.stage as string, "eliminated", {
+        note: "Did not advance from match",
+      });
+    }
+  }
+  revalidatePath("/portal/admin/participants");
+  revalidatePath("/portal/school");
+  revalidatePath("/portal/student");
+}
+
+export async function issueIndividualAward(formData: FormData) {
+  if (!(await requireManage("participants"))) return;
+  const editionYear = Number(formData.get("edition_year"));
+  const studentId = String(formData.get("student_id") ?? "").trim();
+  const title = String(formData.get("title") ?? "").trim();
+  if (!Number.isInteger(editionYear) || !studentId || !title) return;
+  const supabase = await createClient();
+  if (!(await isEditableEdition(supabase, editionYear))) return;
+  if (!(await isEditableStudent(supabase, studentId))) return;
+  const { data: student } = await supabase
+    .from("students")
+    .select("school_id")
+    .eq("id", studentId)
+    .maybeSingle();
+  let registrationId: string | null = null;
+  if (student?.school_id) {
+    const { data: reg } = await supabase
+      .from("registrations")
+      .select("id")
+      .eq("school_id", student.school_id)
+      .eq("edition_year", editionYear)
+      .maybeSingle();
+    registrationId = (reg?.id as string | null) ?? null;
+  }
+  await supabase.from("individual_awards").insert({
+    edition_year: editionYear,
+    student_id: studentId,
+    registration_id: registrationId,
+    stage: textOrNull(formData.get("stage")),
+    title,
+    note: textOrNull(formData.get("note")),
+  });
+  revalidatePath("/portal/admin/participants");
+  revalidatePath("/portal/school");
+  revalidatePath("/portal/student");
 }
