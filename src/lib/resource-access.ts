@@ -21,11 +21,10 @@ export function accessRank(access?: string | null): number {
 }
 
 /**
- * Tier a school has unlocked, derived from competition progress: an accepted
- * (verified) school gets tier 1, and each distinct stage it's marked 'advanced'
- * at lifts it one tier — past zonals → qualified, a further advance → finalist —
- * capped at finalist. A school not yet verified (submitted / declined / no
- * registration) sees the public tier only.
+ * Tier a school has unlocked, derived from named milestones. Accepted
+ * (verified) schools get tier 1; advancing past Qualifications unlocks
+ * Qualified; advancing inside the Grand Finale path unlocks Finalist. Optional
+ * stages such as Round of 24 never change the ladder by count alone.
  */
 export function tierRank(
   status: string | null | undefined,
@@ -34,8 +33,21 @@ export function tierRank(
   if (status !== "verified") return 0;
   const advanced = new Set(
     (stageResults ?? []).filter((s) => s?.outcome === "advanced").map((s) => s.stage),
-  ).size;
-  return Math.min(3, 1 + advanced);
+  );
+  if (
+    [
+      "Grand Finale Group Stage",
+      "Round of 24",
+      "Round of 16",
+      "Quarter Finals",
+      "Semi Finals",
+      "Finals",
+    ].some((stage) => advanced.has(stage))
+  ) {
+    return 3;
+  }
+  if (advanced.has("Qualifications") || advanced.has("Zonal Stage")) return 2;
+  return 1;
 }
 
 /** Whether a school at the given unlocked tier can open a resource. */

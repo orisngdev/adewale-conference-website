@@ -54,6 +54,11 @@ next-env.d.ts
 *-service-account*.json
 secrets.*
 
+# Historical backfill source exports contain school, student, and guardian PII.
+data/backfill/competition-history/*.csv
+data/backfill/competition-history/*.tsv
+data/backfill/competition-history/*.xlsx
+
 
 # Supabase CLI local state — holds the project ref and a pooler URL WITH the DB password.
 supabase/.temp/
@@ -63,3 +68,5 @@ supabase/.branches/
 # prod/dev/staging project refs, orgs, and backup buckets).
 docs/environments-and-deploy.md
 scripts/db-push-prod.sh
+data/**
+data/

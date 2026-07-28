@@ -79,9 +79,14 @@ export default async function AdminAnalyticsPage({
       <JumpNav items={JUMP} />
 
       <PortalBody>
-        {/* Global time-window control */}
+        {/* Global activity-range control */}
         <div className="flex flex-wrap items-center justify-between gap-3 -mt-2">
-          <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Time window</p>
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Activity range</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Applies to activity metrics like attempts, downloads, learning, growth, and trend charts.
+            </p>
+          </div>
           <WindowFilter current={windowKey} edition={sp.edition} />
         </div>
 
@@ -95,60 +100,71 @@ export default async function AdminAnalyticsPage({
           <StatTile label={`Avg score · ${a.windowLabel}`} value={`${a.kpis.avgScore}%`} />
           <StatTile label={`Downloads · ${a.windowLabel}`} value={a.kpis.downloads} />
           <StatTile label="Certificates" value={a.kpis.certificates} />
+          <StatTile label="Waitlist pending" value={a.registrations.waitlistPending} />
+          <StatTile label="Waitlist notified" value={a.registrations.waitlistNotified} />
         </div>
 
-        {/* ── Registrations & competition (edition-scoped) ─────────────── */}
+        {/* ── Registrations & competition ──────────────────────────────── */}
         <section id="registrations" className="scroll-mt-24">
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-5 border-b border-border pb-3">
-            <h2 className="font-bebas text-2xl md:text-3xl text-foreground tracking-wide">
-              Registrations &amp; competition
-            </h2>
-            <EditionFilter years={a.editionYears} current={a.editionYear ?? 0} window={windowKey} />
-          </div>
+          <SectionHeading>Registrations &amp; competition</SectionHeading>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          {/* Cross-edition overview — spans every edition; the selector below does not touch these. */}
+          <div className="grid gap-4 lg:grid-cols-3">
             <Panel title="New registrations" subtitle="All editions, over time" className="lg:col-span-2">
               <TrendChart data={a.registrations.trend} series={[{ key: "value", name: "Registrations", color: BRAND.gold }]} />
             </Panel>
 
-            <Panel
-              title="Competition ladder"
-              subtitle={a.editionYear ? `${a.editionYear} edition · ${a.registrations.editionTotal} entries` : "No edition"}
-            >
-              <BarChartCard data={ladder} series={[{ key: "value", name: "Registrations" }]} horizontal />
-            </Panel>
-
-            <Panel title="Registrations by edition">
+            <Panel title="Registrations by edition" subtitle="All editions">
               <BarChartCard
                 data={a.registrations.byEdition}
                 series={[{ key: "value", name: "Registrations", color: BRAND.navy }]}
               />
             </Panel>
-
-            <Panel title="By LGA" subtitle={a.editionYear ? `${a.editionYear} edition · registrations by school LGA` : undefined} className="lg:col-span-2">
-              <BarChartCard
-                data={a.registrations.byLga}
-                series={[{ key: "value", name: "Registrations", color: BRAND.gold }]}
-                height={360}
-                minWidth={920}
-                wrapXAxisLabels
-              />
-            </Panel>
-
-            <Panel title="By category" subtitle={a.editionYear ? `${a.editionYear} edition` : undefined}>
-              <BarChartCard
-                data={a.registrations.byCategory}
-                series={[{ key: "value", name: "Registrations", color: BRAND.navy }]}
-                horizontal
-              />
-            </Panel>
           </div>
 
-          <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mt-4">
-            <StatTile label={`Declined · ${a.editionYear ?? ""}`.trim()} value={a.registrations.declined} />
-            <StatTile label="Waitlist pending" value={a.registrations.waitlistPending} />
-            <StatTile label="Waitlist notified" value={a.registrations.waitlistNotified} />
-            <StatTile label={`Entries · ${a.editionYear ?? ""}`.trim()} value={a.registrations.editionTotal} />
+          {/* Edition-scoped group — the selector governs every card inside this box, and nothing outside it. */}
+          <div className="border border-border bg-foreground/3 p-4 md:p-5 mt-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Competition edition</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Scopes the ladder, LGA, category and entry tiles in this box only.
+                </p>
+              </div>
+              <EditionFilter years={a.editionYears} current={a.editionYear ?? 0} window={windowKey} />
+            </div>
+
+            <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+              <StatTile label={`Entries · ${a.editionYear ?? ""}`.trim()} value={a.registrations.editionTotal} />
+              <StatTile label={`Declined · ${a.editionYear ?? ""}`.trim()} value={a.registrations.declined} />
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Panel
+                title="Competition ladder"
+                subtitle={a.editionYear ? `${a.editionYear} edition · ${a.registrations.editionTotal} entries` : "No edition"}
+              >
+                <BarChartCard data={ladder} series={[{ key: "value", name: "Registrations" }]} horizontal />
+              </Panel>
+
+              <Panel title="By category" subtitle={a.editionYear ? `${a.editionYear} edition` : undefined}>
+                <BarChartCard
+                  data={a.registrations.byCategory}
+                  series={[{ key: "value", name: "Registrations", color: BRAND.navy }]}
+                  horizontal
+                />
+              </Panel>
+
+              <Panel title="By LGA" subtitle={a.editionYear ? `${a.editionYear} edition · registrations by school LGA` : undefined} className="lg:col-span-2">
+                <BarChartCard
+                  data={a.registrations.byLga}
+                  series={[{ key: "value", name: "Registrations", color: BRAND.gold }]}
+                  height={360}
+                  minWidth={920}
+                  wrapXAxisLabels
+                />
+              </Panel>
+            </div>
           </div>
         </section>
 

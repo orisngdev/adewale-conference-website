@@ -4,9 +4,28 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
 import { requireManage } from "@/supabase/auth";
 
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+async function latestEditionYear(supabase: SupabaseClient) {
+  const { data } = await supabase
+    .from("editions")
+    .select("year")
+    .order("year", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const year = Number(data?.year);
+  return Number.isInteger(year) ? year : null;
+}
+
+async function isCurrentEdition(supabase: SupabaseClient, year: number) {
+  const latest = await latestEditionYear(supabase);
+  return latest != null && year === latest;
+}
+
 export async function toggleRegistration(year: number, open: boolean) {
   if (!(await requireManage("registrations"))) return;
   const supabase = await createClient();
+  if (!(await isCurrentEdition(supabase, year))) return;
   // RLS (editions_admin_write) restricts this to admins.
   await supabase
     .from("editions")
@@ -20,6 +39,7 @@ export async function setEditionStage(year: number, formData: FormData) {
   const stage = String(formData.get("stage") ?? "").trim();
   if (!stage) return;
   const supabase = await createClient();
+  if (!(await isCurrentEdition(supabase, year))) return;
   await supabase
     .from("editions")
     .update({ current_stage: stage })
@@ -35,6 +55,7 @@ export async function setEditionStage(year: number, formData: FormData) {
 export async function advanceEditionStage(year: number) {
   if (!(await requireManage("registrations"))) return;
   const supabase = await createClient();
+  if (!(await isCurrentEdition(supabase, year))) return;
   const { data: edition } = await supabase
     .from("editions")
     .select("stages, current_stage")
@@ -57,6 +78,8 @@ export async function createEdition(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   if (!Number.isInteger(year) || year < 2000) return;
   const supabase = await createClient();
+  const latest = await latestEditionYear(supabase);
+  if (latest != null && year <= latest) return;
   await supabase
     .from("editions")
     .upsert({ year, title: title || null }, { onConflict: "year" });
