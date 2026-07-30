@@ -84,8 +84,10 @@ export async function requestReplacement(
   const oldLevel = String(formData.get("old_level") ?? "").trim();
   const newName = String(formData.get("new_name") ?? "").trim();
   const newLevel = String(formData.get("new_level") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
   if (!oldName) return { error: "Missing the student being replaced." };
   if (!newName) return { error: "Enter the replacement student's name." };
+  if (!reason) return { error: "Enter the reason for the replacement." };
 
   // Incoming rep's extra attributes — kept so Airtable stays complete after the
   // swap. Neutral keys here; the admin approval maps them onto "Student Rep N …".
@@ -160,7 +162,7 @@ export async function requestReplacement(
     new_name: newName,
     new_level: newLevel || null,
     new_details: newDetails,
-    reason: String(formData.get("reason") ?? "").trim() || null,
+    reason,
     requested_by: user.id,
     status: "pending",
   });
