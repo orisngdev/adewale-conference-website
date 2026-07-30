@@ -137,9 +137,9 @@ export default function ReplaceRepButton({
 
                   <label className="block">
                     <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
-                      Reason (optional)
+                      Reason
                     </span>
-                    <textarea name="reason" rows={2} className={inputCls} />
+                    <textarea name="reason" rows={2} required className={inputCls} />
                   </label>
 
                   {state?.error ? (

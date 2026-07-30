@@ -231,7 +231,7 @@ export interface StudentReplacementRow {
   new_name: string;
   new_level: string | null;
   new_details: Record<string, string>;
-  reason: string | null;
+  reason: string;
   status: ReplacementStatus;
   requested_by: string | null;
   reviewed_by: string | null;
