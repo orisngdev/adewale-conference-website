@@ -125,7 +125,7 @@ export default async function AdminEditions() {
                           }
                           description={
                             current.registration_open
-                              ? "New registrations are rejected everywhere, public form included. This does not email educators."
+                              ? "The registration form will close, and new schools can join the waitlist for the next edition. This does not email educators."
                               : "The public form and in-portal registration start accepting schools. This does not email educators."
                           }
                           confirmLabel={current.registration_open ? "Yes, close" : "Yes, open"}
