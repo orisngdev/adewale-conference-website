@@ -144,7 +144,7 @@ export default async function AdminEditions() {
               <p className="text-sm text-muted-foreground -mt-3">
                 {current.registration_open
                   ? "The public form and in-portal registration are accepting schools for this edition."
-                  : "New registrations are rejected everywhere; the public site shows the waitlist instead."}
+                  : "New registrations are rejected everywhere; new schools can join the waitlist on the public site instead."}
                 {!current.registration_open ? (
                   <>
                     {" "}
