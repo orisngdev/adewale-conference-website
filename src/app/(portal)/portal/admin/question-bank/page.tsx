@@ -4,6 +4,7 @@ import BulkImport from "@/components/portal/bulk-import";
 import {
   FilterBar,
   Pagination,
+  clampPage,
   filterSelectCls,
   pageBounds,
   parsePage,
@@ -35,27 +36,37 @@ export default async function QuestionBank({
   await requireModuleView("content");
   const canManage = await canManageModule("content");
   const sp = await searchParams;
-  const page = parsePage(sp.page);
-  const { from, to } = pageBounds(page, PAGE_SIZE);
+  const requestedPage = parsePage(sp.page);
+  const { from, to } = pageBounds(requestedPage, PAGE_SIZE);
   const supabase = await createClient();
-  let query = supabase
-    .from("question_bank")
-    .select("id, prompt, options, correct_index, mode, subject, level, topic, difficulty", {
-      count: "exact",
-    })
-    .order("created_at", { ascending: false })
-    .range(from, to);
-  if (sp.subject) query = query.eq("subject", sp.subject);
-  if (sp.level) query = query.eq("level", sp.level);
-  if (sp.mode) query = query.eq("mode", sp.mode);
-  if (sp.q?.trim()) {
-    const escaped = sp.q.trim().replace(/[%_\\]/g, (m) => `\\${m}`);
-    query = query.or(`prompt.ilike.%${escaped}%,topic.ilike.%${escaped}%`);
-  }
-  const { data, count } = await query;
-  const questions = (data ?? []) as Question[];
+
+  const buildQuery = () => {
+    let query = supabase
+      .from("question_bank")
+      .select("id, prompt, options, correct_index, mode, subject, level, topic, difficulty", {
+        count: "exact",
+      })
+      .order("created_at", { ascending: false });
+    if (sp.subject) query = query.eq("subject", sp.subject);
+    if (sp.level) query = query.eq("level", sp.level);
+    if (sp.mode) query = query.eq("mode", sp.mode);
+    if (sp.q?.trim()) {
+      const escaped = sp.q.trim().replace(/[%_\\]/g, (m) => `\\${m}`);
+      query = query.or(`prompt.ilike.%${escaped}%,topic.ilike.%${escaped}%`);
+    }
+    return query;
+  };
+
+  const { data, count } = await buildQuery().range(from, to);
+  let questions = (data ?? []) as Question[];
   const total = count ?? questions.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = clampPage(requestedPage, pageCount);
+  if (page !== requestedPage) {
+    const clamped = pageBounds(page, PAGE_SIZE);
+    const { data: pageData } = await buildQuery().range(clamped.from, clamped.to);
+    questions = (pageData ?? []) as Question[];
+  }
 
   return (
     <>

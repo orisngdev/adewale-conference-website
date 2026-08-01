@@ -8,6 +8,7 @@ import {
 import {
   FilterBar,
   Pagination,
+  clampPage,
   filterSelectCls,
   pageBounds,
   parsePage,
@@ -38,19 +39,15 @@ export default async function AdminUsers({
 }) {
   await requireModuleView("team");
   const { q, role, page: pageParam } = await searchParams;
-  const page = parsePage(pageParam);
-  const { from, to } = pageBounds(page, PAGE_SIZE);
+  const requestedPage = parsePage(pageParam);
+  const { from, to } = pageBounds(requestedPage, PAGE_SIZE);
   const supabase = await createClient();
   const user = await getSessionUser();
 
-  let query = supabase
-    .from("profiles")
-    .select("id, email, full_name, role, created_at", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .range(from, to);
+  let ors: string[] | null = null;
   if (q?.trim()) {
     const escaped = q.trim().replace(/[%_\\]/g, (m) => `\\${m}`);
-    const ors = [`email.ilike.%${escaped}%`, `full_name.ilike.%${escaped}%`];
+    ors = [`email.ilike.%${escaped}%`, `full_name.ilike.%${escaped}%`];
     // A 6-char query may be a student access code — resolve it so admins can
     // look a student up by the code in hand.
     if (/^[a-z0-9]{4,8}$/i.test(q.trim())) {
@@ -62,14 +59,28 @@ export default async function AdminUsers({
       const ids = (codeHits ?? []).map((s) => s.auth_user_id).filter(Boolean);
       if (ids.length) ors.push(`id.in.(${ids.join(",")})`);
     }
-    query = query.or(ors.join(","));
   }
-  if (role) query = query.eq("role", role);
 
-  const { data, count } = await query;
-  const profiles = (data ?? []) as ProfileRow[];
+  const buildProfilesQuery = () => {
+    let query = supabase
+      .from("profiles")
+      .select("id, email, full_name, role, created_at", { count: "exact" })
+      .order("created_at", { ascending: false });
+    if (ors) query = query.or(ors.join(","));
+    if (role) query = query.eq("role", role);
+    return query;
+  };
+
+  const { data, count } = await buildProfilesQuery().range(from, to);
+  let profiles = (data ?? []) as ProfileRow[];
   const total = count ?? profiles.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = clampPage(requestedPage, pageCount);
+  if (page !== requestedPage) {
+    const clamped = pageBounds(page, PAGE_SIZE);
+    const { data: pageData } = await buildProfilesQuery().range(clamped.from, clamped.to);
+    profiles = (pageData ?? []) as ProfileRow[];
+  }
   const filtering = Boolean(q?.trim() || role);
 
   // Student rows carry their access code + school (visible to admins only —

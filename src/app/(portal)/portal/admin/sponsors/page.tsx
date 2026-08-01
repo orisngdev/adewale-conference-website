@@ -9,6 +9,7 @@ import {
 import {
   FilterBar,
   Pagination,
+  clampPage,
   filterSelectCls,
   parsePage,
 } from "@/components/portal/list-controls";
@@ -94,7 +95,7 @@ export default async function AdminSponsors({
   });
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const page = Math.min(parsePage(pageParam), pageCount);
+  const page = clampPage(parsePage(pageParam), pageCount);
   const rows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Tier tallies over everything (not the current filter).

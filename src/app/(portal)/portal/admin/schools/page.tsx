@@ -9,6 +9,7 @@ import {
 import {
   FilterBar,
   Pagination,
+  clampPage,
   filterSelectCls,
   pageBounds,
   parsePage,
@@ -48,26 +49,28 @@ export default async function AdminSchools({
   await requireModuleView("registrations");
   const canManage = await canManageModule("registrations");
   const { q, lga, category, page: pageParam } = await searchParams;
-  const page = parsePage(pageParam);
-  const { from, to } = pageBounds(page, PAGE_SIZE);
+  const requestedPage = parsePage(pageParam);
+  const { from, to } = pageBounds(requestedPage, PAGE_SIZE);
   const supabase = await createClient();
 
   // Search + filters run in the database — the schools list is 500+ rows.
-  let schoolsQuery = supabase
-    .from("schools")
-    .select("id, name, lga, category, registrations(count)", { count: "exact" })
-    .order("name", { ascending: true })
-    .range(from, to);
-  if (q?.trim()) {
-    for (const token of searchTokens(q)) {
-      schoolsQuery = schoolsQuery.ilike("name", `%${escapeLikePattern(token)}%`);
+  const buildSchoolsQuery = () => {
+    let schoolsQuery = supabase
+      .from("schools")
+      .select("id, name, lga, category, registrations(count)", { count: "exact" })
+      .order("name", { ascending: true });
+    if (q?.trim()) {
+      for (const token of searchTokens(q)) {
+        schoolsQuery = schoolsQuery.ilike("name", `%${escapeLikePattern(token)}%`);
+      }
     }
-  }
-  if (lga) schoolsQuery = schoolsQuery.eq("lga", lga);
-  if (category) schoolsQuery = schoolsQuery.eq("category", category);
+    if (lga) schoolsQuery = schoolsQuery.eq("lga", lga);
+    if (category) schoolsQuery = schoolsQuery.eq("category", category);
+    return schoolsQuery;
+  };
 
   const [{ data: schoolData, count }, { data: pendingData }] = await Promise.all([
-    schoolsQuery,
+    buildSchoolsQuery().range(from, to),
     supabase
       .from("school_members")
       .select("id, email, schools(name)")
@@ -75,10 +78,16 @@ export default async function AdminSchools({
       .order("created_at", { ascending: true }),
   ]);
 
-  const schools = (schoolData ?? []) as unknown as SchoolRow[];
+  let schools = (schoolData ?? []) as unknown as SchoolRow[];
   const pending = (pendingData ?? []) as unknown as PendingMember[];
   const total = count ?? schools.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = clampPage(requestedPage, pageCount);
+  if (page !== requestedPage) {
+    const clamped = pageBounds(page, PAGE_SIZE);
+    const { data: pageData } = await buildSchoolsQuery().range(clamped.from, clamped.to);
+    schools = (pageData ?? []) as unknown as SchoolRow[];
+  }
   const filtering = Boolean(q?.trim() || lga || category);
 
   return (

@@ -1,13 +1,11 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/portal/ui";
+export { FilterBar } from "@/components/portal/list-filter-bar";
+export { filterFormQuery } from "@/components/portal/list-filter-query";
 
 // Shared search / filter / pagination controls for portal list pages.
-// Everything is server-rendered: the filter bar is a plain GET form and the
-// pager is plain links, so the pages stay RSCs with zero client JS.
-
-const inputCls =
-  "rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
+// The pager and helpers stay server-compatible. FilterBar is a tiny client
+// component re-exported above so filtering can soft-navigate instead of doing a
+// browser-level GET form refresh.
 
 export const filterSelectCls =
   "rounded-md border border-foreground/15 bg-card px-2 py-2 text-sm outline-none focus:border-primary";
@@ -30,48 +28,15 @@ export function parsePage(value: string | undefined) {
   return Number.isInteger(page) && page > 0 ? page : 1;
 }
 
+/** Keep a requested page within the available 1-based page range. */
+export function clampPage(page: number, pageCount: number) {
+  return Math.min(Math.max(page, 1), Math.max(pageCount, 1));
+}
+
 /** Supabase .range() bounds for a 1-based page. */
 export function pageBounds(page: number, pageSize: number) {
   const from = (page - 1) * pageSize;
   return { from, to: from + pageSize - 1 };
-}
-
-/**
- * GET-form filter bar: a search input (`q`) plus any <select> filters passed
- * as children. `preserve` carries params that aren't form fields (e.g. the
- * edition tab) through submission; page intentionally resets to 1.
- */
-export function FilterBar({
-  q,
-  placeholder,
-  preserve,
-  children,
-}: {
-  q?: string;
-  placeholder: string;
-  preserve?: ListParams;
-  children?: React.ReactNode;
-}) {
-  return (
-    <Card className="p-4 mb-4">
-      <form method="get" className="flex flex-wrap items-center gap-2">
-        {Object.entries(preserve ?? {}).map(([key, value]) =>
-          value ? <input key={key} type="hidden" name={key} value={value} /> : null,
-        )}
-        <input
-          type="search"
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder={placeholder}
-          className={`${inputCls} flex-1 min-w-48`}
-        />
-        {children}
-        <Button type="submit" size="sm" variant="outline">
-          Apply
-        </Button>
-      </form>
-    </Card>
-  );
 }
 
 /**

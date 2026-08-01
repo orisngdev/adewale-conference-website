@@ -17,11 +17,11 @@ import { genderMix } from "@/components/portal/registration-details";
 import {
   FilterBar,
   Pagination,
+  clampPage,
   filterSelectCls,
   parsePage,
 } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
-import { getRegistrationStats } from "@/lib/registration-stats";
 import { searchHaystackMatches, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
@@ -46,6 +46,38 @@ type ActivationFilter = (typeof ACTIVATION_FILTERS)[number];
 const BULK_FORM_ID = "bulk-decisions";
 
 const PAGE_SIZE = 20;
+const FETCH_PAGE_SIZE = 1000;
+const REGISTRATION_SELECT =
+  "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, details, schools(name), profiles(email, full_name)";
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+async function fetchRegistrationRows(
+  supabase: SupabaseClient,
+  editionYear: number | null,
+) {
+  const rows: AdminRegistrationRow[] = [];
+  for (let from = 0; ; from += FETCH_PAGE_SIZE) {
+    let query = supabase
+      .from("registrations")
+      .select(REGISTRATION_SELECT)
+      .order("edition_year", { ascending: false })
+      .order("created_at", { ascending: false })
+      .range(from, from + FETCH_PAGE_SIZE - 1);
+    if (editionYear != null) query = query.eq("edition_year", editionYear);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("registration list fetch failed:", error.message);
+      break;
+    }
+
+    const batch = (data ?? []) as unknown as AdminRegistrationRow[];
+    rows.push(...batch);
+    if (batch.length < FETCH_PAGE_SIZE) break;
+  }
+  return rows;
+}
 
 export default async function AdminRegistrations({
   searchParams,
@@ -62,30 +94,19 @@ export default async function AdminRegistrations({
   const canManage = await canManageModule("registrations");
   const { edition, q, status, activation, page: pageParam } = await searchParams;
   const supabase = await createClient();
-  const [{ data: regData }, { data: editionData }] = await Promise.all([
-    supabase
-      .from("registrations")
-      .select(
-        "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, details, schools(name), profiles(email, full_name)",
-      )
-      .order("edition_year", { ascending: false })
-      .order("created_at", { ascending: false }),
+  const [{ data: editionData }] = await Promise.all([
     supabase.from("editions").select("year").order("year", { ascending: false }),
   ]);
 
-  const all = (regData ?? []) as unknown as AdminRegistrationRow[];
   const editionYears = ((editionData ?? []) as { year: number }[]).map((e) => e.year);
-  const years = editionYears.length
-    ? editionYears
-    : [...new Set(all.map((r) => r.edition_year))].sort((a, b) => b - a);
+  const years = editionYears;
   // Default to the newest edition — the close-of-registration review works one
   // edition at a time.
   const activeYear = edition === "all" ? null : Number(edition) || years[0] || null;
   const currentYear = years[0] ?? null;
+  const all = await fetchRegistrationRows(supabase, activeYear);
   const canEditRegistrations = canManage && activeYear != null && activeYear === currentYear;
-  const inEdition = activeYear ? all.filter((r) => r.edition_year === activeYear) : all;
-  const registrationStats = await getRegistrationStats(supabase, activeYear);
-  const underReview = registrationStats.submitted;
+  const inEdition = all;
 
   // Search matches school, contact, coordinator, and reps; status narrows the
   // review queue. Both apply within the active edition tab.
@@ -114,15 +135,16 @@ export default async function AdminRegistrations({
   });
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const page = Math.min(parsePage(pageParam), pageCount);
+  const page = clampPage(parsePage(pageParam), pageCount);
   const registrations = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const listParams = { edition, q, status, activation: activationFilter };
   const hasActiveFilter = Boolean(needle || status || activationFilter);
   const statusCounts: Record<RegistrationStatus, number> = {
-    submitted: registrationStats.submitted,
-    verified: registrationStats.verified,
-    declined: registrationStats.declined,
+    submitted: filtered.filter((r) => r.status === "submitted").length,
+    verified: filtered.filter((r) => r.status === "verified").length,
+    declined: filtered.filter((r) => r.status === "declined").length,
   };
+  const underReview = statusCounts.submitted;
 
   return (
     <>

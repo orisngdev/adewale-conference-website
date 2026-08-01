@@ -8,7 +8,7 @@ import { BmcSnapshot, ChallengeChip, ChallengeTypeBadge } from "@/components/por
 import { ChallengeTypePicker } from "@/components/portal/challenge-type-picker";
 import { Card, EmptyState, PortalBody, PortalHeader, SectionHeading, StatTile } from "@/components/portal/ui";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
-import { FilterBar, Pagination, filterSelectCls, pageBounds, parsePage } from "@/components/portal/list-controls";
+import { FilterBar, Pagination, clampPage, filterSelectCls, pageBounds, parsePage } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
 import { searchHaystackMatches, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
@@ -138,7 +138,7 @@ export default async function AdminChallengeDetail({
   // Filter + sort (awaiting first) + paginate.
   const q = searchTokens(sp.q).join(" ");
   const statusFilter = sp.status === "submitted" || sp.status === "reviewed" ? sp.status : "";
-  const page = parsePage(sp.page);
+  const requestedPage = parsePage(sp.page);
 
   let list = enriched;
   if (statusFilter) list = list.filter((e) => e.status === statusFilter);
@@ -150,6 +150,7 @@ export default async function AdminChallengeDetail({
     return b.submitted_at.localeCompare(a.submitted_at);
   });
   const pageCount = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+  const page = clampPage(requestedPage, pageCount);
   const { from, to } = pageBounds(page, PAGE_SIZE);
   const pageRows = list.slice(from, to + 1);
 

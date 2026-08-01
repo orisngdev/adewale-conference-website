@@ -9,6 +9,7 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import {
   FilterBar,
   Pagination,
+  clampPage,
   pageBounds,
   parsePage,
 } from "@/components/portal/list-controls";
@@ -43,32 +44,40 @@ export default async function AdminWaitlist({
   await requireModuleView("registrations");
   const canManage = await canManageModule("registrations");
   const { q, page: pageParam } = await searchParams;
-  const page = parsePage(pageParam);
-  const { from, to } = pageBounds(page, PAGE_SIZE);
+  const requestedPage = parsePage(pageParam);
+  const { from, to } = pageBounds(requestedPage, PAGE_SIZE);
   const supabase = await createClient();
 
-  let query = supabase
-    .from("waitlist")
-    .select("id, school_name, lga, category, contact_name, contact_email, phone, notified_at, created_at", {
-      count: "exact",
-    })
-    .order("created_at", { ascending: false })
-    .range(from, to);
-  if (q?.trim()) {
-    const escaped = q.trim().replace(/[%_\\]/g, (m) => `\\${m}`);
-    query = query.or(
-      `school_name.ilike.%${escaped}%,contact_name.ilike.%${escaped}%,contact_email.ilike.%${escaped}%`,
-    );
-  }
+  const buildQuery = () => {
+    let query = supabase
+      .from("waitlist")
+      .select("id, school_name, lga, category, contact_name, contact_email, phone, notified_at, created_at", {
+        count: "exact",
+      })
+      .order("created_at", { ascending: false });
+    if (q?.trim()) {
+      const escaped = q.trim().replace(/[%_\\]/g, (m) => `\\${m}`);
+      query = query.or(
+        `school_name.ilike.%${escaped}%,contact_name.ilike.%${escaped}%,contact_email.ilike.%${escaped}%`,
+      );
+    }
+    return query;
+  };
 
   const [{ data, count }, { count: pendingCount }] = await Promise.all([
-    query,
+    buildQuery().range(from, to),
     supabase.from("waitlist").select("id", { count: "exact", head: true }).is("notified_at", null),
   ]);
 
-  const entries = (data ?? []) as WaitlistRow[];
+  let entries = (data ?? []) as WaitlistRow[];
   const total = count ?? entries.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const page = clampPage(requestedPage, pageCount);
+  if (page !== requestedPage) {
+    const clamped = pageBounds(page, PAGE_SIZE);
+    const { data: pageData } = await buildQuery().range(clamped.from, clamped.to);
+    entries = (pageData ?? []) as WaitlistRow[];
+  }
   const pending = pendingCount ?? 0;
 
   return (

@@ -11,7 +11,7 @@ import {
 import SettingsTabs from "@/components/portal/settings-tabs";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { SubmitButton } from "@/components/portal/submit-button";
-import { FilterBar, Pagination, parsePage } from "@/components/portal/list-controls";
+import { FilterBar, Pagination, clampPage, parsePage } from "@/components/portal/list-controls";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { SchoolCertificatesCard, type RosterStudent } from "@/components/portal/participant-school-card";
 import { pageMetadata } from "@/lib/seo";
@@ -180,7 +180,7 @@ export default async function AdminParticipants({
     return searchHaystackMatches([r.schools?.name, r.contact_email, zoneOf(r), ...reps], q);
   });
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const page = Math.min(parsePage(pageParam), pageCount);
+  const page = clampPage(parsePage(pageParam), pageCount);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const listParams = { edition, q };
 

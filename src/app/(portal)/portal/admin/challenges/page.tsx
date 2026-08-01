@@ -8,6 +8,7 @@ import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import {
   FilterBar,
   Pagination,
+  clampPage,
   filterSelectCls,
   pageBounds,
   parsePage,
@@ -51,8 +52,8 @@ export default async function AdminChallenges({
   const q = sp.q?.trim() ?? "";
   const typeFilter = isChallengeType(sp.type) ? sp.type : "";
   const publishedFilter = sp.published === "yes" || sp.published === "no" ? sp.published : "";
-  const page = parsePage(sp.page);
-  const { from, to } = pageBounds(page, PAGE_SIZE);
+  const requestedPage = parsePage(sp.page);
+  const { from, to } = pageBounds(requestedPage, PAGE_SIZE);
 
   const supabase = await createClient();
 
@@ -60,17 +61,26 @@ export default async function AdminChallenges({
   const { data: allRows } = await supabase.from("challenges").select("id, type, published");
   const all = (allRows ?? []) as { id: string; type: ChallengeType; published: boolean }[];
 
-  let query = supabase
-    .from("challenges")
-    .select("id, title, type, metric, deadline, published", { count: "exact" })
-    .order("created_at", { ascending: false });
-  if (q) query = query.ilike("title", `%${q}%`);
-  if (typeFilter) query = query.eq("type", typeFilter);
-  if (publishedFilter) query = query.eq("published", publishedFilter === "yes");
+  const buildQuery = () => {
+    let query = supabase
+      .from("challenges")
+      .select("id, title, type, metric, deadline, published", { count: "exact" })
+      .order("created_at", { ascending: false });
+    if (q) query = query.ilike("title", `%${q}%`);
+    if (typeFilter) query = query.eq("type", typeFilter);
+    if (publishedFilter) query = query.eq("published", publishedFilter === "yes");
+    return query;
+  };
 
-  const { data, count } = await query.range(from, to);
-  const rows = (data ?? []) as Row[];
+  const { data, count } = await buildQuery().range(from, to);
+  let rows = (data ?? []) as Row[];
   const pageCount = Math.max(1, Math.ceil((count ?? 0) / PAGE_SIZE));
+  const page = clampPage(requestedPage, pageCount);
+  if (page !== requestedPage) {
+    const clamped = pageBounds(page, PAGE_SIZE);
+    const { data: pageData } = await buildQuery().range(clamped.from, clamped.to);
+    rows = (pageData ?? []) as Row[];
+  }
 
   // Entry / submission counts for the challenges on this page.
   const ids = rows.map((r) => r.id);
