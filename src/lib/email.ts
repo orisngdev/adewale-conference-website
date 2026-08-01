@@ -22,6 +22,12 @@ function getApiKey() {
   return process.env.SENDGRID_API_KEY ?? "";
 }
 
+function emailSendsEnabled() {
+  const value = process.env.ADEWALE_EMAILS_ENABLED;
+  if (!value) return true;
+  return !["0", "false", "no", "off"].includes(value.trim().toLowerCase());
+}
+
 function getSenderAddress() {
   const value = process.env.ADEWALE_EMAIL_FROM;
   if (!value) {
@@ -54,6 +60,11 @@ function getNotifyRecipient(): EmailRecipient | null {
  * configured. Real SendGrid errors are surfaced to the caller.
  */
 export async function sendEmail({ to, subject, html, bcc }: SendEmailInput): Promise<boolean> {
+  if (!emailSendsEnabled()) {
+    console.warn("ADEWALE_EMAILS_ENABLED disables email sending; skipping email send.");
+    return false;
+  }
+
   const apiKey = getApiKey();
   if (!apiKey) {
     console.warn("SENDGRID_API_KEY is not configured; skipping email send.");
@@ -364,6 +375,30 @@ export function buildDeclinedEmail(data: {
   const html = render("declined", "Entry update", {
     schoolFullName: data.schoolFullName,
     editionYear: String(data.editionYear),
+    portalUrl: getPortalLoginUrl(),
+  });
+  const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
+  return { to, subject, html };
+}
+
+/** Manual registration open/closed announcement to school educators. */
+export function buildRegistrationStatusEmail(data: {
+  email: string;
+  name?: string | null;
+  editionYear: number;
+  registrationOpen: boolean;
+}) {
+  const statusLabel = data.registrationOpen ? "open" : "closed";
+  const subject = data.registrationOpen
+    ? `ASC ${data.editionYear} registration is open`
+    : `ASC ${data.editionYear} registration is closed`;
+  const html = render("registration-status", `Registration ${statusLabel}`, {
+    editionYear: String(data.editionYear),
+    statusLabel,
+    eyebrow: data.registrationOpen ? "Registration open" : "Registration closed",
+    message: data.registrationOpen
+      ? "Schools can submit or update their conference registration through the portal while the window remains open."
+      : "New school registrations are no longer being accepted. Your portal remains available for preparation, updates, and competition information.",
     portalUrl: getPortalLoginUrl(),
   });
   const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];

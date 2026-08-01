@@ -217,7 +217,7 @@ export async function POST(request: Request) {
         return NextResponse.json(
           {
             error:
-              "Registration is currently closed. Follow our channels — we'll announce when the next edition opens.",
+              "Registration is currently closed. Join the waitlist and we'll email you when the next edition opens.",
           },
           { status: 409 },
         );

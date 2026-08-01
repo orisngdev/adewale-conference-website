@@ -9,6 +9,7 @@ import {
 } from "@/components/portal/ui";
 import { SubmitButton } from "@/components/portal/submit-button";
 import { EditionStages, nextStage } from "@/components/portal/edition-stages";
+import { RegistrationAnnouncementForm } from "@/components/portal/registration-announcement-form";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
@@ -35,15 +36,25 @@ export default async function AdminEditions() {
   await requireModuleView("registrations");
   const canManage = await canManageModule("registrations");
   const supabase = await createClient();
-  const [{ data: editionData }, { data: regData }] = await Promise.all([
+  const [{ data: editionData }, { data: regData }, { data: announcementData }] = await Promise.all([
     supabase
       .from("editions")
       .select("year, title, registration_open, stages, current_stage")
       .order("year", { ascending: false }),
     supabase.from("registrations").select("edition_year, status"),
+    supabase
+      .from("edition_registration_announcements")
+      .select("edition_year, registration_open, sent_at, recipient_count")
+      .order("sent_at", { ascending: false }),
   ]);
   const editions = (editionData ?? []) as Edition[];
   const regs = (regData ?? []) as { edition_year: number; status: RegistrationStatus }[];
+  const announcements = (announcementData ?? []) as {
+    edition_year: number;
+    registration_open: boolean;
+    sent_at: string;
+    recipient_count: number;
+  }[];
   const statsFor = (year: number) => {
     const rows = regs.filter((r) => r.edition_year === year);
     return {
@@ -53,6 +64,7 @@ export default async function AdminEditions() {
       declined: rows.filter((r) => r.status === "declined").length,
     };
   };
+  const latestAnnouncementFor = (year: number) => announcements.find((a) => a.edition_year === year);
 
   const [current, ...past] = editions;
 
@@ -85,7 +97,7 @@ export default async function AdminEditions() {
                     </p>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-start justify-end gap-3">
                   <span
                     className={`inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide ${
                       current.registration_open
@@ -101,33 +113,70 @@ export default async function AdminEditions() {
                     {current.registration_open ? "Registration open" : "Registration closed"}
                   </span>
                   {canManage ? (
-                    <form action={toggleRegistration.bind(null, current.year, !current.registration_open)}>
-                      <ConfirmSubmitButton
-                        size="sm"
-                        variant={current.registration_open ? "outline" : "default"}
-                        title={
-                          current.registration_open
-                            ? `Close ${current.year} registration?`
-                            : `Open ${current.year} registration?`
-                        }
-                        description={
-                          current.registration_open
-                            ? "New registrations are rejected everywhere, public form included."
-                            : "The public form and in-portal registration start accepting schools."
-                        }
-                        confirmLabel={current.registration_open ? "Yes, close" : "Yes, open"}
-                      >
-                        {current.registration_open ? "Close registration" : "Open registration"}
-                      </ConfirmSubmitButton>
-                    </form>
+                    <>
+                      <form action={toggleRegistration.bind(null, current.year, !current.registration_open)}>
+                        <ConfirmSubmitButton
+                          size="sm"
+                          variant={current.registration_open ? "outline" : "default"}
+                          title={
+                            current.registration_open
+                              ? `Close ${current.year} registration?`
+                              : `Open ${current.year} registration?`
+                          }
+                          description={
+                            current.registration_open
+                              ? "New registrations are rejected everywhere, public form included. This does not email educators."
+                              : "The public form and in-portal registration start accepting schools. This does not email educators."
+                          }
+                          confirmLabel={current.registration_open ? "Yes, close" : "Yes, open"}
+                        >
+                          {current.registration_open ? "Close registration" : "Open registration"}
+                        </ConfirmSubmitButton>
+                      </form>
+                      <RegistrationAnnouncementForm
+                        year={current.year}
+                        registrationOpen={current.registration_open}
+                      />
+                    </>
                   ) : null}
                 </div>
               </div>
               <p className="text-sm text-muted-foreground -mt-3">
                 {current.registration_open
                   ? "The public form and in-portal registration are accepting schools for this edition."
-                  : "New registrations are rejected everywhere (public form included) until you open this."}
+                  : "New registrations are rejected everywhere; the public site shows the waitlist instead."}
+                {!current.registration_open ? (
+                  <>
+                    {" "}
+                    <Link href="/portal/admin/waitlist" className="text-primary underline underline-offset-2">
+                      View waitlist
+                    </Link>
+                    .
+                  </>
+                ) : null}
               </p>
+              {(() => {
+                const latest = latestAnnouncementFor(current.year);
+                if (!latest) {
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      No registration status announcement has been sent for this edition.
+                    </p>
+                  );
+                }
+                const sentAt = new Date(latest.sent_at).toLocaleString("en-NG", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                });
+                return (
+                  <p className="text-xs text-muted-foreground">
+                    Last announcement: registration{" "}
+                    {latest.registration_open ? "open" : "closed"} · {sentAt} ·{" "}
+                    {latest.recipient_count} recipient
+                    {latest.recipient_count === 1 ? "" : "s"}
+                  </p>
+                );
+              })()}
 
               {/* The year at a glance — live from the registrations table. */}
               <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">

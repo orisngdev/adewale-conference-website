@@ -16,6 +16,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/registration": ["./src/emails/**/*"],
     "/api/sponsorship": ["./src/emails/**/*"],
+    "/portal/admin/editions": ["./src/emails/**/*"],
   },
   // Let the service worker control the whole origin, and keep it uncached so a
   // new release's sw.js is picked up promptly.
