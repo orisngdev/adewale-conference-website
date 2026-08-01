@@ -12,9 +12,13 @@ import { EditionStages, nextStage } from "@/components/portal/edition-stages";
 import { RegistrationAnnouncementForm } from "@/components/portal/registration-announcement-form";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
+import {
+  EMPTY_REGISTRATION_STATS,
+  getRegistrationStatsByEdition,
+} from "@/lib/registration-stats";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { createClient } from "@/supabase/server";
-import type { Edition, RegistrationStatus } from "@/supabase/types";
+import type { Edition } from "@/supabase/types";
 import {
   advanceEditionStage,
   createEdition,
@@ -28,42 +32,32 @@ export const dynamic = "force-dynamic";
 const inputCls =
   "rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
 
-// Accepted into the competition — a single decision now; progress lives in the
-// stage-results tables, not the status.
-const ACCEPTED: RegistrationStatus[] = ["verified"];
-
 export default async function AdminEditions() {
   await requireModuleView("registrations");
   const canManage = await canManageModule("registrations");
   const supabase = await createClient();
-  const [{ data: editionData }, { data: regData }, { data: announcementData }] = await Promise.all([
+  const [{ data: editionData }, { data: announcementData }] = await Promise.all([
     supabase
       .from("editions")
       .select("year, title, registration_open, stages, current_stage")
       .order("year", { ascending: false }),
-    supabase.from("registrations").select("edition_year, status"),
     supabase
       .from("edition_registration_announcements")
       .select("edition_year, registration_open, sent_at, recipient_count")
       .order("sent_at", { ascending: false }),
   ]);
   const editions = (editionData ?? []) as Edition[];
-  const regs = (regData ?? []) as { edition_year: number; status: RegistrationStatus }[];
   const announcements = (announcementData ?? []) as {
     edition_year: number;
     registration_open: boolean;
     sent_at: string;
     recipient_count: number;
   }[];
-  const statsFor = (year: number) => {
-    const rows = regs.filter((r) => r.edition_year === year);
-    return {
-      total: rows.length,
-      review: rows.filter((r) => r.status === "submitted").length,
-      accepted: rows.filter((r) => ACCEPTED.includes(r.status)).length,
-      declined: rows.filter((r) => r.status === "declined").length,
-    };
-  };
+  const statsByEdition = await getRegistrationStatsByEdition(
+    supabase,
+    editions.map((edition) => edition.year),
+  );
+  const statsFor = (year: number) => statsByEdition.get(year) ?? EMPTY_REGISTRATION_STATS;
   const latestAnnouncementFor = (year: number) => announcements.find((a) => a.edition_year === year);
 
   const [current, ...past] = editions;

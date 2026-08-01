@@ -21,6 +21,7 @@ import {
   parsePage,
 } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
+import { getRegistrationStats } from "@/lib/registration-stats";
 import { searchHaystackMatches, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
@@ -61,23 +62,30 @@ export default async function AdminRegistrations({
   const canManage = await canManageModule("registrations");
   const { edition, q, status, activation, page: pageParam } = await searchParams;
   const supabase = await createClient();
-  const { data: regData } = await supabase
-    .from("registrations")
-    .select(
-      "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, details, schools(name), profiles(email, full_name)",
-    )
-    .order("edition_year", { ascending: false })
-    .order("created_at", { ascending: false });
+  const [{ data: regData }, { data: editionData }] = await Promise.all([
+    supabase
+      .from("registrations")
+      .select(
+        "id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, details, schools(name), profiles(email, full_name)",
+      )
+      .order("edition_year", { ascending: false })
+      .order("created_at", { ascending: false }),
+    supabase.from("editions").select("year").order("year", { ascending: false }),
+  ]);
 
   const all = (regData ?? []) as unknown as AdminRegistrationRow[];
-  const years = [...new Set(all.map((r) => r.edition_year))].sort((a, b) => b - a);
+  const editionYears = ((editionData ?? []) as { year: number }[]).map((e) => e.year);
+  const years = editionYears.length
+    ? editionYears
+    : [...new Set(all.map((r) => r.edition_year))].sort((a, b) => b - a);
   // Default to the newest edition — the close-of-registration review works one
   // edition at a time.
   const activeYear = edition === "all" ? null : Number(edition) || years[0] || null;
   const currentYear = years[0] ?? null;
   const canEditRegistrations = canManage && activeYear != null && activeYear === currentYear;
   const inEdition = activeYear ? all.filter((r) => r.edition_year === activeYear) : all;
-  const underReview = inEdition.filter((r) => r.status === "submitted").length;
+  const registrationStats = await getRegistrationStats(supabase, activeYear);
+  const underReview = registrationStats.submitted;
 
   // Search matches school, contact, coordinator, and reps; status narrows the
   // review queue. Both apply within the active edition tab.
@@ -110,9 +118,11 @@ export default async function AdminRegistrations({
   const registrations = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const listParams = { edition, q, status, activation: activationFilter };
   const hasActiveFilter = Boolean(needle || status || activationFilter);
-  const statusCounts = Object.fromEntries(
-    STATUSES.map((s) => [s, inEdition.filter((r) => r.status === s).length]),
-  ) as Record<RegistrationStatus, number>;
+  const statusCounts: Record<RegistrationStatus, number> = {
+    submitted: registrationStats.submitted,
+    verified: registrationStats.verified,
+    declined: registrationStats.declined,
+  };
 
   return (
     <>

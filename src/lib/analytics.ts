@@ -5,6 +5,11 @@ import { requireAdmin } from "@/supabase/auth";
 import { tierRank } from "@/lib/resource-access";
 import { LGA_OPTIONS, SCHOOL_CATEGORY_OPTIONS } from "@/lib/forms";
 import {
+  EMPTY_REGISTRATION_STATS,
+  getRegistrationStats,
+  getRegistrationStatsByEdition,
+} from "@/lib/registration-stats";
+import {
   orderedBuckets,
   tally,
   topN,
@@ -411,40 +416,43 @@ export async function getAdminAnalytics(opts: {
 
   // Selected edition (default: latest).
   const editionYear = opts.editionYear ?? editionYears[0] ?? null;
+  const [editionStats, statsByEdition] = await Promise.all([
+    editionYear == null
+      ? Promise.resolve(EMPTY_REGISTRATION_STATS)
+      : getRegistrationStats(supabase, editionYear),
+    getRegistrationStatsByEdition(supabase, editionYears),
+  ]);
 
   // ── Registrations & competition (edition-scoped for the ladder) ────────────
   const stageByReg = new Map<string, { stage: string; outcome: string | null }[]>();
   for (const s of stageRows) (stageByReg.get(s.registration_id) ?? stageByReg.set(s.registration_id, []).get(s.registration_id)!).push(s);
 
   const editionRegs = editionYear == null ? [] : regs.filter((r) => r.edition_year === editionYear);
-  let accepted = 0,
-    qualified = 0,
-    finalist = 0,
-    declined = 0;
+  let qualified = 0,
+    finalist = 0;
   for (const r of editionRegs) {
-    if (r.status === "declined") declined++;
     const tier = tierRank(r.status, stageByReg.get(r.id) ?? []);
-    if (tier >= 1) accepted++;
     if (tier >= 2) qualified++;
     if (tier >= 3) finalist++;
   }
   const ladder: BarPoint[] = [
-    { label: "Registered", value: editionRegs.length },
-    { label: "Accepted", value: accepted },
+    { label: "Registered", value: editionStats.total },
+    { label: "Accepted", value: editionStats.verified },
     { label: "Qualified", value: qualified },
     { label: "Finalist", value: finalist },
   ];
 
-  const byEdition: BarPoint[] = [...tally(regs, (r) => String(r.edition_year)).entries()]
-    .sort((a, b) => Number(b[0]) - Number(a[0]))
-    .map(([label, value]) => ({ label, value }));
+  const byEdition: BarPoint[] = editionYears.map((year) => ({
+    label: String(year),
+    value: (statsByEdition.get(year) ?? EMPTY_REGISTRATION_STATS).total,
+  }));
   const byLgaCounts = tally(editionRegs, (r) => lgaBucket(r.schools?.lga));
   const byCategoryCounts = tally(editionRegs, (r) => categoryBucket(r.schools?.category));
   const byLga = orderedBuckets(byLgaCounts, LGA_OPTIONS).map((point) =>
     registrationBreakdownDetails(
       point,
       editionYear,
-      editionRegs.length,
+      editionStats.total,
       editionRegs.filter((r) => lgaBucket(r.schools?.lga) === point.label),
     ),
   );
@@ -452,7 +460,7 @@ export async function getAdminAnalytics(opts: {
     registrationBreakdownDetails(
       point,
       editionYear,
-      editionRegs.length,
+      editionStats.total,
       editionRegs.filter((r) => categoryBucket(r.schools?.category) === point.label),
     ),
   );
@@ -565,8 +573,8 @@ export async function getAdminAnalytics(opts: {
       byEdition,
       byLga,
       byCategory,
-      editionTotal: editionRegs.length,
-      declined,
+      editionTotal: editionStats.total,
+      declined: editionStats.declined,
       waitlistPending: waitlist.filter((w) => !w.notified_at).length,
       waitlistNotified: waitlist.filter((w) => w.notified_at).length,
     },

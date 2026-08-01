@@ -371,6 +371,8 @@ export async function syncAirtableRegistrations() {
     body,
     link: "/portal/admin/registrations",
   });
+  revalidatePath("/portal/admin");
+  revalidatePath("/portal/admin/editions");
   revalidatePath("/portal/admin/registrations");
 }
 
@@ -425,6 +427,7 @@ export async function setRegistrationStatus(
     });
   }
   revalidatePath("/portal/admin");
+  revalidatePath("/portal/admin/editions");
   revalidatePath("/portal/admin/registrations");
 }
 
@@ -515,6 +518,7 @@ export async function bulkRegistrationDecision(formData: FormData) {
   await triggerRosterProvision(approvedIds);
 
   revalidatePath("/portal/admin/registrations");
+  revalidatePath("/portal/admin/editions");
   revalidatePath("/portal/admin");
 }
 

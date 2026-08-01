@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { Card, PortalBody, PortalHeader, SectionHeading, StatTile } from "@/components/portal/ui";
+import {
+  EMPTY_REGISTRATION_STATS,
+  getRegistrationStats,
+  getRegistrationStatsByEdition,
+} from "@/lib/registration-stats";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 
@@ -18,38 +23,43 @@ const SECTIONS = [
 
 const STATUSES = ["submitted", "verified", "declined"] as const;
 
-type RegRow = { status: string; edition_year: number; certificates: { id: string }[] };
 type AttemptRow = { score: number; total: number; violations: number };
 
 export default async function AdminOverview() {
   const supabase = await createClient();
   const [
-    { data: regs },
+    { data: editionData },
     { count: userCount },
     { count: schoolCount },
     { count: quizCount },
+    { count: certificateCount },
     { data: attempts },
   ] = await Promise.all([
-    supabase.from("registrations").select("status, edition_year, certificates(id)"),
+    supabase.from("editions").select("year").order("year", { ascending: false }),
     supabase.from("profiles").select("id", { count: "exact", head: true }),
     supabase.from("schools").select("id", { count: "exact", head: true }),
     supabase.from("assessments").select("id", { count: "exact", head: true }),
+    supabase.from("certificates").select("id", { count: "exact", head: true }),
     supabase.from("assessment_attempts").select("score, total, violations").eq("status", "submitted"),
   ]);
 
-  const registrations = (regs ?? []) as unknown as RegRow[];
+  const years = ((editionData ?? []) as { year: number }[]).map((e) => e.year);
+  const [registrationStats, statsByEdition] = await Promise.all([
+    getRegistrationStats(supabase),
+    getRegistrationStatsByEdition(supabase, years),
+  ]);
   const attemptRows = (attempts ?? []) as AttemptRow[];
 
-  const byStatus = Object.fromEntries(
-    STATUSES.map((s) => [s, registrations.filter((r) => r.status === s).length]),
-  );
-  const byEdition = [
-    ...registrations.reduce((m, r) => {
-      m.set(r.edition_year, (m.get(r.edition_year) ?? 0) + 1);
-      return m;
-    }, new Map<number, number>()),
-  ].sort((a, b) => b[0] - a[0]);
-  const certs = registrations.reduce((n, r) => n + (r.certificates?.length ?? 0), 0);
+  const byStatus = {
+    submitted: registrationStats.submitted,
+    verified: registrationStats.verified,
+    declined: registrationStats.declined,
+  };
+  const byEdition = years.map((year) => [
+    year,
+    (statsByEdition.get(year) ?? EMPTY_REGISTRATION_STATS).total,
+  ] as const);
+  const certs = certificateCount ?? 0;
 
   const attemptCount = attemptRows.length;
   const avgPct = attemptCount
@@ -66,7 +76,7 @@ export default async function AdminOverview() {
       <PortalHeader title="Staff console" subtitle="Overview of the conference platform" />
       <PortalBody>
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-          <StatTile label="Registrations" value={registrations.length} />
+          <StatTile label="Registrations" value={registrationStats.total} />
           <StatTile label="Pending review" value={byStatus.submitted} />
           <StatTile label="Users" value={userCount ?? 0} />
           <StatTile label="Schools" value={schoolCount ?? 0} />
