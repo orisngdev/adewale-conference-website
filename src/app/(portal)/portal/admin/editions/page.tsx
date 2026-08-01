@@ -67,6 +67,11 @@ export default async function AdminEditions() {
   const latestAnnouncementFor = (year: number) => announcements.find((a) => a.edition_year === year);
 
   const [current, ...past] = editions;
+  const currentNextStage = current ? nextStage(current.stages, current.current_stage) : null;
+  const showPostRegistrationAdvance =
+    Boolean(canManage && current && !current.registration_open) &&
+    current?.current_stage === "Registration" &&
+    currentNextStage === "Qualifications";
 
   return (
     <>
@@ -193,22 +198,47 @@ export default async function AdminEditions() {
                 })()}
               </div>
 
+              {showPostRegistrationAdvance && current ? (
+                <div className="border border-primary/40 bg-primary/10 p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
+                      Registration phase closed
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      The registration window is closed. Move the edition to Qualifications when the review team is ready to begin the next phase.
+                    </p>
+                  </div>
+                  <form action={advanceEditionStage.bind(null, current.year)}>
+                    <ConfirmSubmitButton
+                      size="sm"
+                      title="Advance to Qualifications?"
+                      description="The edition moves out of Registration and every registered school and student is notified in the portal."
+                      confirmLabel="Yes, advance"
+                    >
+                      Advance to Qualifications →
+                    </ConfirmSubmitButton>
+                  </form>
+                </div>
+              ) : null}
+
               <div className="space-y-3">
                 <EditionStages stages={current.stages} current={current.current_stage} />
                 {canManage ? (
                   <>
                     <div className="flex flex-wrap items-center gap-2">
-                      {nextStage(current.stages, current.current_stage) ? (
-                        <form action={advanceEditionStage.bind(null, current.year)}>
-                          <ConfirmSubmitButton
-                            size="sm"
-                            title={`Advance to ${nextStage(current.stages, current.current_stage)}?`}
-                            description="Every registered school and student is notified in the portal."
-                            confirmLabel="Yes, advance"
-                          >
-                            Advance to {nextStage(current.stages, current.current_stage)} →
-                          </ConfirmSubmitButton>
-                        </form>
+                      {currentNextStage ? (
+                        !showPostRegistrationAdvance ? (
+                          <form action={advanceEditionStage.bind(null, current.year)}>
+                            <ConfirmSubmitButton
+                              size="sm"
+                              title={`Advance to ${currentNextStage}?`}
+                              description="Every registered school and student is notified in the portal."
+                              confirmLabel="Yes, advance"
+                            >
+                              Advance to {currentNextStage} →
+                            </ConfirmSubmitButton>
+                          </form>
+                        ) : null
                       ) : (
                         <span className="text-sm text-muted-foreground">Final stage reached.</span>
                       )}
