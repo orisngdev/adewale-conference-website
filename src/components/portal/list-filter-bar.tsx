@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/portal/ui";
@@ -26,34 +26,39 @@ export function FilterBar({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const href = `${pathname}${filterFormQuery(formData)}`;
+    const current = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+    if (href === current) return;
     startTransition(() => {
-      router.push(href);
+      router.push(href, { scroll: false });
     });
   }
 
   return (
     <Card className="p-4 mb-4">
-      <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
-        {Object.entries(preserve ?? {}).map(([key, value]) =>
-          value ? <input key={key} type="hidden" name={key} value={value} /> : null,
-        )}
-        <input
-          type="search"
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder={placeholder}
-          className={`${inputCls} flex-1 min-w-48`}
-        />
-        {children}
-        <Button type="submit" size="sm" variant="outline" disabled={pending}>
-          {pending ? "Applying..." : "Apply"}
-        </Button>
+      <form onSubmit={submit} className="flex flex-wrap items-center gap-2" aria-busy={pending}>
+        <fieldset disabled={pending} className="contents">
+          {Object.entries(preserve ?? {}).map(([key, value]) =>
+            value ? <input key={key} type="hidden" name={key} value={value} /> : null,
+          )}
+          <input
+            type="search"
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder={placeholder}
+            className={`${inputCls} flex-1 min-w-48`}
+          />
+          {children}
+          <Button type="submit" size="sm" variant="outline">
+            {pending ? "Applying..." : "Apply"}
+          </Button>
+        </fieldset>
       </form>
     </Card>
   );

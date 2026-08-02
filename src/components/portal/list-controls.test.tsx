@@ -27,9 +27,9 @@ describe("portal list pagination helpers", () => {
   it("builds clean filter queries from form submissions", () => {
     const formData = new FormData();
     formData.set("edition", "2026");
-    formData.set("q", "Remo");
+    formData.set("q", " Remo ");
     formData.set("status", "");
-    formData.set("activation", "pending");
+    formData.set("activation", " pending ");
     formData.set("page", "4");
 
     assert.equal(filterFormQuery(formData), "?edition=2026&q=Remo&activation=pending");
@@ -42,5 +42,13 @@ describe("portal list pagination helpers", () => {
     formData.set("page", "2");
 
     assert.equal(filterFormQuery(formData), "");
+  });
+
+  it("drops whitespace-only filter values", () => {
+    const formData = new FormData();
+    formData.set("q", "   ");
+    formData.set("role", " student ");
+
+    assert.equal(filterFormQuery(formData), "?role=student");
   });
 });

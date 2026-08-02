@@ -2,8 +2,10 @@
 export function filterFormQuery(formData: FormData) {
   const search = new URLSearchParams();
   for (const [key, value] of formData.entries()) {
-    if (key === "page" || typeof value !== "string" || !value) continue;
-    search.set(key, value);
+    if (key === "page" || typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+    search.set(key, trimmed);
   }
   const qs = search.toString();
   return qs ? `?${qs}` : "";
