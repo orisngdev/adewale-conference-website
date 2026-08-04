@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Card, EmptyState, SectionHeading } from "@/components/portal/ui";
 import { Button } from "@/components/ui/button";
+import ResourcePreviewButton from "@/components/portal/resource-preview-button";
 import { Lock } from "lucide-react";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
@@ -128,12 +129,16 @@ export default async function SchoolResources({
                     {lockHint(r.access)}
                   </p>
                 ) : r.hasFile ? (
-                  <a
-                    href={`/api/resources/${r.id}/download`}
-                    className="mt-3 text-xs uppercase tracking-[0.15em] text-primary hover:underline"
-                  >
-                    Download ↓
-                  </a>
+                  r.downloadable ? (
+                    <a
+                      href={`/api/resources/${r.id}/download`}
+                      className="mt-3 text-xs uppercase tracking-[0.15em] text-primary hover:underline"
+                    >
+                      Download ↓
+                    </a>
+                  ) : (
+                    <ResourcePreviewButton id={r.id} title={r.title} isPdf={r.isPdf} />
+                  )
                 ) : null}
               </Card>
             ))}

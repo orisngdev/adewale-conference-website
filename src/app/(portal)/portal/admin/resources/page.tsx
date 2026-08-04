@@ -20,6 +20,7 @@ import {
   RESOURCE_ACCESS_OPTIONS,
   RESOURCE_AUDIENCE_LABEL,
   RESOURCE_COLUMNS,
+  RESOURCE_DOC_ACCEPT,
   RESOURCE_TYPES,
   RESOURCE_TYPE_LABEL,
   mapResource,
@@ -136,8 +137,8 @@ export default async function AdminResources() {
                 </label>
 
                 <label className="space-y-1">
-                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">File (PDF, etc.)</span>
-                  <input type="file" name="file" disabled={!storageReady} className={`w-full ${inputCls} disabled:opacity-60`} />
+                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Document file (PDF, Word, PowerPoint, Excel)</span>
+                  <input type="file" name="file" accept={RESOURCE_DOC_ACCEPT} disabled={!storageReady} className={`w-full ${inputCls} disabled:opacity-60`} />
                 </label>
 
                 <label className="sm:col-span-2 space-y-1">
@@ -154,6 +155,14 @@ export default async function AdminResources() {
               <label className="flex items-center gap-2 text-sm text-muted-foreground">
                 <input type="checkbox" name="published" defaultChecked className="size-4 accent-primary" />
                 Publish now (uncheck to save as a draft)
+              </label>
+
+              <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                <input type="checkbox" name="downloadable" defaultChecked className="mt-0.5 size-4 accent-primary" />
+                <span>
+                  Allow download (uncheck for preview-only — PDFs open in an in-app
+                  reader with no download; other document types open in the browser)
+                </span>
               </label>
 
               <SubmitButton size="sm" pendingText="Uploading…">Add resource</SubmitButton>

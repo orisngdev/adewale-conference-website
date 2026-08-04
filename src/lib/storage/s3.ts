@@ -45,19 +45,32 @@ export const s3Provider: StorageProvider = {
     );
   },
 
+  async read(key) {
+    const out = await getClient().send(
+      new GetObjectCommand({ Bucket: bucket, Key: key }),
+    );
+    const bytes = await out.Body?.transformToByteArray();
+    if (!bytes) throw new Error("Empty object body");
+    return Buffer.from(bytes);
+  },
+
   async remove(key) {
     await getClient().send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
   },
 
   async signedDownloadUrl(key, opts) {
+    // Default to attachment when a filename is given (legacy download behavior);
+    // an explicit disposition wins.
+    const disposition = opts?.disposition ?? (opts?.filename ? "attachment" : undefined);
+    const contentDisposition = disposition
+      ? opts?.filename
+        ? `${disposition}; filename="${opts.filename.replace(/"/g, "")}"`
+        : disposition
+      : undefined;
     const command = new GetObjectCommand({
       Bucket: bucket,
       Key: key,
-      ...(opts?.filename
-        ? {
-            ResponseContentDisposition: `attachment; filename="${opts.filename.replace(/"/g, "")}"`,
-          }
-        : {}),
+      ...(contentDisposition ? { ResponseContentDisposition: contentDisposition } : {}),
     });
     return getSignedUrl(getClient(), command, { expiresIn: opts?.expiresIn ?? 300 });
   },

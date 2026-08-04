@@ -30,6 +30,7 @@ type DetailRegistration = {
   school_id: string | null;
   edition_year: number;
   status: RegistrationStatus;
+  decline_reason: string | null;
   claim_code: string | null;
   contact_email: string | null;
   contact_name: string | null;
@@ -74,7 +75,7 @@ export default async function RegistrationDetailPage({
   const { data } = await supabase
     .from("registrations")
     .select(
-      "id, school_id, edition_year, status, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, details, schools(name, lga, category), profiles(email, full_name)",
+      "id, school_id, edition_year, status, decline_reason, claim_code, contact_email, contact_name, onboarded_at, provisioned_count, reps, details, schools(name, lga, category), profiles(email, full_name)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -194,28 +195,46 @@ export default async function RegistrationDetailPage({
                   </div>
                   <form
                     action={setRegistrationStatus.bind(null, registration.id)}
-                    className="flex flex-wrap gap-2"
+                    className="space-y-2"
                   >
-                    <select
-                      name="status"
-                      defaultValue={registration.status}
-                      className={`${filterSelectCls} flex-1 capitalize`}
-                    >
-                      {STATUSES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                    <ConfirmSubmitButton
-                      size="sm"
-                      variant="outline"
-                      title="Change registration status?"
-                      description="The school will be emailed if this moves to verified or declined."
-                      confirmLabel="Yes, update"
-                    >
-                      Update
-                    </ConfirmSubmitButton>
+                    <div className="flex flex-wrap gap-2">
+                      <select
+                        name="status"
+                        defaultValue={registration.status}
+                        className={`${filterSelectCls} flex-1 capitalize`}
+                      >
+                        {STATUSES.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                      <ConfirmSubmitButton
+                        size="sm"
+                        variant="outline"
+                        title="Change registration status?"
+                        description="The school will be emailed if this moves to verified or declined. A decline reason is included in that email and shown on their portal."
+                        confirmLabel="Yes, update"
+                      >
+                        Update
+                      </ConfirmSubmitButton>
+                    </div>
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                        Decline reason (optional)
+                      </span>
+                      <textarea
+                        name="decline_reason"
+                        rows={2}
+                        defaultValue={registration.decline_reason ?? ""}
+                        placeholder="e.g. No female representative — please replace one rep and resubmit."
+                        className={`${filterSelectCls} mt-1 w-full`}
+                      />
+                      <span className="mt-1 block text-[11px] text-muted-foreground">
+                        Only used when you set the status to declined; the school sees this and can
+                        fix it and resubmit.
+                      </span>
+                    </label>
                   </form>
                 </Card>
               ) : null}

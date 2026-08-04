@@ -241,6 +241,26 @@ export interface StudentReplacementRow {
   schools?: { name: string | null } | null;
 }
 
+/** Return shape of the requestInfoChange server action (used by its dialog). */
+export type InfoChangeResult = { ok?: boolean; error?: string };
+
+export interface InfoChangeRequestRow {
+  id: string;
+  registration_id: string;
+  school_id: string;
+  target: "teacher" | "principal";
+  new_name: string | null;
+  new_phone: string | null;
+  reason: string;
+  status: ReplacementStatus;
+  admin_note: string | null;
+  requested_by: string | null;
+  reviewed_by: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  schools?: { name: string | null } | null;
+}
+
 export interface Edition {
   year: number;
   title: string | null;
@@ -261,6 +281,7 @@ export interface RegistrationWithRelations {
   id: string;
   edition_year: number;
   status: RegistrationStatus;
+  decline_reason: string | null;
   reps: unknown;
   schools: { name: string | null; lga: string | null } | null;
   certificates: Certificate[];
@@ -303,6 +324,7 @@ export interface AdminRegistrationRow {
   id: string;
   edition_year: number;
   status: RegistrationStatus;
+  decline_reason: string | null;
   claim_code: string | null;
   contact_email: string | null;
   contact_name: string | null;

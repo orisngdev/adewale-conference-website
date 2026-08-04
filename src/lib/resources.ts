@@ -42,7 +42,7 @@ export const STUDENT_VISIBLE_AUDIENCE = ["student", "both"] as const;
 
 // Columns selected for a resource everywhere in the app.
 export const RESOURCE_COLUMNS =
-  "id, title, slug, type, subject, level, edition_year, access, audience, storage_key, file_name, content_type, external_url, body, published, created_at";
+  "id, title, slug, type, subject, level, edition_year, access, audience, storage_key, file_name, content_type, external_url, body, published, downloadable, created_at";
 
 export interface ResourceRow {
   id: string;
@@ -60,7 +60,56 @@ export interface ResourceRow {
   external_url: string | null;
   body: string | null;
   published: boolean;
+  downloadable: boolean;
   created_at: string;
+}
+
+// A file resource is a PDF (so it can render in the preview-only reader) when its
+// content type says so or the name ends in .pdf.
+export function isPdfResource(row: {
+  content_type: string | null;
+  file_name: string | null;
+}): boolean {
+  const ct = (row.content_type ?? "").toLowerCase();
+  if (ct === "application/pdf") return true;
+  return (row.file_name ?? "").toLowerCase().endsWith(".pdf");
+}
+
+// Document file types an admin may upload as a resource. `accept` uses the
+// extension list on the input; the server re-checks (client accept is a hint,
+// not enforcement).
+export const RESOURCE_DOC_EXTENSIONS = [
+  ".pdf",
+  ".doc",
+  ".docx",
+  ".ppt",
+  ".pptx",
+  ".xls",
+  ".xlsx",
+] as const;
+export const RESOURCE_DOC_ACCEPT = RESOURCE_DOC_EXTENSIONS.join(",");
+
+const RESOURCE_DOC_MIME = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/octet-stream", // some browsers report this for Office files
+  "", // …or nothing at all
+]);
+
+// Accept a file only when its extension is a known document type AND the MIME (if
+// the browser sent one) isn't an obviously different type. Extension is primary
+// because Office MIME reporting is unreliable across browsers.
+export function isAllowedResourceFile(name: string, mime: string): boolean {
+  const lower = name.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  const ext = dot >= 0 ? lower.slice(dot) : "";
+  if (!(RESOURCE_DOC_EXTENSIONS as readonly string[]).includes(ext)) return false;
+  return RESOURCE_DOC_MIME.has((mime ?? "").toLowerCase());
 }
 
 export interface PortalResource {
@@ -78,6 +127,10 @@ export interface PortalResource {
   externalUrl: string | null;
   body: string | null;
   published: boolean;
+  /** When false, the file is preview-only (no download link). */
+  downloadable: boolean;
+  /** True for PDF files — the only kind the preview reader can render. */
+  isPdf: boolean;
 }
 
 export function mapResource(row: ResourceRow): PortalResource {
@@ -96,6 +149,8 @@ export function mapResource(row: ResourceRow): PortalResource {
     externalUrl: row.external_url,
     body: row.body,
     published: row.published,
+    downloadable: row.downloadable ?? true,
+    isPdf: isPdfResource(row),
   };
 }
 

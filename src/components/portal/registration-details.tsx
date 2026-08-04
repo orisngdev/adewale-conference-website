@@ -65,6 +65,32 @@ export function genderMix(details: Details): string {
   return [f ? `${f}F` : null, m ? `${m}M` : null].filter(Boolean).join(" · ");
 }
 
+/**
+ * True when a registration is missing a captured educator or principal name/email
+ * — e.g. rows imported from Airtable with the student reps filled but the contact
+ * columns blank. Admins can fix these from the registration detail page.
+ */
+export function hasContactGap(
+  details: Details,
+  contactName?: string | null,
+  contactEmail?: string | null,
+): boolean {
+  const teacherName = val(details, "Teacher Full Name") || (contactName ?? "").trim();
+  const teacherEmail = val(details, "Teacher Email Address") || (contactEmail ?? "").trim();
+  const principalName = val(details, "Principal Full Name");
+  const principalEmail = val(details, "Principal Email Address");
+  return !teacherName || !teacherEmail || !principalName || !principalEmail;
+}
+
+/** True when at least one student rep is female (gender starts with "f"). */
+export function hasFemaleRep(details: Details): boolean {
+  for (const n of [1, 2, 3]) {
+    if (!val(details, `Student Rep ${n} Full Name`)) continue;
+    if (val(details, `Student Rep ${n} Gender`).toLowerCase().startsWith("f")) return true;
+  }
+  return false;
+}
+
 export function RegistrationDetails({
   details,
   reps,

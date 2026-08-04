@@ -370,12 +370,31 @@ export function buildDeclinedEmail(data: {
   name?: string | null;
   schoolFullName: string;
   editionYear: number;
+  declineReason?: string | null;
 }) {
   const subject = `Your ASC ${data.editionYear} entry — ${data.schoolFullName}`;
+  // The letter adapts to whether the admin left a reason. With a reason the entry
+  // is fixable, so the copy is softer and points to the resubmit path; without
+  // one it's the original polite not-selected note. All three blocks are raw HTML
+  // so an empty one leaves no stray placeholder; any reason text is escaped.
+  const reason = (data.declineReason ?? "").trim();
+  const pStyle = "margin:0 0 18px;font-size:15px;line-height:24px;color:#4A4E5C;";
+  const verdictBlock = reason
+    ? `<p class="body-font" style="${pStyle}">After reviewing your entry for the ${data.editionYear} competition, we couldn&rsquo;t accept it as it currently stands. The reason is below &mdash; the good news is you can fix it and resubmit for another review.</p>`
+    : `<p class="body-font" style="${pStyle}">After reviewing all applications for this edition, we&rsquo;re sorry to share that your school&rsquo;s entry was not selected this time. Interest this year was exceptional, and the decision does not reflect on your students&rsquo; potential.</p>`;
+  const reasonBlock = reason
+    ? `<p class="body-font" style="${pStyle}"><strong style="color:#0A0F1E;">Reason:</strong> ${escapeHtml(reason)}</p>`
+    : "";
+  const closingBlock = reason
+    ? `<p class="body-font" style="${pStyle}">Log in to your portal, make the change (for example, replace a representative), and resubmit your entry for review. Your portal access &mdash; practice drills, the Tech Skills Lab, plans and resources &mdash; stays open throughout.</p>`
+    : `<p class="body-font" style="${pStyle}">Your portal access remains open &mdash; your students can keep using the practice drills, Tech Skills Lab, and study resources all year, and we&rsquo;d be glad to see ${escapeHtml(data.schoolFullName)} register again next edition.</p>`;
   const html = render("declined", "Entry update", {
     schoolFullName: data.schoolFullName,
     editionYear: String(data.editionYear),
     portalUrl: getPortalLoginUrl(),
+    verdictBlock,
+    reasonBlock,
+    closingBlock,
   });
   const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
   return { to, subject, html };

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import EmptyState from "@/components/ui/empty-state";
 import { Card, SectionHeading, StatusBadge } from "@/components/portal/ui";
+import RequestInfoChangeButton from "@/components/portal/request-info-change-button";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
@@ -20,7 +21,7 @@ export default async function SchoolRegistrations() {
 
   const { data } = await supabase
     .from("registrations")
-    .select("id, edition_year, status, reps, schools(name)")
+    .select("id, edition_year, status, decline_reason, reps, schools(name)")
     .order("edition_year", { ascending: false });
   const registrations = (data ?? []) as unknown as RegistrationWithRelations[];
 
@@ -50,6 +51,15 @@ export default async function SchoolRegistrations() {
                   </span>
                   <StatusBadge status={r.status} />
                 </div>
+
+                {r.status === "declined" && r.decline_reason ? (
+                  <div className="border-l-4 border-l-red-600 bg-red-600/5 p-3">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-700">
+                      Reason from the reviewers
+                    </p>
+                    <p className="text-sm text-foreground mt-1">{r.decline_reason}</p>
+                  </div>
+                ) : null}
 
                 {reps.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
@@ -85,6 +95,13 @@ export default async function SchoolRegistrations() {
                   — an admin reviews the swap, then the old access code stops
                   working and the new student gets a fresh one.
                 </p>
+
+                <div className="flex flex-wrap items-center gap-2 border-t border-foreground/5 pt-3">
+                  <p className="text-xs text-muted-foreground flex-1 min-w-40">
+                    Educator or principal name or phone wrong? Ask the team to fix it.
+                  </p>
+                  <RequestInfoChangeButton registrationId={r.id} />
+                </div>
               </Card>
             );
           })}

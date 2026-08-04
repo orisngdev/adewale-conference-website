@@ -6,7 +6,7 @@ import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { createAdminClient } from "@/supabase/admin";
 import { provisionStudent, type ProvisionResult } from "@/lib/provision-student";
-import type { Rep, ReplacementResult } from "@/supabase/types";
+import type { InfoChangeResult, Rep, ReplacementResult } from "@/supabase/types";
 
 // Provision a student for the coordinator's school: a Supabase auth user with a
 // synthetic email + the access code as password (so they log in with just the
@@ -171,6 +171,67 @@ export async function requestReplacement(
   revalidatePath("/portal/school/students");
   revalidatePath("/portal/school");
   return { ok: true };
+}
+
+// File a request to correct the school's contact details (educator / principal
+// name or phone). Like a rep replacement, an admin reviews it before it applies.
+// Reason is required. Email changes are handled admin-side (auth side effects).
+export async function requestInfoChange(
+  registrationId: string,
+  _prev: InfoChangeResult | null,
+  formData: FormData,
+): Promise<InfoChangeResult> {
+  const supabase = await createClient();
+  const user = await getSessionUser();
+  if (!user) return { error: "Not authenticated." };
+
+  const target = String(formData.get("target") ?? "");
+  if (target !== "teacher" && target !== "principal") {
+    return { error: "Choose whether this is the educator or the principal." };
+  }
+  const newName = String(formData.get("new_name") ?? "").trim();
+  const newPhone = String(formData.get("new_phone") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!newName && !newPhone) return { error: "Enter a new name or phone number." };
+  if (!reason) return { error: "Enter the reason for the change." };
+
+  const { data: reg } = await supabase
+    .from("registrations")
+    .select("school_id")
+    .eq("id", registrationId)
+    .maybeSingle();
+  if (!reg?.school_id) return { error: "Registration not found." };
+
+  // RLS (icr_insert) gates this to members of the school.
+  const { error } = await supabase.from("info_change_requests").insert({
+    registration_id: registrationId,
+    school_id: reg.school_id,
+    target,
+    new_name: newName || null,
+    new_phone: newPhone || null,
+    reason,
+    requested_by: user.id,
+    status: "pending",
+  });
+  if (error) return { error: `Could not submit: ${error.message}` };
+
+  revalidatePath("/portal/school");
+  revalidatePath("/portal/school/registrations");
+  return { ok: true };
+}
+
+// Resubmit a declined registration for another review — after the school has
+// acted on the admin's decline reason (e.g. filed a rep replacement). The RPC
+// (security definer) verifies the caller belongs to the school, only touches a
+// declined row, flips it back to submitted, clears the reason, and notifies
+// admins. Any approved member can resubmit, not just the owner.
+export async function resubmitRegistration(registrationId: string) {
+  const supabase = await createClient();
+  const user = await getSessionUser();
+  if (!user) return;
+  await supabase.rpc("resubmit_registration", { p_registration_id: registrationId });
+  revalidatePath("/portal/school");
+  revalidatePath("/portal/school/registrations");
 }
 
 // Register the coordinator's school for an open edition — created owned by them,

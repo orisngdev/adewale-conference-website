@@ -54,6 +54,17 @@ export function RegistrationContactEditor({
           <input type="hidden" name="contact_kind" value={kind} />
           <label className="block space-y-1">
             <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              Full name
+            </span>
+            <input
+              name="name"
+              defaultValue={name}
+              placeholder={`${label} full name`}
+              className={`${inputCls} w-full`}
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
               Email address
             </span>
             <input
@@ -76,12 +87,12 @@ export function RegistrationContactEditor({
           <ConfirmSubmitButton
             size="sm"
             variant="outline"
-            title={`Update ${label.toLowerCase()} email?`}
-            description="Access moves to this address. If it does not have a portal account yet, a fresh activation link is emailed."
+            title={`Update ${label.toLowerCase()} details?`}
+            description="Saves the name and moves access to this email. If it does not have a portal account yet, a fresh activation link is emailed."
             confirmLabel="Yes, update"
           >
             <Mail className="size-4" />
-            Save email
+            Save details
           </ConfirmSubmitButton>
         </form>
       ) : null}

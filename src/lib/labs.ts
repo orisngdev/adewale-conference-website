@@ -2,7 +2,7 @@
 // (The Future Tech Skills Lab is now just the first seeded lab; see
 // supabase/migrations/…_labs.sql.)
 
-export type LabStepKind = "lesson" | "video" | "link" | "quiz";
+export type LabStepKind = "lesson" | "video" | "link" | "quiz" | "pdf";
 
 export interface Lab {
   id: string;
@@ -29,6 +29,8 @@ export interface LabStep {
   link_label: string | null;
   duration_label: string | null;
   assessment_id: string | null;
+  storage_key: string | null;
+  file_name: string | null;
 }
 
 // Curated, iframe-embeddable editors an admin can attach to a lab. Kept as a
@@ -56,14 +58,15 @@ export interface QuizAssessmentOption {
 // The seeded lab that owns the legacy tech-lab certificate + embedded IDE.
 export const FUTURE_TECH_SLUG = "future-tech";
 
-export const LAB_KINDS: LabStepKind[] = ["lesson", "video", "link", "quiz"];
+export const LAB_KINDS: LabStepKind[] = ["lesson", "video", "link", "quiz", "pdf"];
 
-// Syllabus-rail glyphs (per approved design): reading ¶ · video ▶ · tool ↗ · quiz ?
+// Syllabus-rail glyphs (per approved design): reading ¶ · video ▶ · tool ↗ · quiz ? · pdf ▤
 export const LAB_KIND_GLYPH: Record<LabStepKind, string> = {
   lesson: "¶",
   video: "▶",
   link: "↗",
   quiz: "?",
+  pdf: "▤",
 };
 
 export const LAB_KIND_LABEL: Record<LabStepKind, string> = {
@@ -71,6 +74,7 @@ export const LAB_KIND_LABEL: Record<LabStepKind, string> = {
   video: "Video",
   link: "External tool",
   quiz: "Quiz",
+  pdf: "PDF",
 };
 
 export type LabState = "not_started" | "in_progress" | "complete";

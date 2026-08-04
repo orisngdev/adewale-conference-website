@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/portal/submit-button";
 import { Markdown } from "@/components/portal/markdown";
 import CodeDrawer from "@/components/portal/code-drawer";
+import PdfReader from "@/components/portal/pdf-reader";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
@@ -197,6 +198,7 @@ export default async function LabPlayer({
           {embed ? (
             <div className="mt-5 aspect-video w-full overflow-hidden rounded bg-foreground/5">
               <iframe
+                key={current.key}
                 src={embed}
                 title={current.title}
                 className="h-full w-full"
@@ -216,6 +218,20 @@ export default async function LabPlayer({
                 Watch the video ↗
               </a>
             </p>
+          ) : null}
+
+          {current.kind === "pdf" ? (
+            current.storage_key ? (
+              <PdfReader
+                key={current.key}
+                src={`/api/labs/steps/${current.id}/pdf`}
+                className="mt-5 max-h-[80vh]"
+              />
+            ) : (
+              <p className="mt-5 text-sm text-muted-foreground">
+                This document isn&apos;t available yet.
+              </p>
+            )
           ) : null}
 
           {current.body_md ? <div className="mt-5"><Markdown source={current.body_md} /></div> : null}
@@ -311,7 +327,7 @@ export default async function LabPlayer({
       ) : null}
 
       {/* ── Sticky code editor — shown for any lab with a workbench URL ── */}
-      {lab.workbench_url ? <CodeDrawer src={lab.workbench_url} title="Code editor" /> : null}
+      {lab.workbench_url ? <CodeDrawer key={lab.slug} src={lab.workbench_url} title="Code editor" /> : null}
     </div>
   );
 }

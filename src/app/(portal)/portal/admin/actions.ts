@@ -383,6 +383,10 @@ export async function setRegistrationStatus(
   if (!(await requireManage("registrations"))) return;
   const status = String(formData.get("status") ?? "");
   if (!STATUSES.includes(status as RegistrationStatus)) return;
+  // A decline can carry a reason the school sees (and can act on before
+  // resubmitting). Cleared whenever the row moves off "declined".
+  const declineReason =
+    status === "declined" ? String(formData.get("decline_reason") ?? "").trim() || null : null;
 
   const supabase = await createClient();
   const { data: before } = await supabase
@@ -395,7 +399,7 @@ export async function setRegistrationStatus(
   // RLS (reg_owner_update with is_admin()) restricts this to admins.
   const { error } = await supabase
     .from("registrations")
-    .update({ status })
+    .update({ status, decline_reason: declineReason })
     .eq("id", registrationId);
 
   // First transition into verified materialises the roster (same as bulk
@@ -424,6 +428,7 @@ export async function setRegistrationStatus(
       ownerId: before.owner_id,
       fallbackEmail: before.contact_email,
       fallbackName: before.contact_name,
+      declineReason,
     });
   }
   revalidatePath("/portal/admin");
@@ -459,6 +464,9 @@ export async function bulkRegistrationDecision(formData: FormData) {
 
   if (decision !== "approve" && decision !== "decline") return;
   if (!(await requireManage("registrations"))) return;
+  // One reason applies to every school declined in this batch (optional).
+  const declineReason =
+    decision === "decline" ? String(formData.get("decline_reason") ?? "").trim() || null : null;
 
   const supabase = await createClient();
   // RLS (reg_owner_update with is_admin()) restricts the writes to admins.
@@ -493,7 +501,7 @@ export async function bulkRegistrationDecision(formData: FormData) {
     const status: RegistrationStatus = decision === "approve" ? "verified" : "declined";
     const { error } = await supabase
       .from("registrations")
-      .update({ status })
+      .update({ status, ...(decision === "decline" ? { decline_reason: declineReason } : {}) })
       .eq("id", row.id);
     if (error) continue;
 
@@ -512,6 +520,7 @@ export async function bulkRegistrationDecision(formData: FormData) {
       ownerId: row.owner_id,
       fallbackEmail: row.contact_email,
       fallbackName: row.contact_name,
+      declineReason,
     });
   }
 
@@ -641,6 +650,7 @@ export async function updateRegistrationContact(
 
   const kind = String(formData.get("contact_kind") ?? "") as ContactKind;
   const newEmail = String(formData.get("email") ?? "").trim().toLowerCase();
+  const newName = String(formData.get("name") ?? "").trim();
   if (!CONTACT_KINDS.includes(kind)) {
     return { ok: false, message: "Choose whether you are updating the educator or principal." };
   }
@@ -664,11 +674,15 @@ export async function updateRegistrationContact(
   const principalEmail = detailsValue(details, "Principal Email Address");
   const emailKey =
     kind === "teacher" ? "Teacher Email Address" : "Principal Email Address";
-  const name =
+  const nameKey = kind === "teacher" ? "Teacher Full Name" : "Principal Full Name";
+  const existingName =
     kind === "teacher"
       ? detailsValue(details, "Teacher Full Name") ||
         ((reg.contact_name as string | null) ?? null)
       : detailsValue(details, "Principal Full Name") || null;
+  // The admin can now supply/correct the name (fixes rows synced without one);
+  // fall back to the captured value when the field is left blank.
+  const name = newName || existingName;
   const oldEmail =
     kind === "teacher"
       ? teacherEmail || ((reg.contact_email as string | null) ?? "")
@@ -722,10 +736,12 @@ export async function updateRegistrationContact(
     ? null
     : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const nextDetails = { ...details, [emailKey]: newEmail };
+  const nextDetails: Record<string, string> = { ...details, [emailKey]: newEmail };
+  if (name) nextDetails[nameKey] = name;
   const registrationPatch: Record<string, unknown> = { details: nextDetails };
   if (kind === "teacher") {
     registrationPatch.contact_email = newEmail;
+    if (name) registrationPatch.contact_name = name;
     registrationPatch.owner_id = profileId;
     registrationPatch.onboarded_at = profileId
       ? ((reg.onboarded_at as string | null) ?? new Date().toISOString())

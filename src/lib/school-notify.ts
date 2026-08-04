@@ -76,6 +76,7 @@ export async function notifySchoolDecision(
     ownerId?: string | null;
     fallbackEmail?: string | null;
     fallbackName?: string | null;
+    declineReason?: string | null;
   },
 ) {
   let audience = await getSchoolAudience(supabase, opts.schoolId, opts.ownerId);
@@ -101,15 +102,19 @@ export async function notifySchoolDecision(
             name: p.name,
             schoolFullName: opts.schoolName,
             editionYear: opts.editionYear,
+            declineReason: opts.declineReason,
           }),
     );
   }
 
+  const reason = (opts.declineReason ?? "").trim();
   await insertNotifications(supabase, audience, {
     title: isApprove ? "Entry confirmed" : "Entry update",
     body: isApprove
       ? `${opts.schoolName} is confirmed for the ${opts.editionYear} competition — log in to your portal for the guidelines.`
-      : `${opts.schoolName} wasn't selected for the ${opts.editionYear} competition. Portal access stays open.`,
+      : reason
+        ? `${opts.schoolName} wasn't selected for the ${opts.editionYear} competition. Reason: ${reason}. You can update your entry and resubmit for review.`
+        : `${opts.schoolName} wasn't selected for the ${opts.editionYear} competition. Portal access stays open.`,
     link: "/portal/school",
   });
 }

@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  // Don't reuse a dynamic page's client-cached RSC on soft navigation. Sibling
+  // dynamic routes share the /labs/[slug] segment, so without this a jump from
+  // one lab to another showed the previous lab's content until a hard refresh.
+  experimental: {
+    staleTimes: { dynamic: 0 },
+  },
   // Allow HMR / dev resources when testing from a phone on the LAN (e.g. the PWA).
   // Dev-only; add your machine's current LAN IP if it changes.
   allowedDevOrigins: ["192.168.100.14"],

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
 import { requireManage } from "@/supabase/auth";
 import { resourceStorage } from "@/lib/storage";
-import { slugifyResource } from "@/lib/resources";
+import { slugifyResource, isAllowedResourceFile } from "@/lib/resources";
 import { accessRank } from "@/lib/resource-access";
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024; // 50 MB per resource file.
@@ -39,6 +39,8 @@ export async function createResource(formData: FormData) {
   const externalUrl = String(formData.get("external_url") ?? "").trim() || null;
   const body = String(formData.get("body") ?? "").trim() || null;
   const published = formData.get("published") != null;
+  // Checkbox: present (checked) → downloadable; unchecked → preview-only.
+  const downloadable = formData.get("downloadable") != null;
 
   let storageKey: string | null = null;
   let fileName: string | null = null;
@@ -50,6 +52,8 @@ export async function createResource(formData: FormData) {
     // row pointing at nothing.
     if (!resourceStorage.configured) return;
     if (file.size > MAX_FILE_BYTES) return;
+    // Documents only — the client `accept` is a hint, so re-check here.
+    if (!isAllowedResourceFile(file.name || "", file.type || "")) return;
 
     const safeName = (file.name || "file").replace(/[^a-zA-Z0-9._-]/g, "_");
     storageKey = `${randomUUID()}/${safeName}`;
@@ -79,6 +83,7 @@ export async function createResource(formData: FormData) {
     external_url: externalUrl,
     body,
     published,
+    downloadable,
     created_by: admin.user.id,
   });
 

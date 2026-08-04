@@ -13,7 +13,7 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { ConfirmDecisionButton } from "@/components/portal/confirm-decision-button";
 import { SelectAllCheckbox } from "@/components/portal/select-all-checkbox";
 import { SelectAllMatching } from "@/components/portal/select-all-matching";
-import { genderMix } from "@/components/portal/registration-details";
+import { genderMix, hasFemaleRep, hasContactGap } from "@/components/portal/registration-details";
 import {
   FilterBar,
   Pagination,
@@ -87,12 +87,15 @@ export default async function AdminRegistrations({
     q?: string;
     status?: string;
     activation?: string;
+    female?: string;
+    contacts?: string;
     page?: string;
   }>;
 }) {
   await requireModuleView("registrations");
   const canManage = await canManageModule("registrations");
-  const { edition, q, status, activation, page: pageParam } = await searchParams;
+  const { edition, q, status, activation, female, contacts, page: pageParam } =
+    await searchParams;
   const supabase = await createClient();
   const [{ data: editionData }] = await Promise.all([
     supabase.from("editions").select("year").order("year", { ascending: false }),
@@ -116,11 +119,16 @@ export default async function AdminRegistrations({
   )
     ? (activation as ActivationFilter)
     : undefined;
+  const femaleOnly = female === "1";
+  const incompleteContacts = contacts === "incomplete";
   const filtered = inEdition.filter((r) => {
     if (status && r.status !== status) return false;
     if (activationFilter === "pending" && (r.profiles || r.onboarded_at)) return false;
     if (activationFilter === "onboarded" && (r.profiles || !r.onboarded_at)) return false;
     if (activationFilter === "active" && !r.profiles) return false;
+    if (femaleOnly && !hasFemaleRep(r.details)) return false;
+    if (incompleteContacts && !hasContactGap(r.details, r.contact_name, r.contact_email))
+      return false;
     if (!needle) return true;
     const haystack = [
       r.schools?.name,
@@ -137,8 +145,17 @@ export default async function AdminRegistrations({
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const page = clampPage(parsePage(pageParam), pageCount);
   const registrations = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const listParams = { edition, q, status, activation: activationFilter };
-  const hasActiveFilter = Boolean(needle || status || activationFilter);
+  const listParams = {
+    edition,
+    q,
+    status,
+    activation: activationFilter,
+    female: femaleOnly ? "1" : undefined,
+    contacts: incompleteContacts ? "incomplete" : undefined,
+  };
+  const hasActiveFilter = Boolean(
+    needle || status || activationFilter || femaleOnly || incompleteContacts,
+  );
   const statusCounts: Record<RegistrationStatus, number> = {
     submitted: filtered.filter((r) => r.status === "submitted").length,
     verified: filtered.filter((r) => r.status === "verified").length,
@@ -247,6 +264,18 @@ export default async function AdminRegistrations({
               <option value="onboarded">Onboarded, awaiting sign-in</option>
               <option value="active">Coordinator active</option>
             </select>
+            <select name="female" defaultValue={femaleOnly ? "1" : ""} className={filterSelectCls}>
+              <option value="">Any gender mix</option>
+              <option value="1">Has a female rep</option>
+            </select>
+            <select
+              name="contacts"
+              defaultValue={incompleteContacts ? "incomplete" : ""}
+              className={filterSelectCls}
+            >
+              <option value="">Any contacts</option>
+              <option value="incomplete">Incomplete contacts</option>
+            </select>
           </FilterBar>
 
           <Card className="mb-4 border border-primary/25 bg-primary/10 p-4">
@@ -318,12 +347,22 @@ export default async function AdminRegistrations({
                   variant="outline"
                   destructive
                   title="Decline selected schools?"
-                  description="Every ticked school is declined and sent a polite not-selected email."
+                  description="Every ticked school is declined and sent a polite not-selected email. If you enter a reason below, it's included in that email and shown on their portal so they can fix it and resubmit."
                   confirmLabel="Yes, decline"
                 >
                   Decline selected
                 </ConfirmDecisionButton>
               </div>
+              <label className="block">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                  Decline reason (optional)
+                </span>
+                <input
+                  name="decline_reason"
+                  placeholder="Shared with every declined school, e.g. No female representative."
+                  className={`${filterSelectCls} mt-1 w-full`}
+                />
+              </label>
             </Card>
           </form>
           ) : null}
@@ -339,6 +378,7 @@ export default async function AdminRegistrations({
               {registrations.map((r) => {
                 const reps = Array.isArray(r.reps) ? (r.reps as Rep[]) : [];
                 const mix = genderMix(r.details);
+                const contactGap = hasContactGap(r.details, r.contact_name, r.contact_email);
                 const activationLabel = r.profiles
                   ? "Coordinator active"
                   : r.onboarded_at
@@ -386,6 +426,11 @@ export default async function AdminRegistrations({
                             "Unclaimed"}
                         </p>
                         <p className="mt-0.5">{activationLabel}</p>
+                        {contactGap ? (
+                          <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                            Incomplete contacts
+                          </span>
+                        ) : null}
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

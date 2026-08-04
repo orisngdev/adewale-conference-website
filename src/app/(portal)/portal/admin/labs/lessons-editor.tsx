@@ -25,6 +25,7 @@ type FormInitial = {
   link_label?: string | null;
   duration_label?: string | null;
   assessment_id?: string | null;
+  file_name?: string | null;
 };
 
 // The type-specific fields, swapped by the lesson-type picker.
@@ -93,6 +94,26 @@ function LessonFields({
             placeholder="https://…"
             className={inputCls}
           />
+        </label>
+      )}
+
+      {/* PDF upload — shown inline in a preview-only reader (never downloadable) */}
+      {kind === "pdf" && (
+        <label className="text-sm block">
+          <span className="text-muted-foreground">
+            PDF file{initial.file_name ? ` (current: ${initial.file_name})` : ""}
+          </span>
+          <input
+            type="file"
+            name="file"
+            accept="application/pdf,.pdf"
+            className={`${inputCls} file:mr-3 file:rounded file:border-0 file:bg-foreground/10 file:px-3 file:py-1 file:text-sm`}
+          />
+          <span className="mt-1 block text-xs text-muted-foreground">
+            {initial.file_name
+              ? "Leave empty to keep the current file. Students see it in a preview-only reader — no download."
+              : "PDF only, up to 50 MB. Students see it in a preview-only reader — no download."}
+          </span>
         </label>
       )}
 

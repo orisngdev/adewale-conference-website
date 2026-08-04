@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { Card, SectionHeading, StatTile } from "@/components/portal/ui";
+import { SubmitButton } from "@/components/portal/submit-button";
 import { EditionStages, nextStage } from "@/components/portal/edition-stages";
+import { resubmitRegistration } from "./actions";
 import { StageResults } from "@/components/portal/stage-results";
 import ClaimForm from "@/components/portal/claim-form";
 import RegisterEditionForm from "@/components/portal/register-edition-form";
@@ -29,7 +31,7 @@ export default async function SchoolOverview() {
     await Promise.all([
       supabase
         .from("registrations")
-        .select("id, edition_year, status, reps, school_id, schools(name)")
+        .select("id, edition_year, status, decline_reason, reps, school_id, schools(name)")
         .order("edition_year", { ascending: false }),
       supabase.from("school_members").select("status, schools(name)"),
       supabase
@@ -176,6 +178,26 @@ export default async function SchoolOverview() {
                 ? "Your school wasn't selected this time. The prep portal stays open all year — practice, Tech Lab, plans and resources — and we'd love to see you register next edition."
                 : "The full competition guidelines unlock here once schools are confirmed at close of registration. Meanwhile, everything here is open — prepare freely."}
           </p>
+          {entry.status === "declined" && entry.decline_reason ? (
+            <div className="mt-4 border-l-4 border-l-red-600 bg-red-600/5 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-red-700">
+                Reason from the reviewers
+              </p>
+              <p className="text-sm text-foreground mt-1">{entry.decline_reason}</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                Fix this from your{" "}
+                <a href="/portal/school/students" className="font-bold text-foreground hover:underline">
+                  Students
+                </a>{" "}
+                page (for example, replace a representative), then resubmit for review.
+              </p>
+              <form action={resubmitRegistration.bind(null, entry.id)} className="mt-3">
+                <SubmitButton size="sm" pendingText="Resubmitting…">
+                  Resubmit for review →
+                </SubmitButton>
+              </form>
+            </div>
+          ) : null}
           {accepted && guidelineHref ? (
             <a
               href={guidelineHref}
