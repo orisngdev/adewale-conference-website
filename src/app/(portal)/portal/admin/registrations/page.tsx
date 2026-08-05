@@ -13,9 +13,16 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { ConfirmDecisionButton } from "@/components/portal/confirm-decision-button";
 import { SelectAllCheckbox } from "@/components/portal/select-all-checkbox";
 import { SelectAllMatching } from "@/components/portal/select-all-matching";
-import { genderMix, hasFemaleRep, hasContactGap } from "@/components/portal/registration-details";
+import {
+  genderMix,
+  hasContactGap,
+  matchesGenderFilter,
+  type GenderFilter,
+} from "@/components/portal/registration-details";
 import {
   FilterBar,
+  FilterField,
+  FilterPanel,
   Pagination,
   clampPage,
   filterSelectCls,
@@ -39,6 +46,7 @@ export const dynamic = "force-dynamic";
 // certificates live on the Participants hub, per edition.
 const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
 const ACTIVATION_FILTERS = ["pending", "onboarded", "active"] as const;
+const GENDER_FILTERS = ["female", "male", "mixed"] as const;
 type ActivationFilter = (typeof ACTIVATION_FILTERS)[number];
 
 // Checkboxes reference this form by id (the `form` attribute), so the bulk form
@@ -87,6 +95,7 @@ export default async function AdminRegistrations({
     q?: string;
     status?: string;
     activation?: string;
+    gender?: string;
     female?: string;
     contacts?: string;
     page?: string;
@@ -94,8 +103,16 @@ export default async function AdminRegistrations({
 }) {
   await requireModuleView("registrations");
   const canManage = await canManageModule("registrations");
-  const { edition, q, status, activation, female, contacts, page: pageParam } =
-    await searchParams;
+  const {
+    edition,
+    q,
+    status,
+    activation,
+    gender,
+    female,
+    contacts,
+    page: pageParam,
+  } = await searchParams;
   const supabase = await createClient();
   const [{ data: editionData }] = await Promise.all([
     supabase.from("editions").select("year").order("year", { ascending: false }),
@@ -119,14 +136,18 @@ export default async function AdminRegistrations({
   )
     ? (activation as ActivationFilter)
     : undefined;
-  const femaleOnly = female === "1";
+  const genderFilter = GENDER_FILTERS.includes(gender as GenderFilter)
+    ? (gender as GenderFilter)
+    : female === "1"
+      ? "female"
+      : undefined;
   const incompleteContacts = contacts === "incomplete";
   const filtered = inEdition.filter((r) => {
     if (status && r.status !== status) return false;
     if (activationFilter === "pending" && (r.profiles || r.onboarded_at)) return false;
     if (activationFilter === "onboarded" && (r.profiles || !r.onboarded_at)) return false;
     if (activationFilter === "active" && !r.profiles) return false;
-    if (femaleOnly && !hasFemaleRep(r.details)) return false;
+    if (genderFilter && !matchesGenderFilter(r.details, genderFilter)) return false;
     if (incompleteContacts && !hasContactGap(r.details, r.contact_name, r.contact_email))
       return false;
     if (!needle) return true;
@@ -150,11 +171,11 @@ export default async function AdminRegistrations({
     q,
     status,
     activation: activationFilter,
-    female: femaleOnly ? "1" : undefined,
+    gender: genderFilter,
     contacts: incompleteContacts ? "incomplete" : undefined,
   };
   const hasActiveFilter = Boolean(
-    needle || status || activationFilter || femaleOnly || incompleteContacts,
+    needle || status || activationFilter || genderFilter || incompleteContacts,
   );
   const statusCounts: Record<RegistrationStatus, number> = {
     submitted: filtered.filter((r) => r.status === "submitted").length,
@@ -245,37 +266,48 @@ export default async function AdminRegistrations({
             q={q}
             placeholder="Search school, email, contact, rep, or claim code…"
             preserve={{ edition }}
+            showApply={false}
           >
-            <select name="status" defaultValue={status ?? ""} className={filterSelectCls}>
-              <option value="">Any status</option>
-              {STATUSES.map((s) => (
-                <option key={s} value={s} className="capitalize">
-                  {s}
-                </option>
-              ))}
-            </select>
-            <select
-              name="activation"
-              defaultValue={activationFilter ?? ""}
-              className={filterSelectCls}
+            <FilterPanel
+              activeCount={[status, activationFilter, genderFilter, incompleteContacts ? "1" : undefined].filter(Boolean).length}
+              preserve={{ edition, q }}
             >
-              <option value="">Any activation</option>
-              <option value="pending">Pending activation</option>
-              <option value="onboarded">Onboarded, awaiting sign-in</option>
-              <option value="active">Coordinator active</option>
-            </select>
-            <select name="female" defaultValue={femaleOnly ? "1" : ""} className={filterSelectCls}>
-              <option value="">Any gender mix</option>
-              <option value="1">Has a female rep</option>
-            </select>
-            <select
-              name="contacts"
-              defaultValue={incompleteContacts ? "incomplete" : ""}
-              className={filterSelectCls}
-            >
-              <option value="">Any contacts</option>
-              <option value="incomplete">Incomplete contacts</option>
-            </select>
+              <FilterField label="Status" name="status" defaultValue={status}>
+                <option value="">Any status</option>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s.charAt(0).toUpperCase() + s.slice(1)}
+                  </option>
+                ))}
+              </FilterField>
+
+              <FilterField
+                label="Activation"
+                name="activation"
+                defaultValue={activationFilter}
+              >
+                <option value="">Any activation</option>
+                <option value="pending">Pending activation</option>
+                <option value="onboarded">Onboarded, awaiting sign-in</option>
+                <option value="active">Coordinator active</option>
+              </FilterField>
+
+              <FilterField label="Gender mix" name="gender" defaultValue={genderFilter}>
+                <option value="">Any gender mix</option>
+                <option value="female">Has a female rep</option>
+                <option value="male">Has a male rep</option>
+                <option value="mixed">Has female and male reps</option>
+              </FilterField>
+
+              <FilterField
+                label="Contacts"
+                name="contacts"
+                defaultValue={incompleteContacts ? "incomplete" : ""}
+              >
+                <option value="">Any contacts</option>
+                <option value="incomplete">Incomplete contacts</option>
+              </FilterField>
+            </FilterPanel>
           </FilterBar>
 
           <Card className="mb-4 border border-primary/25 bg-primary/10 p-4">

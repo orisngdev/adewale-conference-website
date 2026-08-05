@@ -18,11 +18,16 @@ export function FilterBar({
   placeholder,
   preserve,
   children,
+  showApply = true,
+  applyLabel = "Apply",
 }: {
   q?: string;
   placeholder: string;
   preserve?: Record<string, string | undefined>;
   children?: React.ReactNode;
+  /** When false, rely on Enter in search or an in-panel apply control. */
+  showApply?: boolean;
+  applyLabel?: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -55,9 +60,11 @@ export function FilterBar({
             className={`${inputCls} flex-1 min-w-48`}
           />
           {children}
-          <Button type="submit" size="sm" variant="outline">
-            {pending ? "Applying..." : "Apply"}
-          </Button>
+          {showApply ? (
+            <Button type="submit" size="sm" variant="outline">
+              {pending ? "Applying..." : applyLabel}
+            </Button>
+          ) : null}
         </fieldset>
       </form>
     </Card>

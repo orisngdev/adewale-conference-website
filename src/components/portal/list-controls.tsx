@@ -1,5 +1,6 @@
 import Link from "next/link";
 export { FilterBar } from "@/components/portal/list-filter-bar";
+export { FilterField, FilterPanel } from "@/components/portal/list-filter-panel";
 export { filterFormQuery } from "@/components/portal/list-filter-query";
 
 // Shared search / filter / pagination controls for portal list pages.

@@ -91,6 +91,26 @@ export function hasFemaleRep(details: Details): boolean {
   return false;
 }
 
+/** True when at least one student rep is male (gender starts with "m"). */
+export function hasMaleRep(details: Details): boolean {
+  for (const n of [1, 2, 3]) {
+    if (!val(details, `Student Rep ${n} Full Name`)) continue;
+    if (val(details, `Student Rep ${n} Gender`).toLowerCase().startsWith("m")) return true;
+  }
+  return false;
+}
+
+export type GenderFilter = "female" | "male" | "mixed";
+
+/** Match registrations by student-rep gender mix for admin list filters. */
+export function matchesGenderFilter(details: Details, filter: GenderFilter): boolean {
+  const hasFemale = hasFemaleRep(details);
+  const hasMale = hasMaleRep(details);
+  if (filter === "female") return hasFemale;
+  if (filter === "male") return hasMale;
+  return hasFemale && hasMale;
+}
+
 export function RegistrationDetails({
   details,
   reps,
