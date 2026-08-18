@@ -1,24 +1,48 @@
 name: keep-alive
 
 # Provider-agnostic backstop: pings the deployed keep-alive endpoint every 3
-# days so the free-tier Supabase project doesn't auto-pause. Works regardless of
-# where the app is hosted (Vercel/Netlify). Set a repo *variable* KEEP_ALIVE_URL
-# to https://<your-deploy>/api/keep-alive (Settings → Secrets and variables →
-# Actions → Variables).
+# days so Supabase projects don't go idle. Defaults to the production site, or
+# set a repo variable KEEP_ALIVE_URL to override it:
+# https://<your-deploy>/api/keep-alive
+#
+# For a dev/staging Supabase project with no live site, set repository secrets
+# DEV_SUPABASE_URL and DEV_SUPABASE_PUBLISHABLE_KEY. The workflow will also
+# touch public.editions directly through Supabase REST.
 on:
   schedule:
     - cron: "0 6 */3 * *"
   workflow_dispatch:
+    inputs:
+      url:
+        description: "Optional keep-alive URL override"
+        required: false
+        type: string
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
       - name: Ping keep-alive
+        env:
+          KEEP_ALIVE_URL: ${{ inputs.url || vars.KEEP_ALIVE_URL || 'https://www.adewaleconference.org/api/keep-alive' }}
         run: |
-          URL="${{ vars.KEEP_ALIVE_URL }}"
-          if [ -z "$URL" ]; then
-            echo "KEEP_ALIVE_URL repo variable not set — skipping."
+          curl --fail --show-error --silent --retry 3 --retry-delay 5 --max-time 30 "$KEEP_ALIVE_URL"
+          echo "keep-alive ping ok: $KEEP_ALIVE_URL"
+
+      - name: Ping dev Supabase directly
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.DEV_SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.DEV_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "DEV_SUPABASE_URL or DEV_SUPABASE_PUBLISHABLE_KEY not set; skipping dev Supabase ping."
             exit 0
           fi
-          curl -fsS "$URL" && echo " — ok"
+
+          REST_URL="${SUPABASE_URL%/}/rest/v1/editions?select=year&limit=1"
+          curl --fail --show-error --silent --retry 3 --retry-delay 5 --max-time 30 \
+            -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+            "$REST_URL"
+          echo "dev Supabase ping ok"
