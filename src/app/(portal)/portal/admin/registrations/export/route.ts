@@ -32,9 +32,11 @@ const HEADERS = [
   "Status",
   "Coordinator",
   "Coordinator email",
+  "Coordinator phone",
   "Coordinator gender",
   "Principal",
   "Principal email",
+  "Principal phone",
   "Principal gender",
   "Rep 1 name",
   "Rep 1 class",
@@ -59,8 +61,19 @@ const HEADERS = [
   "Rep 3 guardian number"
 ];
 
-function csvCell(value: XlsxCell): string {
+// Columns holding phone numbers. Spreadsheets parse "+234…"/"0803…" in a plain
+// CSV as numbers (scientific notation, dropped leading zero), so these cells are
+// emitted as the ="…" formula, which Excel and Sheets both render as literal
+// text. The XLSX path doesn't need this — strings there are typed text cells.
+const PHONE_COLUMNS = new Set(
+  HEADERS.flatMap((h, i) => (/phone|guardian number/i.test(h) ? [i] : [])),
+);
+
+function csvCell(value: XlsxCell, column: number): string {
   const s = value == null ? "" : String(value);
+  if (PHONE_COLUMNS.has(column) && s !== "") {
+    return `"=""${s.replace(/"/g, "")}"""`;
+  }
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -112,12 +125,14 @@ export async function GET(request: NextRequest) {
       r.schools?.lga ?? "",
       r.edition_year,
       r.status,
-      r.profiles?.full_name ?? r.contact_name ?? "",
-      r.profiles?.email ?? r.contact_email ?? "",
-      r.details?.[`Teacher Gender`] ?? "",
-      r.details?.[`Principal Full Name`] ?? "",
-      r.details?.[`Principal Email Address`] ?? "",
-      r.details?.[`Principal Gender`] ?? "",
+      r.profiles?.full_name ?? r.contact_name ?? details[`Teacher Full Name`] ?? "",
+      r.profiles?.email ?? r.contact_email ?? details[`Teacher Email Address`] ?? "",
+      details[`Teacher Number`] ?? "",
+      details[`Teacher Gender`] ?? "",
+      details[`Principal Full Name`] ?? "",
+      details[`Principal Email Address`] ?? "",
+      details[`Principal Number`] ?? "",
+      details[`Principal Gender`] ?? "",
       ...repCells,
     ]);
   }
@@ -140,7 +155,13 @@ export async function GET(request: NextRequest) {
   }
 
   // Prepend a UTF-8 BOM so Sheets/Excel detect encoding and non-ASCII names render.
-  const csv = "﻿" + matrix.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  const csv =
+    "﻿" +
+    matrix
+      .map((row, r) =>
+        row.map((value, c) => csvCell(value, r === 0 ? -1 : c)).join(","),
+      )
+      .join("\r\n");
   return new NextResponse(csv, {
     status: 200,
     headers: {
