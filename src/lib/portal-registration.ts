@@ -5,7 +5,7 @@ import {
   buildAdminNewRegistrationEmail,
   sendEmailSafely,
 } from "@/lib/email";
-import { mapRegistrationFields, type RegistrationFormData } from "@/lib/forms";
+import { mapRegistrationFields, ZONAL_FINALS_OPTIONS, type RegistrationFormData } from "@/lib/forms";
 import { repLabel } from "@/lib/age";
 import { resolveSchool } from "@/lib/school-identity";
 import { canView, resolveStoredPermissions } from "@/lib/admin-permissions";
@@ -89,6 +89,17 @@ export async function mirrorRegistrationToSupabase(
     // the same Airtable field names the sync uses, so the admin review sees rich
     // detail immediately — before the first Airtable sync refreshes it.
     details: mapRegistrationFields(input),
+    // The school's own choice IS the allocation, unless an admin moves it. The
+    // registration form validates this field against ZONAL_FINALS_OPTIONS, so it can
+    // only ever be one of the eight real centres — which is what makes defaulting
+    // safe here and unsafe for the LGA fallback that corrupted this column
+    // historically. Re-checked rather than assumed, because the guarantee lives in
+    // another file. An admin then only has to touch the exceptions.
+    qualification_zone: (ZONAL_FINALS_OPTIONS as readonly string[]).includes(
+      input.zonalFinalsLocation,
+    )
+      ? input.zonalFinalsLocation
+      : null,
     contact_email: contactEmail,
     contact_name: input.teacherFullName || null,
     claim_code: claimCode,
