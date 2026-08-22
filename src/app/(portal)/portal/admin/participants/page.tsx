@@ -14,8 +14,21 @@ import { SubmitButton } from "@/components/portal/submit-button";
 import { FilterBar, Pagination, clampPage, parsePage } from "@/components/portal/list-controls";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { SchoolCertificatesCard, type RosterStudent } from "@/components/portal/participant-school-card";
+import { CentreAllocation, type CentreRow } from "@/components/portal/centre-allocation";
+import { CentrePicker } from "@/components/portal/centre-picker";
+import { ParticipantsPreview } from "@/components/portal/participants-preview";
+import type {
+  PreviewAward,
+  PreviewGroup,
+  PreviewMatch,
+  PreviewParticipant,
+  PreviewStudent,
+  PreviewView,
+  QualificationFilter,
+} from "@/components/portal/participants-preview-types";
 import { pageMetadata } from "@/lib/seo";
 import { searchHaystackMatches, searchTokens } from "@/lib/search";
+import { ZONAL_FINALS_OPTIONS } from "@/lib/forms";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
 import {
@@ -25,6 +38,8 @@ import {
   createTournamentMatch,
   issueIndividualAward,
   recordMatchResult,
+  allocateQualificationZone,
+  allocateQualificationZonesBulk,
   saveQualificationDecision,
   updateGroupEntry,
 } from "../actions";
@@ -44,7 +59,8 @@ export const metadata = pageMetadata("Participants", "Run the competition after 
 export const dynamic = "force-dynamic";
 
 const inputCls =
-  "rounded-md border border-foreground/15 bg-card px-2.5 py-1.5 text-sm outline-none focus:border-primary";
+  "rounded-md border border-foreground/15 bg-card px-2.5 py-1.5 text-sm outline-none focus:border-primary " +
+  "disabled:cursor-not-allowed disabled:border-foreground/10 disabled:bg-foreground/5 disabled:text-muted-foreground";
 const compactInputCls =
   "rounded-md border border-foreground/15 bg-background px-2 py-1 text-xs outline-none focus:border-primary";
 const PAGE_SIZE = 20;
@@ -64,6 +80,7 @@ interface RosterStudentRow {
   school_id: string;
   name: string;
   level: string | null;
+  edition_year: number | null;
 }
 interface CertRow {
   id: string;
@@ -80,14 +97,41 @@ function detailsValue(details: Record<string, string> | null, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function zoneOf(r: ParticipantReg) {
-  return (
-    r.qualification_zone ||
+/** Is this zone one of the real exam centres, or a leftover LGA/division? */
+function isKnownCentre(zone: string) {
+  return !zone || (ZONAL_FINALS_OPTIONS as readonly string[]).includes(zone);
+}
+
+type ZoneSource = "allocated" | "requested" | "lga" | "none";
+
+/**
+ * Where a school sits the zonal exam, and — crucially — who decided it.
+ *
+ * Only `qualification_zone` is an admin allocation. Everything after it is a
+ * fallback: the school's own answer to the required "Select Location For Zonal
+ * Finals" question on the registration form, then its LGA, which is not a centre at
+ * all. Collapsing these into one string is what let saveQualificationDecision write
+ * an LGA into the centre column on every score entry.
+ */
+function zoneInfo(r: ParticipantReg): { value: string; source: ZoneSource } {
+  if (r.qualification_zone) return { value: r.qualification_zone, source: "allocated" };
+  const requested =
     detailsValue(r.details, "Zonal Finals Location") ||
-    detailsValue(r.details, "Which center do you prefer for the Zonal Final Exam?  ") ||
-    r.schools?.lga ||
-    "Unassigned"
-  );
+    detailsValue(r.details, "Which center do you prefer for the Zonal Final Exam?  ");
+  if (requested) return { value: requested, source: "requested" };
+  if (r.schools?.lga) return { value: r.schools.lga, source: "lga" };
+  return { value: "Unassigned", source: "none" };
+}
+
+const ZONE_SOURCE_LABEL: Record<ZoneSource, string> = {
+  allocated: "allocated centre",
+  requested: "school's choice",
+  lga: "not allocated — showing LGA",
+  none: "not allocated",
+};
+
+function zoneOf(r: ParticipantReg) {
+  return zoneInfo(r).value;
 }
 
 function stageTabs(stages: string[]) {
@@ -144,48 +188,87 @@ function sortedEntries(entries: TournamentGroupEntry[]) {
 export default async function AdminParticipants({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; edition?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    edition?: string;
+    page?: string;
+    ui?: string;
+    view?: string;
+    status?: string;
+    focus?: string;
+  }>;
 }) {
   await requireModuleView("participants");
   const canManage = await canManageModule("participants");
-  const { q, edition, page: pageParam } = await searchParams;
+  const { q, edition, page: pageParam, ui, view: viewParam, status: statusParam, focus } = await searchParams;
+  // The redesigned workspace IS the participants page now; `?ui=legacy` still
+  // reaches the previous tabbed layout. Kept as a fallback rather than a choice —
+  // both read the same rows and write through the same actions, so the only thing
+  // that differs is the layout.
+  const isLegacy = ui === "legacy";
   const supabase = await createClient();
 
-  const [{ data: editionData }, { data: regRows }] = await Promise.all([
-    supabase
-      .from("editions")
-      .select("year, title, registration_open, stages, current_stage")
-      .order("year", { ascending: false }),
-    supabase
-      .from("registrations")
-      .select("id, edition_year, reps, details, qualification_zone, contact_email, school_id, schools(name, lga, category)")
-      .eq("status", "verified")
-      .order("edition_year", { ascending: false })
-      .order("created_at", { ascending: false }),
-  ]);
+  // Two round trips on purpose. Registrations are read for ONE edition, which means
+  // the year has to be resolved first — and the year list comes from `editions`
+  // rather than from the registrations themselves.
+  //
+  // Reading every year to render one shipped the entire archive, `details` payload
+  // included, on every page load. Worse, the query had no limit: once the verified
+  // count passes the project's Max rows setting, PostgREST truncates the tail with no
+  // error, and since the old ordering was `edition_year desc` the rows lost were
+  // always the oldest edition's. A partially-listed 2022 is indistinguishable from a
+  // 2022 that only had that many teams.
+  const { data: editionData } = await supabase
+    .from("editions")
+    .select("year, title, registration_open, stages, current_stage")
+    .order("year", { ascending: false });
 
   const editions = (editionData ?? []) as Edition[];
-  const allRegs = (regRows ?? []) as unknown as ParticipantReg[];
-  const years = [...new Set(allRegs.map((r) => r.edition_year))].sort((a, b) => b - a);
-  const activeYear = edition ? Number(edition) || null : editions[0]?.year ?? years[0] ?? null;
-  const currentYear = editions[0]?.year ?? years[0] ?? null;
+  const currentYear = editions[0]?.year ?? null;
+  const activeYear = (edition ? Number(edition) || null : null) ?? currentYear;
+  // Editions drive the chips, so a new edition appears before its first team does.
+  // The active year is unioned in so a deep link to a year with no editions row is
+  // still navigable rather than silently dropping out of the list.
+  const years = [...new Set([...editions.map((e) => e.year), ...(activeYear ? [activeYear] : [])])]
+    .sort((a, b) => b - a);
+
+  const { data: regRows } = activeYear
+    ? await supabase
+        .from("registrations")
+        .select("id, edition_year, reps, details, qualification_zone, contact_email, school_id, schools(name, lga, category)")
+        .eq("status", "verified")
+        .eq("edition_year", activeYear)
+        .order("created_at", { ascending: false })
+    : { data: [] };
+
+  const inEdition = (regRows ?? []) as unknown as ParticipantReg[];
   const canEditCompetition = canManage && activeYear != null && activeYear === currentYear;
   const activeEdition = activeYear ? editions.find((e) => e.year === activeYear) ?? null : null;
   const stages = stageTabs(activeEdition?.stages ?? []);
-  const inEdition = activeYear ? allRegs.filter((r) => r.edition_year === activeYear) : allRegs;
   const needle = searchTokens(q).join(" ");
   const filtered = inEdition.filter((r) => {
     if (!needle) return true;
     const reps = Array.isArray(r.reps) ? (r.reps as Rep[]).map((rep) => rep.name) : [];
     return searchHaystackMatches([r.schools?.name, r.contact_email, zoneOf(r), ...reps], q);
   });
+  const requestedPage = parsePage(pageParam);
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const page = clampPage(parsePage(pageParam), pageCount);
+  const page = clampPage(requestedPage, pageCount);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const listParams = { edition, q };
+  const workspaceParams = new URLSearchParams();
+  if (activeYear) workspaceParams.set("edition", String(activeYear));
+  if (q) workspaceParams.set("q", q);
+  const workspaceQuery = workspaceParams.toString();
+  const workspaceHref = `/portal/admin/participants${workspaceQuery ? `?${workspaceQuery}` : ""}`;
 
-  const regIds = filtered.map((r) => r.id);
-  const schoolIds = filtered.map((r) => r.school_id).filter(Boolean) as string[];
+  // The workspace needs the complete Edition for truthful dashboards, whole-edition
+  // centre saves, groups and brackets — a bulk save must not silently skip the rows
+  // a search happened to hide. The legacy layout keeps its narrower search-scoped
+  // reads, since every control there acts on one row at a time.
+  const dataRegs = isLegacy ? filtered : inEdition;
+  const regIds = dataRegs.map((r) => r.id);
+  const schoolIds = dataRegs.map((r) => r.school_id).filter(Boolean) as string[];
 
   const [
     { data: stageRows },
@@ -202,8 +285,14 @@ export default async function AdminParticipants({
           .select("id, registration_id, stage, outcome, score, note, reason")
           .in("registration_id", regIds)
       : Promise.resolve({ data: [] as StageResult[] }),
-    schoolIds.length
-      ? supabase.from("students").select("id, school_id, name, level").in("school_id", schoolIds).is("deactivated_at", null).order("name")
+    schoolIds.length && activeYear
+      ? supabase
+          .from("students")
+          .select("id, school_id, name, level, edition_year")
+          .in("school_id", schoolIds)
+          .eq("edition_year", activeYear)
+          .is("deactivated_at", null)
+          .order("name")
       : Promise.resolve({ data: [] as RosterStudentRow[] }),
     regIds.length
       ? supabase.from("certificates").select("id, registration_id, student_id, type").in("registration_id", regIds)
@@ -212,7 +301,14 @@ export default async function AdminParticipants({
       ? supabase.from("tournament_groups").select("id, edition_year, stage, name, sort_order, advance_count").eq("edition_year", activeYear)
       : Promise.resolve({ data: [] as TournamentGroup[] }),
     activeYear
-      ? supabase.from("tournament_group_entries").select("id, group_id, registration_id, seed, rank, score, note, advance_override")
+      ? supabase
+          // Scoped through the parent: entries carry no edition_year of their own, so
+          // an unfiltered read returns every edition's and inflates the Groups count.
+          .from("tournament_group_entries")
+          .select(
+            "id, group_id, registration_id, seed, rank, score, note, advance_override, tournament_groups!inner(edition_year)",
+          )
+          .eq("tournament_groups.edition_year", activeYear)
       : Promise.resolve({ data: [] as TournamentGroupEntry[] }),
     activeYear
       ? supabase
@@ -227,20 +323,23 @@ export default async function AdminParticipants({
       : Promise.resolve({ data: [] as IndividualAward[] }),
   ]);
 
-  const regsById = new Map(filtered.map((r) => [r.id, r]));
+  const regsById = new Map(dataRegs.map((r) => [r.id, r]));
   const resultsByReg = new Map<string, StageResult[]>();
   for (const row of (stageRows ?? []) as StageResult[]) {
     const list = resultsByReg.get(row.registration_id) ?? [];
     list.push(row);
     resultsByReg.set(row.registration_id, list);
   }
-  const standingByReg = new Map(filtered.map((r) => [r.id, standing(resultsByReg.get(r.id) ?? [], stages)]));
+  const standingByReg = new Map(dataRegs.map((r) => [r.id, standing(resultsByReg.get(r.id) ?? [], stages)]));
 
+  // Keyed by school + edition: one school now holds every year's students.
+  const rosterKey = (schoolId: string, year: number | null) => `${schoolId}|${year ?? ""}`;
   const studentsBySchool = new Map<string, RosterStudent[]>();
   for (const s of (studentRows ?? []) as RosterStudentRow[]) {
-    const list = studentsBySchool.get(s.school_id) ?? [];
+    const key = rosterKey(s.school_id, s.edition_year);
+    const list = studentsBySchool.get(key) ?? [];
     list.push({ id: s.id, name: s.name, level: s.level });
-    studentsBySchool.set(s.school_id, list);
+    studentsBySchool.set(key, list);
   }
   const students = (studentRows ?? []) as RosterStudentRow[];
   const schoolCertsByReg: Record<string, { id: string; type: string | null }[]> = {};
@@ -251,7 +350,8 @@ export default async function AdminParticipants({
   }
 
   const groups = (groupRows ?? []) as TournamentGroup[];
-  const entries = (entryRows ?? []) as TournamentGroupEntry[];
+  // The !inner embed adds a nested tournament_groups key used only for filtering.
+  const entries = (entryRows ?? []) as unknown as TournamentGroupEntry[];
   const matches = (matchRows ?? []) as TournamentMatch[];
   const awards = (awardRows ?? []) as IndividualAward[];
   const entriesByGroup = new Map<string, TournamentGroupEntry[]>();
@@ -262,16 +362,107 @@ export default async function AdminParticipants({
     entriesByGroup.set(entry.group_id, list);
   }
   const assignedRegIds = new Set(entries.map((e) => e.registration_id));
-  const qualifiedRegs = filtered.filter((r) => resultAt(resultsByReg.get(r.id) ?? [], "Qualifications")?.outcome === "advanced");
+  const qualifiedRegs = dataRegs.filter((r) => resultAt(resultsByReg.get(r.id) ?? [], "Qualifications")?.outcome === "advanced");
   const unassignedQualified = qualifiedRegs.filter((r) => !assignedRegIds.has(r.id));
   const knockoutStages = stages.filter((s) => KNOCKOUT_LABELS.has(s));
-  const atQualifications = filtered.filter((r) => standingByReg.get(r.id)?.stage === "Qualifications").length;
-  const eliminated = filtered.filter((r) => (resultsByReg.get(r.id) ?? []).some((res) => res.outcome === "eliminated")).length;
-  const inKnockouts = filtered.filter((r) => KNOCKOUT_LABELS.has(standingByReg.get(r.id)?.stage ?? "")).length;
-  const champion = filtered.filter((r) => resultAt(resultsByReg.get(r.id) ?? [], "Finals")?.outcome === "advanced").length;
+  const atQualifications = dataRegs.filter((r) => standingByReg.get(r.id)?.stage === "Qualifications").length;
+  const eliminated = dataRegs.filter((r) => (resultsByReg.get(r.id) ?? []).some((res) => res.outcome === "eliminated")).length;
+  const inKnockouts = dataRegs.filter((r) => KNOCKOUT_LABELS.has(standingByReg.get(r.id)?.stage ?? "")).length;
+  const champion = dataRegs.filter((r) => resultAt(resultsByReg.get(r.id) ?? [], "Finals")?.outcome === "advanced").length;
   const groupStageTotal = assignedRegIds.size + unassignedQualified.length;
   const schoolName = (id?: string | null) => (id ? regsById.get(id)?.schools?.name ?? "Unknown school" : "Unassigned");
-  const rosterOf = (r: ParticipantReg) => (r.school_id ? studentsBySchool.get(r.school_id) ?? [] : []);
+  const rosterOf = (r: ParticipantReg) =>
+    r.school_id ? studentsBySchool.get(rosterKey(r.school_id, r.edition_year)) ?? [] : [];
+
+  if (!isLegacy) {
+    const allowedViews = new Set<PreviewView>(["overview", "centres", "qualifications", "groups", "knockouts", "awards"]);
+    const previewView = allowedViews.has(viewParam as PreviewView) ? (viewParam as PreviewView) : "overview";
+    const allowedStatuses = new Set<QualificationFilter>(["all", "pending", "advanced", "eliminated", "missing-centre"]);
+    const qualificationStatus = allowedStatuses.has(statusParam as QualificationFilter)
+      ? (statusParam as QualificationFilter)
+      : "all";
+
+    const previewParticipants: PreviewParticipant[] = dataRegs.map((registration) => {
+      const info = zoneInfo(registration);
+      const requested =
+        detailsValue(registration.details, "Zonal Finals Location") ||
+        detailsValue(registration.details, "Which center do you prefer for the Zonal Final Exam?  ");
+      const standardRequested = requested && isKnownCentre(requested) ? requested : null;
+      return {
+        id: registration.id,
+        schoolId: registration.school_id,
+        school: registration.schools?.name ?? "Unassigned school",
+        lga: registration.schools?.lga ?? null,
+        category: registration.schools?.category ?? null,
+        email: registration.contact_email,
+        reps: rosterOf(registration).length,
+        roster: rosterOf(registration),
+        results: resultsByReg.get(registration.id) ?? [],
+        standing: standingByReg.get(registration.id) ?? { stage: "Qualifications", label: "At Qualifications" },
+        centre: {
+          value: info.value,
+          source: info.source,
+          allocated: registration.qualification_zone,
+          requested: standardRequested,
+          requestedRaw: requested || null,
+          isStandard: Boolean(registration.qualification_zone) && isKnownCentre(registration.qualification_zone ?? ""),
+        },
+        schoolCerts: schoolCertsByReg[registration.id] ?? [],
+        studentCertsById: Object.fromEntries(
+          rosterOf(registration).map((student) => [student.id, studentCertsById[student.id] ?? []]),
+        ),
+      };
+    });
+
+    const previewGroups: PreviewGroup[] = sortedGroups(groups).map((group) => ({
+      ...group,
+      entries: sortedEntries(entriesByGroup.get(group.id) ?? []).map((entry) => ({
+        ...entry,
+        school: schoolName(entry.registration_id),
+      })),
+    }));
+    const previewMatches: PreviewMatch[] = matches.map((match) => ({
+      ...match,
+      teamAName: schoolName(match.team_a_registration_id),
+      teamBName: schoolName(match.team_b_registration_id),
+      winnerName: match.winner_registration_id ? schoolName(match.winner_registration_id) : null,
+    }));
+    const registrationBySchool = new Map(
+      dataRegs.filter((registration) => registration.school_id).map((registration) => [registration.school_id as string, registration]),
+    );
+    const previewStudents: PreviewStudent[] = students.map((student) => ({
+      id: student.id,
+      schoolId: student.school_id,
+      name: student.name,
+      level: student.level,
+      school: registrationBySchool.get(student.school_id)?.schools?.name ?? "School",
+    }));
+    const studentNameById = new Map(previewStudents.map((student) => [student.id, student.name]));
+    const previewAwards: PreviewAward[] = awards.map((award) => ({
+      ...award,
+      studentName: studentNameById.get(award.student_id) ?? "Rep",
+    }));
+
+    return (
+      <ParticipantsPreview
+        years={years}
+        activeYear={activeYear}
+        currentStage={activeEdition?.current_stage ?? null}
+        stages={stages}
+        canEditCompetition={canEditCompetition}
+        view={previewView}
+        q={q}
+        status={qualificationStatus}
+        page={requestedPage}
+        focus={focus}
+        participants={previewParticipants}
+        groups={previewGroups}
+        matches={previewMatches}
+        students={previewStudents}
+        awards={previewAwards}
+      />
+    );
+  }
 
   const overviewTab = (
     <div className="grid gap-3">
@@ -305,35 +496,63 @@ export default async function AdminParticipants({
     </div>
   );
 
+  const centreRows: CentreRow[] = filtered.map((r) => {
+    const info = zoneInfo(r);
+    // Never the LGA fallback: a school's LGA is not a choice anybody made, and
+    // several LGA names (Ifo, Ota, Sagamu…) are also centre names, so treating it
+    // as one would launder it into a real allocation on the next save.
+    const requested = info.source === "requested" ? info.value : null;
+    return {
+      registrationId: r.id,
+      school: r.schools?.name ?? "Unassigned school",
+      lga: r.schools?.lga ?? null,
+      reps: rosterOf(r).length,
+      allocated: r.qualification_zone ?? null,
+      // Only pre-select a request that names a real centre — the older editions
+      // hold LGAs and divisions here — but pass the raw answer along too, so the
+      // screen can say what the school actually asked for rather than the untrue
+      // "no centre chosen".
+      requested: requested && isKnownCentre(requested) ? requested : null,
+      requestedRaw: requested,
+    };
+  });
+  const centresAllocated = centreRows.filter(
+    (r) => r.allocated && isKnownCentre(r.allocated),
+  ).length;
+
+  const centresTab = (
+    <CentreAllocation
+      rows={centreRows}
+      canManage={canEditCompetition}
+      action={allocateQualificationZonesBulk}
+    />
+  );
+
   const qualificationsTab = (
     <div className="space-y-4">
       {paged.map((r) => {
         const result = resultAt(resultsByReg.get(r.id) ?? [], "Qualifications");
         return (
           <Card key={r.id} className="p-4">
-            <form action={saveQualificationDecision.bind(null, r.id)} className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(120px,0.7fr))_auto] lg:items-end">
+            <form action={saveQualificationDecision.bind(null, r.id)} className="grid gap-3 lg:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(120px,0.7fr))_auto] lg:items-end">
               <div className="min-w-0">
                 <p className="font-bebas text-xl leading-none text-foreground">{r.schools?.name ?? "Unassigned school"}</p>
                 <p className="mt-1 text-xs text-muted-foreground">{r.schools?.lga ?? "No LGA"} · {r.schools?.category ?? "School"} · {rosterOf(r).length} reps</p>
               </div>
               <label className="text-xs text-muted-foreground">
-                Zone
-                <input name="zone" defaultValue={zoneOf(r)} className={`mt-1 w-full ${inputCls}`} />
-              </label>
-              <label className="text-xs text-muted-foreground">
                 Score
-                <input name="score" type="number" step="any" defaultValue={result?.score ?? ""} className={`mt-1 w-full ${inputCls}`} />
+                <input name="score" type="number" step="any" defaultValue={result?.score ?? ""} disabled={!canEditCompetition} className={`mt-1 w-full ${inputCls}`} />
               </label>
               <label className="text-xs text-muted-foreground">
                 Reason
-                <select name="reason" defaultValue={result?.reason ?? ""} className={`mt-1 w-full ${inputCls}`}>
+                <select name="reason" defaultValue={result?.reason ?? ""} disabled={!canEditCompetition} className={`mt-1 w-full ${inputCls}`}>
                   <option value="">No reason</option>
                   {QUALIFICATION_REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
                 </select>
               </label>
               <label className="text-xs text-muted-foreground">
                 Outcome
-                <select name="outcome" defaultValue={result?.outcome ?? "pending"} className={`mt-1 w-full ${inputCls}`}>
+                <select name="outcome" defaultValue={result?.outcome ?? "pending"} disabled={!canEditCompetition} className={`mt-1 w-full ${inputCls}`}>
                   <option value="pending">Pending</option>
                   <option value="advanced">Advance to Grand Finale</option>
                   <option value="eliminated">Not advanced</option>
@@ -345,9 +564,67 @@ export default async function AdminParticipants({
               </div>
               <label className="lg:col-span-full text-xs text-muted-foreground">
                 Note
-                <input name="note" defaultValue={result?.note ?? ""} className={`mt-1 w-full ${inputCls}`} />
+                <input name="note" defaultValue={result?.note ?? ""} disabled={!canEditCompetition} className={`mt-1 w-full ${inputCls}`} />
               </label>
             </form>
+            {/* A separate form on purpose: the exam centre is allocated before the
+                exam and must never move as a side effect of saving a score. HTML
+                forbids nested forms, so this is a sibling rather than a field. */}
+            {(() => {
+              const zone = zoneInfo(r);
+              const detail = (
+                <>
+                  {ZONE_SOURCE_LABEL[zone.source]}
+                  {isKnownCentre(zone.value) ? "" : " · not a centre"}
+                </>
+              );
+              if (!canEditCompetition) {
+                return (
+                  <div className="mt-3 border-t border-foreground/5 pt-3 text-xs text-muted-foreground">
+                    Exam centre: <span className="text-foreground">{zone.value}</span> · {detail}
+                  </div>
+                );
+              }
+              return (
+                <form
+                  action={allocateQualificationZone.bind(null, r.id)}
+                  className="mt-3 flex flex-wrap items-end gap-2 border-t border-foreground/5 pt-3"
+                >
+                  <div className="text-xs text-muted-foreground">
+                    Exam centre
+                    {/* The same control as the Centres tab, so the two cannot drift
+                        into disagreeing about what a centre is. It pre-selects the
+                        allocation if there is one, otherwise the school's own
+                        registration choice — never the LGA fallback, which nobody
+                        chose. A leftover value that is not a centre appears in the
+                        free-text box, so it has to be replaced or cleared
+                        deliberately rather than confirmed by a stray click. */}
+                    <div className="mt-1">
+                      <CentrePicker
+                        label={r.schools?.name ?? "this school"}
+                        name="zone"
+                        otherName="zoneOther"
+                        defaultValue={
+                          (zone.source === "allocated" || zone.source === "requested") &&
+                          isKnownCentre(zone.value)
+                            ? zone.value
+                            : ""
+                        }
+                        defaultOther={
+                          zone.source === "allocated" && !isKnownCentre(zone.value) ? zone.value : ""
+                        }
+                      />
+                    </div>
+                  </div>
+                  <SubmitButton size="sm" variant="outline" pendingText="Saving…">
+                    Allocate
+                  </SubmitButton>
+                  <p className="text-xs text-muted-foreground">
+                    Currently <span className="text-foreground">{zone.value}</span> · {detail}
+                  </p>
+                </form>
+              );
+            })()}
           </Card>
         );
       })}
@@ -714,6 +991,7 @@ export default async function AdminParticipants({
 
   const tabs = [
     { label: `Overview (${filtered.length})`, content: overviewTab },
+    { label: `Centres (${centresAllocated}/${centreRows.length})`, content: centresTab },
     { label: `Qualifications (${atQualifications})`, content: qualificationsTab },
     { label: `Groups (${groupStageTotal})`, content: groupsTab },
     { label: `Bracket (${matches.filter((m) => m.kind !== "face_off").length})`, content: bracketTab },
@@ -731,7 +1009,12 @@ export default async function AdminParticipants({
         <div>
           <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
             <SectionHeading>{activeYear ? `${activeYear} competition` : "Competition"}</SectionHeading>
-            {!canEditCompetition ? <ReadOnlyBadge /> : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {!canEditCompetition ? <ReadOnlyBadge /> : null}
+              <Button asChild size="sm" variant="outline">
+                <Link href={workspaceHref}>Back to the new layout</Link>
+              </Button>
+            </div>
           </div>
           {years.length > 1 ? (
             <div className="flex flex-wrap gap-2 mb-4">
