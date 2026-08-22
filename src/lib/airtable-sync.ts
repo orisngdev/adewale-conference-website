@@ -9,8 +9,19 @@ import {
   listAirtableRecords,
 } from "@/lib/airtable";
 import { airtableCreatedAt } from "@/lib/airtable-created-at";
+// Shared with public.school_norm_name and the canonical scripts. This local copy
+// used to omit the "&" rule, which now disagrees with schools_norm_name_key.
+import { normalizeSchoolName } from "@/lib/school-identity";
 
-// One-way sync: Airtable (source of truth) → Supabase portal mirror.
+// One-way sync: Airtable → Supabase portal mirror.
+//
+// Airtable is NO LONGER the source of truth for school identity. The reconciled
+// 2022-2026 workbooks are: they assign every school a canonical ASC- code, held in
+// schools.school_code, and migration 20260822090100 enforces one row per normalized
+// name. So this sync must never rewrite the name, LGA or category of a school that
+// carries a school_code — it fills gaps and links airtable_id, nothing more. Before
+// that rule existed, one run would have reverted all 534 canonical names to whatever
+// spelling Airtable happened to hold.
 // Idempotent — keyed by airtable_id on both schools and registrations, so it
 // doubles as the historical backfill and the ongoing refresh. Never sends
 // email and never touches admin-owned registration state (status, owner,
@@ -41,6 +52,7 @@ interface DbSchool {
   lga: string | null;
   category: string | null;
   airtable_id: string | null;
+  school_code: string | null;
 }
 
 interface DbRegistration {
@@ -49,19 +61,6 @@ interface DbRegistration {
   school_id: string | null;
   edition_year: number;
   contact_email: string | null;
-}
-
-// Punctuation-insensitive: Airtable holds the same school as "ST. MARY'S,
-// OTA" and "ST MARYS OTA" — both must map to one portal school.
-function norm(value: string | null | undefined) {
-  return (value ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function schoolKey(name?: string | null, lga?: string | null, category?: string | null) {
-  return `${norm(name)}|${norm(lga)}|${norm(category)}`;
 }
 
 function makeClaimCode() {
@@ -109,7 +108,7 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
 
   // ── Load everything up front (4 concurrent reads) ───────────────────────────
   const [schoolsRead, regsRead, airtableSchools, participants] = await Promise.all([
-    supabase.from("schools").select("id, name, lga, category, airtable_id"),
+    supabase.from("schools").select("id, name, lga, category, airtable_id, school_code"),
     supabase
       .from("registrations")
       .select("id, airtable_id, school_id, edition_year, contact_email"),
@@ -120,10 +119,12 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
   if (regsRead.error) throw new Error(`registrations read failed: ${regsRead.error.message}`);
 
   const schoolsByAirtableId = new Map<string, DbSchool>();
-  const schoolsByKey = new Map<string, DbSchool>();
+  // Keyed by normalized name only — the same expression as schools_norm_name_key.
+  // Including LGA here is what used to let one school through as several rows.
+  const schoolsByName = new Map<string, DbSchool>();
   for (const s of (schoolsRead.data ?? []) as DbSchool[]) {
     if (s.airtable_id) schoolsByAirtableId.set(s.airtable_id, s);
-    schoolsByKey.set(schoolKey(s.name, s.lga, s.category), s);
+    schoolsByName.set(normalizeSchoolName(s.name), s);
   }
 
   const regsByAirtableId = new Map<string, DbRegistration>();
@@ -147,17 +148,20 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
     const category = rec.fields["School Category"] ?? null;
     const address = rec.fields["School Address"] ?? null;
     const email = rec.fields["School Email"]?.toLowerCase() ?? null;
-    const key = schoolKey(name, lga, category);
+    const key = normalizeSchoolName(name);
 
-    const matched = schoolsByAirtableId.get(rec.id) ?? schoolsByKey.get(key);
+    const matched = schoolsByAirtableId.get(rec.id) ?? schoolsByName.get(key);
     if (matched) {
+      // A canonical school's name, LGA and category are decided by the workbook, not
+      // by Airtable. Only ever fill blanks and attach the airtable_id.
+      const canonical = Boolean(matched.school_code);
       schoolUpdates.set(matched.id, {
         id: matched.id,
-        name,
-        lga,
-        category,
-        address,
-        email,
+        ...(canonical
+          ? {}
+          : { name, lga, category }),
+        ...(address && !canonical ? { address } : {}),
+        ...(email && !canonical ? { email } : {}),
         airtable_id: rec.id,
       });
       if (!matched.airtable_id) summary.schoolsLinked += 1;
@@ -176,14 +180,14 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
     const { data: created, error } = await supabase
       .from("schools")
       .insert([...schoolInserts.values()])
-      .select("id, name, lga, category, airtable_id");
+      .select("id, name, lga, category, airtable_id, school_code");
     if (error) {
       summary.errors.push(`school insert batch: ${error.message}`);
     } else {
       for (const row of (created ?? []) as DbSchool[]) {
         summary.schoolsCreated += 1;
         if (row.airtable_id) schoolsByAirtableId.set(row.airtable_id, row);
-        schoolsByKey.set(schoolKey(row.name, row.lga, row.category), row);
+        schoolsByName.set(normalizeSchoolName(row.name), row);
       }
     }
   }
@@ -199,7 +203,7 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
     const f = rec.fields;
     const name = f["School Full Name"]?.trim();
     if (!name) continue;
-    const groupKey = `${schoolKey(name, f["School LGA"], f["School Category"])}#${new Date(airtableCreatedAt(rec)).getFullYear()}`;
+    const groupKey = `${normalizeSchoolName(name)}#${new Date(airtableCreatedAt(rec)).getFullYear()}`;
     const group = groups.get(groupKey);
     if (group) group.push(rec);
     else groups.set(groupKey, [rec]);
@@ -218,8 +222,8 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
   const missingSchools = new Map<string, Record<string, unknown>>();
   for (const rec of chosen) {
     const f = rec.fields;
-    const key = schoolKey(f["School Full Name"], f["School LGA"], f["School Category"]);
-    if (!schoolsByKey.has(key) && !missingSchools.has(key)) {
+    const key = normalizeSchoolName(f["School Full Name"]);
+    if (!schoolsByName.has(key) && !missingSchools.has(key)) {
       missingSchools.set(key, {
         name: f["School Full Name"]?.trim(),
         lga: f["School LGA"] ?? null,
@@ -239,7 +243,7 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
     } else {
       for (const row of (created ?? []) as DbSchool[]) {
         summary.schoolsCreated += 1;
-        schoolsByKey.set(schoolKey(row.name, row.lga, row.category), row);
+        schoolsByName.set(normalizeSchoolName(row.name), row);
       }
     }
   }
@@ -261,7 +265,7 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
     const f = rec.fields;
     const schoolName = f["School Full Name"]?.trim();
     if (!schoolName) continue;
-    const school = schoolsByKey.get(schoolKey(schoolName, f["School LGA"], f["School Category"]));
+    const school = schoolsByName.get(normalizeSchoolName(schoolName));
     if (!school) {
       summary.errors.push(`registration ${rec.id} ("${schoolName}"): school missing`);
       continue;
@@ -392,7 +396,7 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
       continue;
     }
     for (const s of (data ?? []) as DbStudent[]) {
-      studentsByKey.set(`${s.school_id}|${norm(s.name)}`, s);
+      studentsByKey.set(`${s.school_id}|${normalizeSchoolName(s.name)}`, s);
     }
   }
 
@@ -403,7 +407,7 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
   >();
   for (const target of repTargets) {
     for (const rep of target.reps) {
-      const key = `${target.schoolId}|${norm(rep.name)}`;
+      const key = `${target.schoolId}|${normalizeSchoolName(rep.name)}`;
       const existing = studentsByKey.get(key);
       if (existing) {
         if (existing.edition_year !== target.editionYear || (rep.level || null) !== existing.level) {

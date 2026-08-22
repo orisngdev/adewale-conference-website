@@ -24,9 +24,8 @@ function requireOption<T extends readonly string[]>(
   return value as T[number];
 }
 
-// School lookup for the registration form's dropdown. Reads the portal's
-// schools table (kept complete by the Airtable sync) with the service-role
-// client: the form is a public, logged-out page, but schools_read RLS is
+// School lookup for the registration form's dropdown. Reads the canonical
+// schools table with the service-role client: the form is a public, logged-out page, but schools_read RLS is
 // authenticated-only, so the anon key would return zero rows. The admin
 // client stays server-side and we hand back only the three dropdown fields —
 // never the school's email/address.

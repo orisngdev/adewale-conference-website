@@ -5,8 +5,9 @@ import {
   buildAdminNewRegistrationEmail,
   sendEmailSafely,
 } from "@/lib/email";
-import { mapRegistrationFields, type RegistrationFormData } from "@/lib/forms";
+import { mapRegistrationFields, ZONAL_FINALS_OPTIONS, type RegistrationFormData } from "@/lib/forms";
 import { repLabel } from "@/lib/age";
+import { resolveSchool } from "@/lib/school-identity";
 import { canView, resolveStoredPermissions } from "@/lib/admin-permissions";
 import type { AdminPermissionsMap } from "@/supabase/types";
 
@@ -42,38 +43,19 @@ export async function mirrorRegistrationToSupabase(
   // The route resolves the OPEN edition and passes it; env is only a fallback.
   const edition = editionYear ?? EDITION_YEAR;
 
-  // Find-or-create the school by natural key (name + lga + category).
-  let schoolId: string | null = null;
-  const { data: existing } = await supabase
-    .from("schools")
-    .select("id")
-    .eq("name", input.schoolFullName)
-    .eq("lga", input.schoolLGA)
-    .eq("category", input.schoolCategory)
-    .maybeSingle();
-
-  if (existing) {
-    schoolId = existing.id;
-    if (airtableSchoolId) {
-      await supabase
-        .from("schools")
-        .update({ airtable_id: airtableSchoolId })
-        .eq("id", schoolId)
-        .is("airtable_id", null);
-    }
-  } else {
-    const { data: created } = await supabase
-      .from("schools")
-      .insert({
-        name: input.schoolFullName,
-        lga: input.schoolLGA,
-        category: input.schoolCategory,
-        airtable_id: airtableSchoolId ?? null,
-      })
-      .select("id")
-      .single();
-    schoolId = created?.id ?? null;
-  }
+  // Find-or-create through the shared resolver, which normalizes the name exactly
+  // as schools_norm_name_key does. This used to match on an exact name string plus
+  // lga and category, which is one of the paths that fragmented this table: any
+  // difference in spacing, punctuation or LGA minted a second row for one school.
+  const resolved = await resolveSchool(supabase, {
+    name: input.schoolFullName,
+    lga: input.schoolLGA,
+    category: input.schoolCategory,
+    address: input.schoolAddress || null,
+    email: input.schoolEmail || null,
+    airtableId: airtableSchoolId ?? null,
+  });
+  const schoolId: string | null = resolved?.id ?? null;
 
   const repEntries = [
     { name: input.studentRep1FullName, level: input.studentRep1Class, dob: input.studentRep1DOB },
@@ -107,6 +89,17 @@ export async function mirrorRegistrationToSupabase(
     // the same Airtable field names the sync uses, so the admin review sees rich
     // detail immediately — before the first Airtable sync refreshes it.
     details: mapRegistrationFields(input),
+    // The school's own choice IS the allocation, unless an admin moves it. The
+    // registration form validates this field against ZONAL_FINALS_OPTIONS, so it can
+    // only ever be one of the eight real centres — which is what makes defaulting
+    // safe here and unsafe for the LGA fallback that corrupted this column
+    // historically. Re-checked rather than assumed, because the guarantee lives in
+    // another file. An admin then only has to touch the exceptions.
+    qualification_zone: (ZONAL_FINALS_OPTIONS as readonly string[]).includes(
+      input.zonalFinalsLocation,
+    )
+      ? input.zonalFinalsLocation
+      : null,
     contact_email: contactEmail,
     contact_name: input.teacherFullName || null,
     claim_code: claimCode,

@@ -20,6 +20,7 @@ import { buildRegistrationEmail, sendEmailSafely } from "@/lib/email";
 import { mirrorRegistrationToSupabase } from "@/lib/portal-registration";
 import { rateLimit, requestIp } from "@/lib/rate-limit";
 import { createAdminClient } from "@/supabase/admin";
+import { findSchoolByName } from "@/lib/school-identity";
 
 export const runtime = "nodejs";
 
@@ -224,19 +225,11 @@ export async function POST(request: Request) {
       }
       editionYear = openEdition.year as number;
 
-      // One registration per school per edition. Punctuation-insensitive
-      // natural-key match against the portal mirror, which the Airtable sync
-      // keeps complete — so this also catches schools that registered before
-      // the portal existed (and re-tries like "St Marys" vs "St. Mary's").
-      const normalize = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-      const { data: lgaSchools } = await adminDb
-        .from("schools")
-        .select("id, name")
-        .eq("lga", registration.schoolLGA)
-        .eq("category", registration.schoolCategory);
-      const existingSchool = (lgaSchools ?? []).find(
-        (s) => normalize(s.name ?? "") === normalize(registration.schoolFullName),
-      );
+      // One registration per school per edition. Matched on the normalized name
+      // alone, not name+lga+category: the duplicate rows this replaced disagreed
+      // about LGA as often as they agreed, so scoping the lookup by LGA is what let
+      // them through. Uses the same normalization as schools_norm_name_key.
+      const existingSchool = await findSchoolByName(adminDb, registration.schoolFullName);
       if (existingSchool) {
         const { data: existingReg } = await adminDb
           .from("registrations")
