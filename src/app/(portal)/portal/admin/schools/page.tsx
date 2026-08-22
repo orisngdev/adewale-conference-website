@@ -11,6 +11,7 @@ import {
   Pagination,
   clampPage,
   filterSelectCls,
+  listQuery,
   pageBounds,
   parsePage,
 } from "@/components/portal/list-controls";
@@ -20,7 +21,8 @@ import { LGA_OPTIONS, SCHOOL_CATEGORY_OPTIONS } from "@/lib/forms";
 import { escapeLikePattern, searchTokens } from "@/lib/search";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { createClient } from "@/supabase/server";
-import { approveMembership, rejectMembership } from "./actions";
+import Link from "next/link";
+import { approveMembership, rejectMembership, updateSchool } from "./actions";
 
 export const metadata = pageMetadata("Schools", "Schools and access requests.");
 export const dynamic = "force-dynamic";
@@ -30,8 +32,14 @@ interface SchoolRow {
   name: string;
   lga: string | null;
   category: string | null;
+  email: string | null;
+  school_code: string | null;
   registrations: { count: number }[];
 }
+
+const fieldCls =
+  "w-full rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary";
+const labelCls = "block text-xs uppercase tracking-wide text-muted-foreground";
 
 interface PendingMember {
   id: string;
@@ -44,11 +52,18 @@ const PAGE_SIZE = 30;
 export default async function AdminSchools({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; lga?: string; category?: string; page?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    lga?: string;
+    category?: string;
+    page?: string;
+    notice?: string;
+    error?: string;
+  }>;
 }) {
   await requireModuleView("registrations");
   const canManage = await canManageModule("registrations");
-  const { q, lga, category, page: pageParam } = await searchParams;
+  const { q, lga, category, page: pageParam, notice, error } = await searchParams;
   const requestedPage = parsePage(pageParam);
   const { from, to } = pageBounds(requestedPage, PAGE_SIZE);
   const supabase = await createClient();
@@ -57,7 +72,7 @@ export default async function AdminSchools({
   const buildSchoolsQuery = () => {
     let schoolsQuery = supabase
       .from("schools")
-      .select("id, name, lga, category, registrations(count)", { count: "exact" })
+      .select("id, name, lga, category, email, school_code, registrations(count)", { count: "exact" })
       .order("name", { ascending: true });
     if (q?.trim()) {
       for (const token of searchTokens(q)) {
@@ -89,12 +104,20 @@ export default async function AdminSchools({
     schools = (pageData ?? []) as unknown as SchoolRow[];
   }
   const filtering = Boolean(q?.trim() || lga || category);
+  // Come back to the same page and filters after an edit.
+  const returnTo = `/portal/admin/schools${listQuery({ q, lga, category, page: String(page) })}`;
 
   return (
     <>
       <PortalHeader title="Schools" subtitle="Access requests and registered schools" />
       <PortalBody>
         {!canManage ? <ReadOnlyBadge /> : null}
+        {notice ? (
+          <Card className="border-primary/30 bg-primary/5 p-4 text-sm text-foreground">{notice}</Card>
+        ) : null}
+        {error ? (
+          <Card className="border-destructive/40 bg-destructive/5 p-4 text-sm text-foreground">{error}</Card>
+        ) : null}
         <div>
           <SectionHeading>
             Pending access {pending.length > 0 ? `(${pending.length})` : ""}
@@ -149,9 +172,17 @@ export default async function AdminSchools({
         </div>
 
         <div>
-          <SectionHeading>
-            {total} school{total === 1 ? "" : "s"}
-          </SectionHeading>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <SectionHeading>
+              {total} school{total === 1 ? "" : "s"}
+            </SectionHeading>
+            <Link
+              href="/portal/admin/schools/duplicates"
+              className="text-sm text-primary underline-offset-4 hover:underline"
+            >
+              Find possible duplicates
+            </Link>
+          </div>
           <FilterBar q={q} placeholder="Search school name…">
             <select name="lga" defaultValue={lga ?? ""} className={filterSelectCls}>
               <option value="">Any LGA</option>
@@ -179,20 +210,86 @@ export default async function AdminSchools({
           ) : (
             <Card className="divide-y divide-foreground/5">
               {schools.map((s) => (
-                <div
-                  key={s.id}
-                  className="flex items-center justify-between gap-4 p-4"
-                >
-                  <div>
-                    <span className="font-medium text-foreground">{s.name}</span>
-                    <p className="text-sm text-muted-foreground">
-                      {[s.lga, s.category].filter(Boolean).join(" · ") || "—"}
-                    </p>
+                <div key={s.id} className="p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <span className="font-medium text-foreground">{s.name}</span>
+                      {s.school_code ? (
+                        <span className="ml-2 rounded bg-foreground/5 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                          {s.school_code}
+                        </span>
+                      ) : (
+                        <span className="ml-2 rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] text-amber-700 dark:text-amber-400">
+                          not canonical
+                        </span>
+                      )}
+                      <p className="text-sm text-muted-foreground">
+                        {[s.lga, s.category].filter(Boolean).join(" · ") || "—"}
+                      </p>
+                    </div>
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">
+                      {s.registrations?.[0]?.count ?? 0} registration
+                      {(s.registrations?.[0]?.count ?? 0) === 1 ? "" : "s"}
+                    </span>
                   </div>
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    {s.registrations?.[0]?.count ?? 0} registration
-                    {(s.registrations?.[0]?.count ?? 0) === 1 ? "" : "s"}
-                  </span>
+                  {canManage ? (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer text-sm text-primary">Edit details</summary>
+                      <form action={updateSchool} className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <input type="hidden" name="id" value={s.id} />
+                        <input type="hidden" name="returnTo" value={returnTo} />
+                        <label className="sm:col-span-2">
+                          <span className={labelCls}>School name</span>
+                          <input name="name" defaultValue={s.name} required className={fieldCls} />
+                        </label>
+                        <label>
+                          <span className={labelCls}>LGA</span>
+                          <select name="lga" defaultValue={s.lga ?? ""} className={fieldCls}>
+                            <option value="">—</option>
+                            {LGA_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span className={labelCls}>Category</span>
+                          <select name="category" defaultValue={s.category ?? ""} className={fieldCls}>
+                            <option value="">—</option>
+                            {SCHOOL_CATEGORY_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="sm:col-span-2">
+                          <span className={labelCls}>School email</span>
+                          <input
+                            name="email"
+                            type="email"
+                            defaultValue={s.email ?? ""}
+                            className={fieldCls}
+                          />
+                        </label>
+                        <div className="sm:col-span-2">
+                          <ConfirmSubmitButton
+                            size="sm"
+                            title="Save changes to this school?"
+                            description={
+                              s.school_code
+                                ? `${s.name} carries the canonical code ${s.school_code}. Renaming it here will not update the source workbook.`
+                                : "This school has no canonical code yet."
+                            }
+                            confirmLabel="Yes, save"
+                          >
+                            Save
+                          </ConfirmSubmitButton>
+                        </div>
+                      </form>
+                    </details>
+                  ) : null}
                 </div>
               ))}
             </Card>
@@ -201,7 +298,7 @@ export default async function AdminSchools({
             page={page}
             pageCount={pageCount}
             path="/portal/admin/schools"
-            params={{ q, lga, category }}
+            params={{ q, lga, category, notice, error }}
           />
         </div>
       </PortalBody>
