@@ -20,6 +20,9 @@ import {
   type UserRole,
 } from "@/supabase/types";
 import { permissionsFromForm } from "@/lib/admin-permissions";
+import { ZONAL_FINALS_OPTIONS } from "@/lib/forms";
+// Type only, so the "use server" boundary is untouched at runtime.
+import type { CentreSaveState } from "@/components/portal/centre-allocation-form";
 import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 
 const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
@@ -1137,20 +1140,122 @@ async function markSchoolAndReps(
   }
 }
 
+// ── zonal exam centres ──────────────────────────────────────────────────────
+// Both controls that write registrations.qualification_zone go through
+// writeCentres, so there is exactly one rulebook for this column. That matters:
+// when the centre was a field on the qualification score form, saving a score
+// copied whatever the row happened to be displaying into the column — including
+// the school's LGA when it had not answered the registration question — which is
+// how ~780 rows came to hold LGAs and divisions instead of centres.
+
+/**
+ * Apply centre allocations. Returns how many rows actually changed.
+ *
+ * p_allowed is the exact set this request may write: the eight real centres plus
+ * anything deliberately typed into the escape hatch. The RPC keeps no list of its
+ * own, because duplicating ZONAL_FINALS_OPTIONS across TypeScript and SQL is the
+ * drift that let LGAs into this column to begin with. An empty zone clears.
+ */
+async function writeCentres(rows: { id: string; zone: string }[]) {
+  const supabase = await createClient();
+  const allowed = [...new Set([...ZONAL_FINALS_OPTIONS, ...rows.map((r) => r.zone)])].filter(Boolean);
+  const { data, error } = await supabase.rpc("allocate_qualification_zones", {
+    p_rows: rows,
+    p_allowed: allowed,
+  });
+  if (!error) {
+    revalidatePath("/portal/admin/participants");
+    revalidatePath("/portal/school");
+  }
+  return { changed: typeof data === "number" ? data : 0, error };
+}
+
+/**
+ * Read one CentrePicker's pair of fields into a value to store.
+ *
+ * The dropdown wins; the text box is a fallback that only carries a value when the
+ * dropdown was deliberately left unallocated. Returns null for a dropdown value
+ * outside the eight, which means a tampered payload rather than a choice.
+ */
+function readCentre(selected: string, typed: string): string | null {
+  if (!selected) return typed.trim().slice(0, 80);
+  return (ZONAL_FINALS_OPTIONS as readonly string[]).includes(selected) ? selected : null;
+}
+
+/**
+ * Allocate exam centres for a whole edition in one go.
+ *
+ * The form pre-selects each school's own registration choice, so submitting it
+ * unchanged confirms every request at once; changing individual dropdowns first is
+ * how you rebalance an over-subscribed centre. The row count comes back so the
+ * screen can tell work apart from a no-op — without it, an RPC that is missing or
+ * refuses every row looks exactly like a successful save.
+ */
+export async function allocateQualificationZonesBulk(
+  _prev: CentreSaveState,
+  formData: FormData,
+): Promise<CentreSaveState> {
+  if (!(await requireManage("participants"))) {
+    return { ok: false, message: "You have view-only access to participants." };
+  }
+
+  // The dropdown submits zone:<id>, the escape hatch zoneOther:<id>.
+  const chosen = new Map<string, string>();
+  const typed = new Map<string, string>();
+  for (const [key, value] of formData.entries()) {
+    const text = String(value ?? "").trim();
+    if (key.startsWith("zone:")) chosen.set(key.slice("zone:".length), text);
+    else if (key.startsWith("zoneOther:")) typed.set(key.slice("zoneOther:".length), text);
+  }
+
+  const rows: { id: string; zone: string }[] = [];
+  for (const [id, selected] of chosen) {
+    if (!id) continue;
+    const zone = readCentre(selected, typed.get(id) ?? "");
+    if (zone === null) continue;
+    rows.push({ id, zone });
+  }
+  if (rows.length === 0) return { ok: false, message: "Nothing to save." };
+
+  const { changed, error } = await writeCentres(rows);
+  if (error) return { ok: false, message: `Could not save centres: ${error.message}` };
+  return {
+    ok: true,
+    message:
+      changed === 0
+        ? `No change — all ${rows.length} schools already sit where the form showed them.`
+        : `Moved ${changed} of ${rows.length} school${rows.length === 1 ? "" : "s"}.`,
+  };
+}
+
+/**
+ * Allocate (or clear) one school's zonal exam centre.
+ *
+ * Deliberately its own action rather than a field on the qualification form: the
+ * centre is decided before the exam and entering a score afterwards must never
+ * move it. HTML forbids nested forms, so it is a sibling form, not a field.
+ */
+export async function allocateQualificationZone(registrationId: string, formData: FormData) {
+  if (!(await requireManage("participants"))) return;
+  const zone = readCentre(
+    String(formData.get("zone") ?? "").trim(),
+    String(formData.get("zoneOther") ?? ""),
+  );
+  if (zone === null) return;
+  await writeCentres([{ id: registrationId, zone }]);
+}
+
 export async function saveQualificationDecision(registrationId: string, formData: FormData) {
   if (!(await requireManage("participants"))) return;
   const outcome = String(formData.get("outcome") ?? "");
   if (!["advanced", "eliminated", "pending"].includes(outcome)) return;
-  const zone = textOrNull(formData.get("zone"));
   const score = numberOrNull(formData.get("score"));
   const reason = qualificationReason(formData.get("reason"));
   const note = textOrNull(formData.get("note"));
 
-  const supabase = await createClient();
-  await supabase
-    .from("registrations")
-    .update({ qualification_zone: zone })
-    .eq("id", registrationId);
+  // Deliberately does NOT touch qualification_zone. The exam centre is the school's
+  // choice at registration, or an explicit admin allocation — never a side effect of
+  // entering a score. Writing it here is how ~780 rows ended up holding an LGA.
   await markSchoolAndReps(registrationId, "Qualifications", outcome as "advanced" | "eliminated" | "pending", {
     score,
     reason,
