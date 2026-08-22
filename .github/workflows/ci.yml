@@ -37,6 +37,11 @@ jobs:
       - run: npm ci
       - name: TypeScript
         run: npx tsc --noEmit
+      # schools_norm_name_key is a unique index on public.school_norm_name(name), so
+      # the SQL function and its two runtime copies have to agree exactly. They
+      # drifted once already and the symptom was a 23505 on a live registration.
+      - name: School-name normalizer lockstep
+        run: npm run check:normalizers
 
   build:
     name: Production build

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+  "check:normalizers": "node scripts/canonical/check-normalizers.mjs",
     "db:link": "supabase link --project-ref \"$SUPABASE_PROJECT_REF\"",
     "db:push": "npm run db:link && supabase db push",
     "db:push:prod": "bash scripts/db-push-prod.sh",
