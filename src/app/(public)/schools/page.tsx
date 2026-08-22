@@ -1,9 +1,9 @@
 import { unstable_cache } from "next/cache";
-import { createClient } from "@supabase/supabase-js";
 import PageHeader from "@/components/layout/page-header";
 import EmptyState from "@/components/ui/empty-state";
 import { pageMetadata } from "@/lib/seo";
-import { isSupabaseConfigured, supabasePublishableKey, supabaseUrl } from "@/supabase/env";
+import { createAdminClient } from "@/supabase/admin";
+import { isSupabaseConfigured } from "@/supabase/env";
 
 export const metadata = pageMetadata(
   "Participating Schools",
@@ -15,21 +15,32 @@ interface SchoolRow {
   name: string;
   lga: string | null;
   category: string | null;
-  address: string | null;
 }
 
-// Reads the portal's schools table (kept complete by the Airtable sync) with
-// the public anon key. Email is intentionally excluded from the directory.
-// Cached for 5 minutes to keep the page static-ish.
+// Reads the canonical schools table. Uses the service-role client for the same
+// reason /api/schools does: this is a public, logged-out page but schools_read RLS
+// is authenticated-only, so the publishable key returns an empty set with NO error
+// and the page silently renders its "no schools listed yet" state. The client stays
+// server-side inside unstable_cache and only non-sensitive columns are selected.
+//
+// Name, LGA and category only — deliberately the same set /api/schools returns. The
+// address column is free text from the registration form, so some rows hold a
+// coordinator's own address or a phone number rather than the school's; none of it
+// has ever been public, since this page returned zero rows until the service-role
+// fix, and it is not the kind of field to publish 500 rows of unreviewed.
+//
+// Only canonical schools are listed: rows carrying an exclusion_reason are demo,
+// junk, or schools that sat an exam without registering, and none belong in a public
+// directory. Cached for 5 minutes to keep the page static-ish.
 const loadSchools = unstable_cache(
   async (): Promise<SchoolRow[]> => {
     if (!isSupabaseConfigured) return [];
-    const supabase = createClient(supabaseUrl, supabasePublishableKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const supabase = createAdminClient();
+    if (!supabase) return [];
     const { data, error } = await supabase
       .from("schools")
-      .select("id, name, lga, category, address")
+      .select("id, name, lga, category")
+      .not("school_code", "is", null)
       .order("name", { ascending: true });
     if (error) throw new Error(error.message);
     return (data ?? []) as SchoolRow[];
@@ -97,11 +108,6 @@ export default async function SchoolsPage() {
                           {school.category ? (
                             <span className="text-[11px] font-bold tracking-[0.14em] uppercase text-muted-foreground">
                               {school.category}
-                            </span>
-                          ) : null}
-                          {school.address ? (
-                            <span className="text-sm text-muted-foreground basis-full">
-                              {school.address}
                             </span>
                           ) : null}
                         </li>
