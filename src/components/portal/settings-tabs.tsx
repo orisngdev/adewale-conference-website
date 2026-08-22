@@ -21,7 +21,7 @@ export default function SettingsTabs({
             role="tab"
             aria-selected={i === active}
             onClick={() => setActive(i)}
-            className={`py-3 text-sm tracking-wide border-b-2 -mb-px whitespace-nowrap transition-colors ${
+            className={`cursor-pointer py-3 text-sm tracking-wide border-b-2 -mb-px whitespace-nowrap transition-colors ${
               i === active
                 ? "border-primary text-foreground font-medium"
                 : "border-transparent text-muted-foreground hover:text-foreground"
