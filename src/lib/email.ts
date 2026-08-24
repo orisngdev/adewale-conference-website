@@ -473,6 +473,38 @@ export function buildWaitlistOpenEmail(data: {
   return { to, subject, html };
 }
 
+/** Single-school invite to register while registration is officially closed —
+ * the link carries a one-use token that both prefills the form and admits that
+ * one school into the target edition. */
+export function buildWaitlistInviteEmail(data: {
+  email: string;
+  name?: string | null;
+  schoolName: string;
+  editionYear: number;
+  inviteToken: string;
+  expiresAt: string;
+}) {
+  const subject = `Your invitation to register — ASC ${data.editionYear}`;
+  const html = render("waitlist-invite", "You're invited to register", {
+    schoolName: data.schoolName,
+    editionYear: String(data.editionYear),
+    inviteUrl: waitlistInviteUrl(data.inviteToken),
+    expiresLabel: new Date(data.expiresAt).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }),
+  });
+  const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
+  return { to, subject, html };
+}
+
+/** The one place the invite link is spelled — the admin page shows the same URL
+ * so it can be copied into WhatsApp when email doesn't reach a school. */
+export function waitlistInviteUrl(token: string) {
+  return `${SITE_URL}/register?invite=${encodeURIComponent(token)}`;
+}
+
 export interface SponsorshipEmailData {
   org: string;
   contact: string;

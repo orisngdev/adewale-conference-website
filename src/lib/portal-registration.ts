@@ -19,6 +19,8 @@ export interface MirrorRegistrationResult {
   claimCode: string;
   /** Single-use, 30-day self-service onboarding link token. */
   verifyToken: string;
+  /** The row this mirror created — lets the caller link it to what produced it. */
+  registrationId: string;
 }
 
 const VERIFY_TOKEN_DAYS = 30;
@@ -79,7 +81,7 @@ export async function mirrorRegistrationToSupabase(
     Date.now() + VERIFY_TOKEN_DAYS * 24 * 60 * 60 * 1000,
   ).toISOString();
 
-  const { error: regError } = await supabase.from("registrations").insert({
+  const { data: registrationRow, error: regError } = await supabase.from("registrations").insert({
     school_id: schoolId,
     owner_id: null,
     edition_year: edition,
@@ -105,10 +107,14 @@ export async function mirrorRegistrationToSupabase(
     claim_code: claimCode,
     verify_token: verifyToken,
     verify_token_expires_at: verifyExpires,
-  });
+  })
+    .select("id")
+    .single();
   // Fail loudly — a silent failure here is what produced orphaned claim codes.
-  if (regError) {
-    throw new Error(`registration mirror insert failed: ${regError.message}`);
+  if (regError || !registrationRow) {
+    throw new Error(
+      `registration mirror insert failed: ${regError?.message ?? "no row returned"}`,
+    );
   }
 
   // Stage school memberships by email — the coordinating teacher AND the
@@ -222,5 +228,5 @@ export async function mirrorRegistrationToSupabase(
     console.error("admin registration notify failed (non-fatal):", notifyError);
   }
 
-  return { claimCode, verifyToken };
+  return { claimCode, verifyToken, registrationId: registrationRow.id as string };
 }
