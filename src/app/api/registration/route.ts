@@ -200,8 +200,7 @@ export async function POST(request: Request) {
 
     const payload = await request.json();
     const registration = sanitizeRegistrationPayload(payload);
-    // A waitlist invite token, if this submission came from an invite link.
-    // sanitizeRegistrationPayload builds a fresh object, so the extra key never
+    // sanitizeRegistrationPayload builds a fresh object, so this extra key never
     // reaches the Airtable mapping or the mirror.
     const inviteToken =
       payload && typeof payload === "object" && !Array.isArray(payload)
@@ -224,9 +223,8 @@ export async function POST(request: Request) {
         .limit(1)
         .maybeSingle();
 
-      // Resolved even when an edition is open, so the waitlist row still gets
-      // credited with the registration it produced — an invite that happens to
-      // be redeemed during an open window is the same event.
+      // Resolved even when an edition is open, so the waitlist row is still
+      // credited with the registration it produced.
       const lookup = inviteToken
         ? await lookupWaitlistInvite(adminDb, inviteToken)
         : ({ ok: false, reason: "missing" } as const);
@@ -235,9 +233,8 @@ export async function POST(request: Request) {
       if (openEdition) {
         editionYear = openEdition.year as number;
       } else {
-        // Closed — the only way through is a single-use waitlist invite, which
-        // carries its own target edition. Anything else is rejected here, before
-        // a single write. The token is never echoed back.
+        // Closed — a valid invite carries its own target edition and is the only
+        // way through. The token is never echoed back.
         if (!lookup.ok || !lookup.invite.invited_edition_year) {
           return NextResponse.json(
             {
@@ -325,9 +322,7 @@ export async function POST(request: Request) {
       console.error("Supabase mirror failed (non-fatal):", mirrorError);
     }
 
-    // Burn the invite and link it to what it produced. Only on a successful
-    // mirror — a token burned against a failed mirror leaves the school with a
-    // dead link and nothing to show for it.
+    // Only on a successful mirror — see markInviteConverted.
     if (adminDb && invitedWaitlistId && mirror?.registrationId) {
       await markInviteConverted(adminDb, invitedWaitlistId, mirror.registrationId);
     }

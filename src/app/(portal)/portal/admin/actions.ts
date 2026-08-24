@@ -315,7 +315,10 @@ export async function inviteWaitlist() {
     const { data: entries } = await supabase
       .from("waitlist")
       .select("id, school_name, contact_name, contact_email")
-      .is("notified_at", null);
+      .is("notified_at", null)
+      // Skip schools that already came in through an invite; notified_at can't
+      // catch them, because invites never set it.
+      .is("converted_at", null);
     const rows = entries ?? [];
     for (const entry of rows) {
       await sendEmailSafely(
@@ -348,9 +351,7 @@ export async function inviteWaitlist() {
 }
 
 // Issues ONE school a single-use pass to register while registration is closed.
-// The emailed link prefills the form from the waitlist row and admits that school
-// into the target edition; /api/registration validates the token and burns it on
-// submit. Re-running rotates the token, which is how an expired link is replaced.
+// Re-running rotates the token, which is how an expired link gets replaced.
 export async function inviteWaitlistEntry(entryId: string, formData: FormData) {
   const admin = await requireManage("registrations");
   if (!admin) return;
@@ -364,8 +365,7 @@ export async function inviteWaitlistEntry(entryId: string, formData: FormData) {
     .maybeSingle();
   if (!entry || entry.converted_at) return;
 
-  // Registration is normally closed when this is used, so the open edition is
-  // only the happy path — otherwise the newest edition is the one being filled.
+  // Usually closed when this runs, so the newest edition is the real target.
   const { data: openEdition } = await supabase
     .from("editions")
     .select("year")
@@ -381,8 +381,7 @@ export async function inviteWaitlistEntry(entryId: string, formData: FormData) {
     title = "Invite not sent";
     body = "Create an edition first (Editions page), then invite the school.";
   } else {
-    // 256-bit, single-use, read only with the service role — same shape as the
-    // coordinator onboarding token.
+    // Same shape as the coordinator onboarding token.
     const inviteToken = randomBytes(32).toString("hex");
     const expiresAt = new Date(
       Date.now() + inviteDays * 24 * 60 * 60 * 1000,

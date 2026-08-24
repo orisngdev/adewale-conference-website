@@ -473,9 +473,7 @@ export function buildWaitlistOpenEmail(data: {
   return { to, subject, html };
 }
 
-/** Single-school invite to register while registration is officially closed —
- * the link carries a one-use token that both prefills the form and admits that
- * one school into the target edition. */
+/** Single-school invite to register while registration is closed. */
 export function buildWaitlistInviteEmail(data: {
   email: string;
   name?: string | null;
@@ -499,8 +497,7 @@ export function buildWaitlistInviteEmail(data: {
   return { to, subject, html };
 }
 
-/** The one place the invite link is spelled — the admin page shows the same URL
- * so it can be copied into WhatsApp when email doesn't reach a school. */
+/** The one place the invite link is spelled; the admin page shows the same URL. */
 export function waitlistInviteUrl(token: string) {
   return `${SITE_URL}/register?invite=${encodeURIComponent(token)}`;
 }
