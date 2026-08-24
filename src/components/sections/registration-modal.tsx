@@ -257,11 +257,10 @@ function StudentRepSection({
 interface RegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Known-good values from a waitlist invite — seeded, never locked, so a
-   * school can correct anything we got wrong. */
+  /** Seeded from a waitlist invite, never locked — a school must be able to
+   * correct anything we got wrong. */
   prefill?: Partial<RegistrationFormData>;
-  /** Single-use waitlist pass; lets this submission through while registration
-   * is closed. Opaque to the client — the API validates it. */
+  /** Opaque to the client; the API validates it. */
   inviteToken?: string;
 }
 
@@ -356,11 +355,9 @@ export default function RegistrationModal({
     return () => controller.abort();
   }, [formData.schoolCategory, formData.schoolLGA, isOpen]);
 
-  // An invite can seed a school name that isn't in the schools table for this
-  // LGA + category — a waitlist entry is free text. Rather than leave the select
-  // pointing at an option that doesn't exist, fall back to "not listed" and let
-  // the seeded name stand in the free-text field. Never fires in the normal flow:
-  // a name only lands in schoolSelection by being picked from these same options.
+  // A waitlist entry is free text, so an invite can seed a name this LGA +
+  // category doesn't have. Fall back to "not listed" rather than leaving the
+  // select on a missing option. Never fires in the normal flow.
   useEffect(() => {
     if (!isOpen || isLoadingSchools) return;
     if (!schoolSelection || schoolSelection === NEW_SCHOOL_VALUE) return;

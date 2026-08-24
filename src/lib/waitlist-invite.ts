@@ -1,19 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-// A waitlist invite is a single-use pass that lets ONE school register while
-// registration is officially closed. Both readers — the /register page (to
-// decide what to show) and /api/registration (to decide whether to accept the
-// submission) — validate through here, so "is this token good?" has exactly one
-// answer. Always read with the service role: the waitlist table is admin-only.
+// A single-use pass that lets ONE school register while registration is closed.
+// The /register page and /api/registration both validate through here, so
+// "is this token good?" has one answer. Service-role reads only.
 
-/** How long an invite link stays live. The admin picks per school — a school
- * being chased before a zonal cutoff gets days, an early invite gets months —
- * so the options live here and both the form and the action read the same list. */
+/** Offered expiries — the admin picks one per school. */
 export const INVITE_TOKEN_DAY_OPTIONS = [3, 7, 14, 30, 60, 90] as const;
 export const INVITE_TOKEN_DAYS = 30;
 
-/** Coerce a submitted expiry to one of the offered durations. Anything unknown
- * falls back to the default rather than minting an unbounded pass. */
+/** Unknown values fall back to the default rather than minting an open-ended pass. */
 export function resolveInviteDays(value: unknown) {
   const days = Number(value);
   return (INVITE_TOKEN_DAY_OPTIONS as readonly number[]).includes(days)
@@ -45,11 +40,8 @@ export type InviteLookup =
   | { ok: true; invite: WaitlistInvite }
   | { ok: false; reason: InviteRejection };
 
-/**
- * Resolve an invite token to its waitlist row. A used or expired token is
- * distinguished from an unknown one so the page can say something useful —
- * but callers that gate a mutation should treat every `ok: false` the same.
- */
+/** Rejections are distinguished so the page can explain itself; callers gating a
+ * mutation should treat every `ok: false` the same. */
 export async function lookupWaitlistInvite(
   db: SupabaseClient,
   token: string | null | undefined,
@@ -66,8 +58,7 @@ export async function lookupWaitlistInvite(
   if (!data) return { ok: false, reason: "unknown" };
   const invite = data as WaitlistInvite;
 
-  // Checked in this order: a converted row has already spent its pass, and
-  // saying "already registered" is more useful than "expired" when both apply.
+  // "Already registered" beats "expired" when both apply.
   if (invite.converted_at) return { ok: false, reason: "used" };
   if (
     !invite.invite_token_expires_at ||
@@ -79,11 +70,8 @@ export async function lookupWaitlistInvite(
   return { ok: true, invite };
 }
 
-/**
- * Burn the pass and record what it produced. Called only after the registration
- * mirror succeeded — burning on a failed mirror would strand the school with a
- * dead link and no registration.
- */
+/** Burn the pass and record what it produced. Only after the mirror succeeded —
+ * burning on a failure would strand the school with a dead link. */
 export async function markInviteConverted(
   db: SupabaseClient,
   inviteId: string,
@@ -99,9 +87,8 @@ export async function markInviteConverted(
     })
     .eq("id", inviteId);
   if (error) {
-    // Non-fatal: the registration exists, which is what matters. Left un-burned,
-    // the token stays live until it expires — the duplicate-school guard is what
-    // stops it being used twice.
+    // Non-fatal: the registration exists. An un-burned token stays live until it
+    // expires, and the duplicate-school guard stops it being used twice.
     console.error("waitlist invite conversion stamp failed:", error.message);
   }
 }

@@ -69,14 +69,9 @@ function ClosedPanel({
   );
 }
 
-/**
- * The registration form's own page.
- *
- * Without `?invite`, it mirrors the homepage: the form when an edition is open,
- * the waitlist when none is. With a valid `?invite`, it opens the form prefilled
- * from that waitlist entry EVEN WHEN REGISTRATION IS CLOSED — the token is a
- * single-school pass, re-validated by /api/registration at submit time.
- */
+/** Without `?invite` this mirrors the homepage. With a valid one it opens the
+ * form prefilled EVEN WHEN REGISTRATION IS CLOSED — /api/registration
+ * re-validates the token at submit time. */
 export default async function RegisterPage({
   searchParams,
 }: {
@@ -85,7 +80,7 @@ export default async function RegisterPage({
   const { invite: inviteToken } = await searchParams;
   const { open } = await getRegistrationOpen();
 
-  // Invites are read with the service role — the waitlist table is admin-only.
+  // Service role: the waitlist table is admin-only.
   const adminDb = inviteToken ? createAdminClient() : null;
   const lookup = adminDb ? await lookupWaitlistInvite(adminDb, inviteToken) : null;
 
@@ -94,15 +89,13 @@ export default async function RegisterPage({
 
   if (lookup?.ok && adminDb) {
     const { invite } = lookup;
-    // Prefer the canonical spelling already in the schools table, so an invited
-    // school lands on its existing row instead of minting a near-duplicate. A
-    // miss is a genuinely new school, which the form handles as "not listed".
+    // Prefer the canonical spelling, so an invited school lands on its existing
+    // row instead of minting a near-duplicate.
     const existing = await findSchoolByName(adminDb, invite.school_name);
     const resolvedName = existing?.name ?? invite.school_name;
     schoolName = resolvedName;
 
-    // Waitlist values are validated on the way in, but re-check: a stale option
-    // that no longer exists would leave its <select> stuck on nothing.
+    // Re-checked: an option that no longer exists would wedge its <select>.
     const lga = (LGA_OPTIONS as readonly string[]).includes(invite.lga ?? "") ? invite.lga! : "";
     const category = (SCHOOL_CATEGORY_OPTIONS as readonly string[]).includes(invite.category ?? "")
       ? invite.category!

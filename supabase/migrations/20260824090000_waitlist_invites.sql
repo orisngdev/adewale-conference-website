@@ -1,15 +1,15 @@
--- Per-school registration invites for waitlisted schools.
+-- Per-school registration invites.
 --
 -- The public form is tied to the OPEN edition, so once registration closes
--- nobody can submit. An invite is a single-use pass for exactly one waitlist
--- entry: it prefills the form and lets that one school register into
--- invited_edition_year even while every edition is closed.
+-- nobody can submit. An invite is a single-use pass for one waitlist entry: it
+-- prefills the form and lets that school register into invited_edition_year
+-- even while every edition is closed.
 --
--- notified_at (the bulk "registration is open" blast) stays what it was;
--- invited_at is the individual pass, and the two are independent.
+-- notified_at stays the bulk "registration is open" blast; invited_at is the
+-- individual pass. The two are independent.
 --
--- The token is only ever read server-side with the service role — same shape
--- as registrations.verify_token. RLS on this table stays admin-only.
+-- Token reads are service-role only — same shape as registrations.verify_token.
+-- RLS on this table stays admin-only.
 
 alter table public.waitlist
   add column if not exists invite_token            text,

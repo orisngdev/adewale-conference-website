@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-// An inline URL with a Copy button. Schools are as often reached on WhatsApp as
-// by email, so every emailed link an admin issues needs to be liftable by hand.
+// Schools are as often reached on WhatsApp as by email, so an emailed link has
+// to be liftable by hand.
 export default function CopyLink({ url, label }: { url: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
