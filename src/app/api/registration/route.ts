@@ -21,6 +21,7 @@ import { mirrorRegistrationToSupabase } from "@/lib/portal-registration";
 import { rateLimit, requestIp } from "@/lib/rate-limit";
 import { createAdminClient } from "@/supabase/admin";
 import { findSchoolByName } from "@/lib/school-identity";
+import { lookupWaitlistInvite, markInviteConverted } from "@/lib/waitlist-invite";
 
 export const runtime = "nodejs";
 
@@ -199,12 +200,20 @@ export async function POST(request: Request) {
 
     const payload = await request.json();
     const registration = sanitizeRegistrationPayload(payload);
+    // A waitlist invite token, if this submission came from an invite link.
+    // sanitizeRegistrationPayload builds a fresh object, so the extra key never
+    // reaches the Airtable mapping or the mirror.
+    const inviteToken =
+      payload && typeof payload === "object" && !Array.isArray(payload)
+        ? String((payload as Record<string, unknown>).waitlistToken ?? "").trim()
+        : "";
 
     // The public form is tied to the OPEN edition — the editions table (admin
     // controls it from Portal → Editions) is the single source of truth. No open
     // edition → registration is closed, and the submission is rejected before
     // anything is written. Env fallback only when the portal bridge is off.
     let editionYear = Number(process.env.ASC_EDITION_YEAR) || new Date().getFullYear();
+    let invitedWaitlistId: string | null = null;
     const adminDb = createAdminClient();
     if (adminDb) {
       const { data: openEdition } = await adminDb
@@ -214,16 +223,32 @@ export async function POST(request: Request) {
         .order("year", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (!openEdition) {
-        return NextResponse.json(
-          {
-            error:
-              "Registration is currently closed. New schools can join the waitlist and we'll email them when the next edition opens.",
-          },
-          { status: 409 },
-        );
+
+      // Resolved even when an edition is open, so the waitlist row still gets
+      // credited with the registration it produced — an invite that happens to
+      // be redeemed during an open window is the same event.
+      const lookup = inviteToken
+        ? await lookupWaitlistInvite(adminDb, inviteToken)
+        : ({ ok: false, reason: "missing" } as const);
+      if (lookup.ok) invitedWaitlistId = lookup.invite.id;
+
+      if (openEdition) {
+        editionYear = openEdition.year as number;
+      } else {
+        // Closed — the only way through is a single-use waitlist invite, which
+        // carries its own target edition. Anything else is rejected here, before
+        // a single write. The token is never echoed back.
+        if (!lookup.ok || !lookup.invite.invited_edition_year) {
+          return NextResponse.json(
+            {
+              error:
+                "Registration is currently closed. New schools can join the waitlist and we'll email them when the next edition opens.",
+            },
+            { status: 409 },
+          );
+        }
+        editionYear = lookup.invite.invited_edition_year;
       }
-      editionYear = openEdition.year as number;
 
       // One registration per school per edition. Matched on the normalized name
       // alone, not name+lga+category: the duplicate rows this replaced disagreed
@@ -298,6 +323,13 @@ export async function POST(request: Request) {
       mirror = await mirrorRegistrationToSupabase(registration, airtableSchoolId, editionYear);
     } catch (mirrorError) {
       console.error("Supabase mirror failed (non-fatal):", mirrorError);
+    }
+
+    // Burn the invite and link it to what it produced. Only on a successful
+    // mirror — a token burned against a failed mirror leaves the school with a
+    // dead link and nothing to show for it.
+    if (adminDb && invitedWaitlistId && mirror?.registrationId) {
+      await markInviteConverted(adminDb, invitedWaitlistId, mirror.registrationId);
     }
 
     // One message per recipient — the teacher's carries the activation link,

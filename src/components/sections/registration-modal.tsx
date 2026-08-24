@@ -257,16 +257,27 @@ function StudentRepSection({
 interface RegistrationModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Known-good values from a waitlist invite — seeded, never locked, so a
+   * school can correct anything we got wrong. */
+  prefill?: Partial<RegistrationFormData>;
+  /** Single-use waitlist pass; lets this submission through while registration
+   * is closed. Opaque to the client — the API validates it. */
+  inviteToken?: string;
 }
 
 export default function RegistrationModal({
   isOpen,
   onClose,
+  prefill,
+  inviteToken,
 }: RegistrationModalProps) {
-  const [formData, setFormData] = useState<RegistrationFormData>(
-    initialRegistrationFormData,
+  const [formData, setFormData] = useState<RegistrationFormData>(() => ({
+    ...initialRegistrationFormData,
+    ...prefill,
+  }));
+  const [schoolSelection, setSchoolSelection] = useState(
+    prefill?.schoolSource === "new" ? NEW_SCHOOL_VALUE : (prefill?.schoolFullName ?? ""),
   );
-  const [schoolSelection, setSchoolSelection] = useState("");
   const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
   const [isLoadingSchools, setIsLoadingSchools] = useState(false);
   const [schoolLookupError, setSchoolLookupError] = useState("");
@@ -345,6 +356,19 @@ export default function RegistrationModal({
     return () => controller.abort();
   }, [formData.schoolCategory, formData.schoolLGA, isOpen]);
 
+  // An invite can seed a school name that isn't in the schools table for this
+  // LGA + category — a waitlist entry is free text. Rather than leave the select
+  // pointing at an option that doesn't exist, fall back to "not listed" and let
+  // the seeded name stand in the free-text field. Never fires in the normal flow:
+  // a name only lands in schoolSelection by being picked from these same options.
+  useEffect(() => {
+    if (!isOpen || isLoadingSchools) return;
+    if (!schoolSelection || schoolSelection === NEW_SCHOOL_VALUE) return;
+    if (schoolOptions.some((school) => school.name === schoolSelection)) return;
+    setSchoolSelection(NEW_SCHOOL_VALUE);
+    setFormData((prev) => ({ ...prev, schoolSource: "new" }));
+  }, [isLoadingSchools, isOpen, schoolOptions, schoolSelection]);
+
   if (!isOpen) return null;
 
   const handleChange = (name: keyof RegistrationFormData, value: string) => {
@@ -391,7 +415,9 @@ export default function RegistrationModal({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(
+          inviteToken ? { ...formData, waitlistToken: inviteToken } : formData,
+        ),
       });
 
       const payload = (await response.json().catch(() => null)) as

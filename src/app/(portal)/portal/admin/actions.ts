@@ -7,9 +7,11 @@ import { requireManage } from "@/supabase/auth";
 import {
   buildActivationEmail,
   buildTeamInviteEmail,
+  buildWaitlistInviteEmail,
   buildWaitlistOpenEmail,
   sendEmailSafely,
 } from "@/lib/email";
+import { resolveInviteDays } from "@/lib/waitlist-invite";
 import { notifySchool, notifySchoolDecision } from "@/lib/school-notify";
 import { ensureRoster } from "@/lib/ensure-roster";
 import {
@@ -338,6 +340,85 @@ export async function inviteWaitlist() {
 
   await supabase.from("notifications").insert({
     profile_id: user.id,
+    title,
+    body,
+    link: "/portal/admin/waitlist",
+  });
+  revalidatePath("/portal/admin/waitlist");
+}
+
+// Issues ONE school a single-use pass to register while registration is closed.
+// The emailed link prefills the form from the waitlist row and admits that school
+// into the target edition; /api/registration validates the token and burns it on
+// submit. Re-running rotates the token, which is how an expired link is replaced.
+export async function inviteWaitlistEntry(entryId: string, formData: FormData) {
+  const admin = await requireManage("registrations");
+  if (!admin) return;
+  const supabase = await createClient();
+  const inviteDays = resolveInviteDays(formData.get("expiresInDays"));
+
+  const { data: entry } = await supabase
+    .from("waitlist")
+    .select("id, school_name, contact_name, contact_email, converted_at")
+    .eq("id", entryId)
+    .maybeSingle();
+  if (!entry || entry.converted_at) return;
+
+  // Registration is normally closed when this is used, so the open edition is
+  // only the happy path — otherwise the newest edition is the one being filled.
+  const { data: openEdition } = await supabase
+    .from("editions")
+    .select("year")
+    .eq("registration_open", true)
+    .order("year", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const editionYear = (openEdition?.year as number | undefined) ?? (await latestEditionYear(supabase));
+
+  let title = "Invite sent";
+  let body: string;
+  if (!editionYear) {
+    title = "Invite not sent";
+    body = "Create an edition first (Editions page), then invite the school.";
+  } else {
+    // 256-bit, single-use, read only with the service role — same shape as the
+    // coordinator onboarding token.
+    const inviteToken = randomBytes(32).toString("hex");
+    const expiresAt = new Date(
+      Date.now() + inviteDays * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+    const { error } = await supabase
+      .from("waitlist")
+      .update({
+        invite_token: inviteToken,
+        invite_token_expires_at: expiresAt,
+        invited_edition_year: editionYear,
+        invited_at: new Date().toISOString(),
+      })
+      .eq("id", entryId)
+      .is("converted_at", null);
+
+    if (error) {
+      title = "Invite not sent";
+      body = `Could not issue an invite for ${entry.school_name}: ${error.message}`;
+    } else {
+      await sendEmailSafely(
+        buildWaitlistInviteEmail({
+          email: entry.contact_email,
+          name: entry.contact_name,
+          schoolName: entry.school_name,
+          editionYear,
+          inviteToken,
+          expiresAt,
+        }),
+      );
+      body = `${entry.school_name} can now register for ASC ${editionYear}. The link was emailed to ${entry.contact_email} and expires on ${new Date(expiresAt).toLocaleDateString()} (${inviteDays} days).`;
+    }
+  }
+
+  await supabase.from("notifications").insert({
+    profile_id: admin.user.id,
     title,
     body,
     link: "/portal/admin/waitlist",
