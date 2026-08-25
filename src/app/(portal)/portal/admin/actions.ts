@@ -13,6 +13,11 @@ import {
 } from "@/lib/email";
 import { resolveInviteDays } from "@/lib/waitlist-invite";
 import { notifySchool, notifySchoolDecision } from "@/lib/school-notify";
+import {
+  bulkDecisionSummary,
+  partitionSelection,
+  registrationDecisionOutcome,
+} from "@/lib/registration-decision";
 import { ensureRoster } from "@/lib/ensure-roster";
 import {
   QUALIFICATION_REASONS,
@@ -31,6 +36,17 @@ const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
 const CONTACT_KINDS = ["teacher", "principal"] as const;
 type ContactKind = (typeof CONTACT_KINDS)[number];
 export type ContactUpdateState = { ok: boolean; message: string } | null;
+
+/** What a bulk review actually did — every selected school is accounted for. */
+export type BulkDecisionState = {
+  ok: boolean;
+  /** Headline, e.g. "Approved 12 schools." */
+  message: string;
+  /** Schools whose status changed (and were emailed). */
+  applied: string[];
+  /** Schools left untouched, each with the reason the admin needs to see. */
+  skipped: { name: string; reason: string }[];
+} | null;
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
 function isEmail(value: string) {
@@ -522,31 +538,42 @@ export async function setRegistrationStatus(
 // ── Close-of-registration review: bulk approve / decline ─────────────────────
 // Competition selection, not an access gate — schools keep portal/prep access
 // either way. Approve → verified + the official guidelines email; Decline →
-// declined + a polite email. Idempotent: rows already in the target state (or,
-// for approve, already past it) are skipped, so re-running never re-sends.
-export async function bulkRegistrationDecision(formData: FormData) {
+// declined + a polite email. Idempotent: rows already in the target state are
+// skipped, so re-running never re-sends — but a declined school can still be
+// approved (and vice versa), which is how a mistaken decision is reversed.
+export async function bulkRegistrationDecision(
+  _prevState: BulkDecisionState,
+  formData: FormData,
+): Promise<BulkDecisionState> {
   const decision = String(formData.get("decision") ?? "");
   // Deduped because "select all matching" injects hidden ids that can overlap
   // the ticked page rows — the DB fetch would collapse them anyway, but keep
   // the notification loop honest.
   const ids = [...new Set(formData.getAll("ids").map(String).filter(Boolean))];
-  if (ids.length === 0) return;
+  if (ids.length === 0) {
+    return fail("Nothing selected — tick at least one school, then choose approve or decline.");
+  }
 
   // Stage marking (advance / not-advanced at a chosen stage) shares this
   // selection form but is a different flow from acceptance (approve / decline) —
   // and belongs to the Participants module, so it's gated separately.
   if (decision === "advance" || decision === "eliminate") {
-    if (!(await requireManage("participants"))) return;
-    await bulkStageOutcome(
+    if (!(await requireManage("participants"))) {
+      return fail("You do not have permission to record stage results.");
+    }
+    return bulkStageOutcome(
       ids,
       decision === "advance" ? "advanced" : "eliminated",
       String(formData.get("stage") ?? "").trim(),
     );
-    return;
   }
 
-  if (decision !== "approve" && decision !== "decline") return;
-  if (!(await requireManage("registrations"))) return;
+  if (decision !== "approve" && decision !== "decline") {
+    return fail("Choose approve or decline.");
+  }
+  if (!(await requireManage("registrations"))) {
+    return fail("You do not have permission to review registrations.");
+  }
   // One reason applies to every school declined in this batch (optional).
   const declineReason =
     decision === "decline" ? String(formData.get("decline_reason") ?? "").trim() || null : null;
@@ -568,25 +595,42 @@ export async function bulkRegistrationDecision(formData: FormData) {
     reps: unknown;
     schools: { name: string | null } | null;
   }[];
-  const editableRows: typeof rows = [];
-  for (const row of rows) {
-    if (await isEditableEdition(supabase, row.edition_year)) editableRows.push(row);
-  }
+  // Read the current edition once instead of per row (isEditableEdition queries
+  // `editions` on every call), so the reason can name the year that IS open.
+  const latestYear = await latestEditionYear(supabase);
+  const { open, skipped } = partitionSelection({
+    ids,
+    rows: rows.map((row) => ({ ...row, name: row.schools?.name ?? "Unassigned school" })),
+    latestYear,
+  });
 
+  const applied: string[] = [];
   const approvedIds: string[] = [];
-  for (const row of editableRows) {
-    const skip =
-      decision === "approve"
-        ? row.status !== "submitted" // already reviewed (or further along)
-        : row.status === "declined";
-    if (skip) continue;
+  for (const row of open) {
+    // A row already in the decided state is skipped with its reason. A declined
+    // school is NOT in that set: it stays approvable from this same review.
+    const { patch, skipReason } = registrationDecisionOutcome(
+      row.status,
+      decision,
+      declineReason,
+    );
+    if (!patch) {
+      skipped.push({ name: row.name, reason: skipReason });
+      continue;
+    }
 
-    const status: RegistrationStatus = decision === "approve" ? "verified" : "declined";
     const { error } = await supabase
       .from("registrations")
-      .update({ status, ...(decision === "decline" ? { decline_reason: declineReason } : {}) })
+      .update(patch)
       .eq("id", row.id);
-    if (error) continue;
+    if (error) {
+      skipped.push({
+        name: row.name,
+        reason: `the database rejected the change — ${error.message}`,
+      });
+      continue;
+    }
+    applied.push(row.name);
 
     // Roster provisioning (one auth user per rep) is deferred to a background
     // function after the loop — doing it inline here 504'd a bulk approve.
@@ -612,6 +656,21 @@ export async function bulkRegistrationDecision(formData: FormData) {
   revalidatePath("/portal/admin/registrations");
   revalidatePath("/portal/admin/editions");
   revalidatePath("/portal/admin");
+
+  return {
+    ...bulkDecisionSummary({
+      verb: decision === "approve" ? "Approved" : "Declined",
+      appliedCount: applied.length,
+      skippedCount: skipped.length,
+      selectedCount: ids.length,
+    }),
+    applied,
+    skipped,
+  };
+}
+
+function fail(message: string): BulkDecisionState {
+  return { ok: false, message, applied: [], skipped: [] };
 }
 
 // ── Per-stage results: mark selected schools advanced / not-advanced ─────────
@@ -623,8 +682,9 @@ async function bulkStageOutcome(
   ids: string[],
   outcome: "advanced" | "eliminated",
   stage: string,
-) {
-  if (!stage || ids.length === 0) return;
+): Promise<BulkDecisionState> {
+  if (!stage) return fail("Choose the stage these results belong to first.");
+  if (ids.length === 0) return fail("Nothing selected — tick at least one school first.");
 
   const supabase = await createClient();
   const { data } = await supabase
@@ -638,11 +698,24 @@ async function bulkStageOutcome(
     school_id: string | null;
     schools: { name: string | null } | null;
   }[];
-  const editableRows: typeof rows = [];
-  for (const row of rows) {
-    if (await isEditableEdition(supabase, row.edition_year)) editableRows.push(row);
+  const latestYear = await latestEditionYear(supabase);
+  const { open: editableRows, skipped } = partitionSelection({
+    ids,
+    rows: rows.map((row) => ({ ...row, name: row.schools?.name ?? "Unassigned school" })),
+    latestYear,
+  });
+  if (editableRows.length === 0) {
+    return {
+      ...bulkDecisionSummary({
+        verb: "Recorded",
+        appliedCount: 0,
+        skippedCount: skipped.length,
+        selectedCount: ids.length,
+      }),
+      applied: [],
+      skipped,
+    };
   }
-  if (editableRows.length === 0) return;
 
   const now = new Date().toISOString();
   // RLS (stage_results_admin_write) restricts the upsert to admins.
@@ -655,25 +728,45 @@ async function bulkStageOutcome(
     })),
     { onConflict: "registration_id,stage" },
   );
-  if (!error) {
-    for (const r of editableRows) {
-      const schoolName = r.schools?.name ?? "Your school";
-      // Notify every educator on the school, not just the owner.
-      await notifySchool(supabase, r.school_id, r.owner_id, {
-        title: outcome === "advanced" ? `Advanced past ${stage}` : `${stage} result`,
-        body:
-          outcome === "advanced"
-            ? `${schoolName} advanced past the ${stage} in the ${r.edition_year} competition.`
-            : `${schoolName} did not advance past the ${stage} in the ${r.edition_year} competition. The prep portal stays open.`,
-        link: "/portal/school",
-      });
-    }
+  if (error) {
+    return {
+      ok: false,
+      message: `No school changed — the database rejected the update (${error.message}).`,
+      applied: [],
+      skipped,
+    };
+  }
+
+  for (const r of editableRows) {
+    const schoolName = r.schools?.name ?? "Your school";
+    // Notify every educator on the school, not just the owner.
+    await notifySchool(supabase, r.school_id, r.owner_id, {
+      title: outcome === "advanced" ? `Advanced past ${stage}` : `${stage} result`,
+      body:
+        outcome === "advanced"
+          ? `${schoolName} advanced past the ${stage} in the ${r.edition_year} competition.`
+          : `${schoolName} did not advance past the ${stage} in the ${r.edition_year} competition. The prep portal stays open.`,
+      link: "/portal/school",
+    });
   }
 
   revalidatePath("/portal/admin/participants");
   revalidatePath("/portal/admin");
   revalidatePath("/portal/school");
   revalidatePath("/portal");
+
+  const applied = editableRows.map((row) => row.name);
+  return {
+    ...bulkDecisionSummary({
+      verb: outcome === "advanced" ? "Advanced" : "Marked not-advanced",
+      appliedCount: applied.length,
+      skippedCount: skipped.length,
+      selectedCount: ids.length,
+      at: stage,
+    }),
+    applied,
+    skipped,
+  };
 }
 
 // ── Resend / change-email for the activation link ────────────────────────────

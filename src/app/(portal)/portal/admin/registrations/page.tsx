@@ -10,9 +10,7 @@ import {
   StatusBadge,
 } from "@/components/portal/ui";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
-import { ConfirmDecisionButton } from "@/components/portal/confirm-decision-button";
-import { SelectAllCheckbox } from "@/components/portal/select-all-checkbox";
-import { SelectAllMatching } from "@/components/portal/select-all-matching";
+import { BulkDecisionForm } from "@/components/portal/bulk-decision-form";
 import {
   genderMix,
   hasContactGap,
@@ -25,7 +23,6 @@ import {
   FilterPanel,
   Pagination,
   clampPage,
-  filterSelectCls,
   parsePage,
 } from "@/components/portal/list-controls";
 import { pageMetadata } from "@/lib/seo";
@@ -34,10 +31,7 @@ import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import type { AdminRegistrationRow, RegistrationStatus, Rep } from "@/supabase/types";
-import {
-  bulkRegistrationDecision,
-  syncAirtableRegistrations,
-} from "../actions";
+import { syncAirtableRegistrations } from "../actions";
 
 export const metadata = pageMetadata("Registrations", "Review and accept or decline entries.");
 export const dynamic = "force-dynamic";
@@ -347,56 +341,14 @@ export default async function AdminRegistrations({
               email. Neither touches portal access. Everything after acceptance —
               stage advancement, certificates — lives on the Participants hub. */}
           {canEditRegistrations ? (
-          <form id={BULK_FORM_ID} action={bulkRegistrationDecision}>
-            <Card className="p-4 mb-6 space-y-3">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                <SelectAllCheckbox formId={BULK_FORM_ID} targetName="ids" />
-                {filtered.length > registrations.length ? (
-                  <SelectAllMatching
-                    formId={BULK_FORM_ID}
-                    ids={filtered.map((r) => r.id)}
-                  />
-                ) : null}
-                <p className="text-sm text-muted-foreground flex-1 min-w-40">
-                  <span className="font-bold text-foreground">{underReview}</span> under
-                  review · <span className="font-bold text-foreground">{filtered.length}</span>{" "}
-                  match{filtered.length === 1 ? "" : "es"} — select schools below, then:
-                </p>
-                <ConfirmDecisionButton
-                  name="decision"
-                  value="approve"
-                  size="sm"
-                  title="Approve selected schools?"
-                  description="Every ticked school enters the competition, moves to Participants at Qualifications, receives the guidelines email, and gets its competition roster."
-                  confirmLabel="Yes, approve"
-                >
-                  Approve and move to Participants
-                </ConfirmDecisionButton>
-                <ConfirmDecisionButton
-                  name="decision"
-                  value="decline"
-                  size="sm"
-                  variant="outline"
-                  destructive
-                  title="Decline selected schools?"
-                  description="Every ticked school is declined and sent a polite not-selected email. If you enter a reason below, it's included in that email and shown on their portal so they can fix it and resubmit."
-                  confirmLabel="Yes, decline"
-                >
-                  Decline selected
-                </ConfirmDecisionButton>
-              </div>
-              <label className="block">
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-                  Decline reason (optional)
-                </span>
-                <input
-                  name="decline_reason"
-                  placeholder="Shared with every declined school, e.g. No female representative."
-                  className={`${filterSelectCls} mt-1 w-full`}
-                />
-              </label>
-            </Card>
-          </form>
+            <BulkDecisionForm
+              formId={BULK_FORM_ID}
+              underReview={underReview}
+              matchCount={filtered.length}
+              matchingIds={
+                filtered.length > registrations.length ? filtered.map((r) => r.id) : null
+              }
+            />
           ) : null}
 
           {registrations.length === 0 ? (
