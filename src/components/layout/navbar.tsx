@@ -4,15 +4,19 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import MobileMenu from "./mobile-menu";
-import { MAIN_NAV, NAV_CTA } from "@/lib/site";
+import NavDropdown from "./nav-dropdown";
+import { MAIN_NAV, NAV_CTA, isNavGroup, isNavItemActive } from "@/lib/site";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  // Which desktop dropdown is showing, by group label — only ever one at a time.
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const pathname = usePathname();
 
   // Close the menu whenever the route changes.
   useEffect(() => {
     setOpen(false);
+    setOpenGroup(null);
   }, [pathname]);
 
   // Lock body scroll while the menu is open.
@@ -33,29 +37,40 @@ export default function Navbar() {
           ASC <span className="text-primary">2026</span>
         </Link>
 
-        <ul className="hidden md:flex items-center gap-9 list-none">
-          {MAIN_NAV.map((link) => {
-            const active = pathname === link.href;
-            return (
-              <li key={link.href}>
+        <ul className="hidden lg:flex items-center gap-6 xl:gap-8 list-none">
+          {MAIN_NAV.map((entry) =>
+            isNavGroup(entry) ? (
+              <NavDropdown
+                key={entry.label}
+                group={entry}
+                pathname={pathname}
+                open={openGroup === entry.label}
+                onOpenChange={(next) =>
+                  setOpenGroup(next ? entry.label : null)
+                }
+              />
+            ) : (
+              <li key={entry.href}>
                 <Link
-                  href={link.href}
-                  aria-current={active ? "page" : undefined}
-                  className={`text-xs md:text-sm font-medium tracking-widest uppercase transition-colors duration-200 ${
-                    active
+                  href={entry.href}
+                  aria-current={
+                    isNavItemActive(entry.href, pathname) ? "page" : undefined
+                  }
+                  className={`text-xs xl:text-sm font-medium tracking-widest uppercase transition-colors duration-200 ${
+                    isNavItemActive(entry.href, pathname)
                       ? "text-primary"
                       : "text-[#F0EAD8] hover:text-primary"
                   }`}
                 >
-                  {link.label}
+                  {entry.label}
                 </Link>
               </li>
-            );
-          })}
+            ),
+          )}
           <li>
             <Link
               href="/portal"
-              className="text-xs md:text-sm font-bold tracking-widest uppercase border border-[#E8A020] text-primary px-4 py-2 hover:bg-[#E8A020] hover:text-foreground transition-colors duration-200"
+              className="text-xs xl:text-sm font-bold tracking-widest uppercase border border-[#E8A020] text-primary px-4 py-2 hover:bg-[#E8A020] hover:text-foreground transition-colors duration-200"
             >
               Portal
             </Link>
@@ -63,7 +78,7 @@ export default function Navbar() {
           <li>
             <Link
               href={NAV_CTA.href}
-              className="text-xs md:text-sm font-bold tracking-widest uppercase bg-[#E8A020] text-foreground px-5 py-2 hover:bg-[#F5C55A] transition-colors duration-200"
+              className="text-xs xl:text-sm font-bold tracking-widest uppercase bg-[#E8A020] text-foreground px-5 py-2 hover:bg-[#F5C55A] transition-colors duration-200"
             >
               {NAV_CTA.label}
             </Link>
@@ -71,7 +86,7 @@ export default function Navbar() {
         </ul>
 
         <button
-          className="md:hidden relative w-6 h-6 z-110"
+          className="lg:hidden relative w-6 h-6 z-110"
           onClick={() => setOpen((v) => !v)}
           aria-label={open ? "Close menu" : "Open menu"}
           aria-expanded={open}
@@ -96,7 +111,7 @@ export default function Navbar() {
 
       <MobileMenu
         open={open}
-        links={MAIN_NAV}
+        entries={MAIN_NAV}
         cta={NAV_CTA}
         onClose={() => setOpen(false)}
       />
