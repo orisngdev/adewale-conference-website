@@ -33,7 +33,7 @@ const RUN_OF_SHOW = [
   {
     num: "02",
     title: "Mark at the venue",
-    desc: "Scripts are shared across the marking team and marked on site, against a scheme you are briefed on beforehand.",
+    desc: "Marking runs on our AI-powered marking app, so scripts are scored on site in minutes rather than by hand. You are trained on it in the briefing.",
   },
   {
     num: "03",
@@ -48,7 +48,7 @@ const RUN_OF_SHOW = [
   {
     num: "05",
     title: "Mark and return results",
-    desc: "The team marks the theory scripts together and the centre results go to the ASC team before everyone heads home.",
+    desc: "The team runs the theory scripts through the app the same way, and the centre results go to the ASC team before everyone heads home.",
   },
 ];
 
@@ -67,8 +67,8 @@ const CENTRES = [
 
 const REQUIREMENTS = [
   "A corps member currently serving in Ogun State.",
-  "Confident marking secondary-school Mathematics, Physics, Chemistry, Biology or English.",
-  "Careful with figures — scores are added, cross-checked and announced the same day.",
+  "Comfortable with secondary-school Mathematics, Physics, Chemistry, Biology or English — enough to check the app\u2019s work.",
+  "Open to learning something new — we train you on the marking app, and you will not have used it before either.",
   "Able to report to your assigned centre at the briefing time and stay until results are submitted.",
   "Happy working as part of a team and following the centre lead\u2019s instructions on the day.",
 ];
@@ -83,8 +83,8 @@ const PERKS = [
     desc: "Food and drinks are provided at your centre. You will be looked after from briefing through to the last script.",
   },
   {
-    title: "A briefing and materials",
-    desc: "Marking schemes, score sheets and a full walkthrough before the first student sits down.",
+    title: "Training on the marking app",
+    desc: "Marking is AI-powered, not manual. You get a full walkthrough of the app, plus the marking scheme and score sheets, before the first student sits down.",
   },
   {
     title: "A team around you",
@@ -98,8 +98,12 @@ const FAQS = [
     a: "No. Every centre is staffed by a team of volunteers under a centre lead, and the work is split between you — invigilating, marking, and recording scores. You are given one role for the day and there is always someone to ask.",
   },
   {
+    q: "How does the marking actually work?",
+    a: "Through an AI-powered marking app that we train you on at the briefing. It does the scoring; your job is to run it properly and confirm the results look right. It is what makes finishing a whole zonal round in one day possible.",
+  },
+  {
     q: "Do I need to be a teacher?",
-    a: "No. What matters is that you are comfortable with the subject you are marking and careful with the numbers. A full briefing and a marking scheme are provided on the day.",
+    a: "No. Marking is done through our AI-powered marking app rather than by hand, so you are checking and confirming its work rather than grading a pile of scripts yourself. A full briefing and walkthrough are provided on the day.",
   },
   {
     q: "Can I choose my centre?",
@@ -288,8 +292,10 @@ export default function VolunteerPage() {
               You&apos;ll Fit If&hellip;
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              No prior competition experience is needed. You get a full briefing,
-              the marking scheme, and a centre lead to escalate to on the day.
+              No prior competition experience is needed, and no marking experience
+              either — marking runs on our AI-powered app. You get a full briefing
+              and walkthrough, the marking scheme, and a centre lead to escalate to
+              on the day.
             </p>
           </div>
 
