@@ -22,7 +22,13 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     "/api/registration": ["./src/emails/**/*"],
     "/api/sponsorship": ["./src/emails/**/*"],
+    "/api/fellows": ["./src/emails/**/*"],
     "/portal/admin/editions": ["./src/emails/**/*"],
+  },
+  // The Fellows page was briefly published as /volunteer before the programme was
+  // branded; keep any link already shared working.
+  async redirects() {
+    return [{ source: "/volunteer", destination: "/fellows", permanent: true }];
   },
   // Let the service worker control the whole origin, and keep it uncached so a
   // new release's sw.js is picked up promptly.

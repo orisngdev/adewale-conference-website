@@ -24,6 +24,12 @@ export const LGA_OPTIONS = [
   "Yewa North",
   "Yewa South",
 ] as const;
+// The centre values written by the school registration form and read back by the
+// admin allocation screens. These are the towns used up to 2025, and historical
+// `qualification_zone` rows hold exactly these strings — `isKnownCentre` in the
+// admin participants page treats anything outside this list as "not a centre".
+// Do not repoint this at the 2026 school names below without first migrating the
+// stored values, or every past allocation reads as unallocated.
 export const ZONAL_FINALS_OPTIONS = [
   "Abeokuta",
   "Ayetoro",
@@ -34,6 +40,32 @@ export const ZONAL_FINALS_OPTIONS = [
   "Ota",
   "Sagamu",
 ] as const;
+
+// The ten venues hosting the 2026 Zonal Finals, named by school rather than by
+// town — two centres (Arigbajo, Imeko) are new for 2026, and Iko Gateway replaces
+// Idiroko. Used by the public Fellows pages; kept separate from
+// ZONAL_FINALS_OPTIONS above until the stored centre values are migrated.
+export const ZONAL_CENTRES_2026 = [
+  { school: "Abeokuta Grammar School", town: "Abeokuta" },
+  { school: "Ansar Ud Deen Comprehensive Senior College", town: "Ota" },
+  { school: "Pakoto High School", town: "Ifo" },
+  { school: "Iko Gateway Grammar School", town: "Iko" },
+  { school: "Methodist High School", town: "Arigbajo" },
+  { school: "Comprehensive High School", town: "Ayetoro" },
+  { school: "Yewa (Egbado) College, Senior", town: "Ilaro" },
+  { school: "Nazareth High School", town: "Imeko" },
+  { school: "Methodist Comprehensive College, Senior", town: "Sagamu" },
+  { school: "Adeola Odutola College", town: "Ijebu Ode" },
+] as const;
+
+/** How a centre is written wherever one value is needed — a form option, a
+ *  spreadsheet cell. Pairs the school with its town, since three of the school
+ *  names repeat across towns. */
+export function centreLabel(centre: (typeof ZONAL_CENTRES_2026)[number]) {
+  return `${centre.school}, ${centre.town}`;
+}
+
+export const ZONAL_CENTRE_2026_OPTIONS = ZONAL_CENTRES_2026.map(centreLabel);
 export const SPONSORSHIP_TIER_OPTIONS = [
   "Platinum - ₦10M+",
   "Gold - ₦5M",

@@ -52,6 +52,14 @@ function getNotifyRecipient(): EmailRecipient | null {
   return { email };
 }
 
+/** The team inbox, as a list — empty when ADEWALE_NOTIFY_EMAIL is unset, so a
+ *  caller can skip the send rather than mail nobody. Public forms with no admin
+ *  module behind them (sponsorship, Fellows) notify here. */
+export function getNotifyRecipients(): EmailRecipient[] {
+  const recipient = getNotifyRecipient();
+  return recipient ? [recipient] : [];
+}
+
 /**
  * Sends an email via SendGrid using inline HTML content.
  *
@@ -520,4 +528,71 @@ export function buildSponsorshipEmail(data: SponsorshipEmailData) {
   const to: EmailRecipient[] = [{ email: data.email, name: data.contact }];
   const notify = getNotifyRecipient();
   return { to, bcc: notify ? [notify] : undefined, subject, html };
+}
+
+export interface FellowEmailData {
+  fullName: string;
+  email: string;
+  phone: string;
+  stateCode: string;
+  batch: string;
+  ppa: string;
+  ppaLga: string;
+  preferredCentre: string;
+  roles: string;
+  scenarioScore: string;
+  eventDate: string;
+}
+
+/** Confirmation to the applicant. Deliberately says nothing about their scenario
+ *  score — the answers are a selection signal, not feedback. */
+export function buildFellowApplicationEmail(data: FellowEmailData) {
+  const subject = "We received your NYSC Fellows application";
+  const html = render("fellow-application", "Application received", {
+    firstName: data.fullName.split(/\s+/)[0] || data.fullName,
+    eventDate: data.eventDate,
+    preferredCentre: data.preferredCentre,
+    stateCode: data.stateCode,
+  });
+
+  return { to: [{ email: data.email, name: data.fullName }], subject, html };
+}
+
+/**
+ * Team notification. When `sheetFailed` is set the applicant's details are still
+ * delivered here with the failure called out, so a Google outage costs us a retry
+ * rather than the application itself.
+ */
+export function buildAdminNewFellowEmail(
+  data: FellowEmailData & { recipients: EmailRecipient[]; sheetFailed?: string },
+) {
+  const subject = data.sheetFailed
+    ? `SHEET WRITE FAILED — Fellows application from ${data.fullName}`
+    : `New Fellows application — ${data.fullName}`;
+
+  const failureNotice = data.sheetFailed
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;margin:0 0 26px;background:#FDECEC;border:1px solid #B91C1C;"><tr><td style="padding:18px;">
+    <p class="body-font" style="margin:0 0 8px;font-size:11px;font-weight:bold;letter-spacing:0.12em;text-transform:uppercase;color:#B91C1C;">Not written to the sheet</p>
+    <p class="body-font" style="margin:0;font-size:14px;line-height:21px;color:#4A4E5C;">This application did not reach the spreadsheet, so the details below are the only copy. Add the row by hand, then check the Apps Script deployment. Error: ${escapeHtml(data.sheetFailed)}</p>
+  </td></tr></table>`
+    : "";
+
+  const html = render("admin-new-fellow", data.sheetFailed ? "Application not saved" : "New application", {
+    alertLine: data.sheetFailed
+      ? "A Fellows application came in but could not be written to the sheet."
+      : "A new corps member has applied to join the Fellows programme.",
+    failureNotice,
+    fullName: data.fullName,
+    phone: data.phone,
+    email: data.email,
+    stateCode: data.stateCode,
+    batch: data.batch || "—",
+    ppa: data.ppa,
+    ppaLga: data.ppaLga,
+    preferredCentre: data.preferredCentre,
+    roles: data.roles || "—",
+    scenarioScore: data.scenarioScore,
+  });
+
+  return { to: data.recipients, subject, html };
 }

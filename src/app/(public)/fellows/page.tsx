@@ -1,28 +1,32 @@
 import Link from "next/link";
 import PageHeader from "@/components/layout/page-header";
+import FellowsApplyButton from "@/components/sections/fellows-apply-button";
+import { ZONAL_CENTRES_2026 } from "@/lib/forms";
+import {
+  FELLOWS_APPLICATIONS_CLOSE,
+  FELLOWS_CENTRE_COUNT,
+  FELLOWS_EVENT_DATE,
+  FELLOWS_EVENT_HOURS,
+  FELLOWS_HEADCOUNT,
+} from "@/lib/fellows-programme";
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata(
-  "Volunteer at the 2026 Zonal Finals",
-  "Paid one-day volunteer roles for corps members serving in Ogun State — invigilate and mark the ASC 2026 Zonal Finals across 10 centres.",
+  "Adéwálé NYSC Fellows Programme",
+  "Paid one-day Fellowships for corps members serving in Ogun State — administer the ASC 2026 Zonal Finals across 10 centres on Wednesday, 23 September 2026.",
 );
 
-// The application itself lives in a Google Form (the ASC team owns it), so this
-// page is a pitch with one destination. Drop the form URL in here and every CTA
-// on the page points at it; while it is empty the buttons render as a disabled
-// "opening soon" state rather than dead links.
-const VOLUNTEER_FORM_URL = "";
-
-// Day-of details the ops team confirms closer to the event. Kept together so
-// they can be corrected in one place instead of hunted through the copy.
+// Day-of facts. The programme constants live in lib/fellows-programme.ts because
+// the application modal and both emails quote the same dates — one module means
+// they cannot contradict each other.
 const FACTS = [
-  { label: "When", value: "September 2026", note: "Exact date confirmed on selection" },
-  { label: "Where", value: "10 centres", note: "Across Ogun State" },
-  { label: "Pay", value: "Paid role", note: "Stipend plus refreshment on the day" },
-  { label: "Commitment", value: "One day", note: "Morning briefing to final results" },
+  { label: "When", value: "23 Sept 2026", note: `Wednesday, ${FELLOWS_EVENT_HOURS}` },
+  { label: "Where", value: `${FELLOWS_CENTRE_COUNT} centres`, note: "Across Ogun State" },
+  { label: "Pay", value: "Paid role", note: "Stipend, transport and feeding" },
+  { label: "Commitment", value: "One day", note: "Plus two short training sessions" },
 ];
 
-// The run of show for a single centre. Students sit the papers; volunteers
+// The run of show for a single centre. Students sit the papers; Fellows
 // invigilate, mark, and get results out before leaving — all of it on the day.
 const RUN_OF_SHOW = [
   {
@@ -52,116 +56,110 @@ const RUN_OF_SHOW = [
   },
 ];
 
-const CENTRES = [
-  { name: "Abeokuta Grammar School", town: "Abeokuta" },
-  { name: "Ansar Ud Deen Comprehensive Senior College", town: "Ota" },
-  { name: "Pakoto High School", town: "Ifo" },
-  { name: "Iko Gateway Grammar School", town: "Iko" },
-  { name: "Methodist High School", town: "Arigbajo" },
-  { name: "Comprehensive High School", town: "Ayetoro" },
-  { name: "Yewa (Egbado) College, Senior", town: "Ilaro" },
-  { name: "Nazareth High School", town: "Imeko" },
-  { name: "Methodist Comprehensive College, Senior", town: "Sagamu" },
-  { name: "Adeola Odutola College", town: "Ijebu Ode" },
-];
-
 const REQUIREMENTS = [
   "A corps member currently serving in Ogun State.",
-  "Comfortable with secondary-school Mathematics, Physics, Chemistry, Biology or English — enough to check the app\u2019s work.",
+  "Comfortable with secondary-school Mathematics, Physics, Chemistry, Biology or English — enough to check the app’s work.",
   "Open to learning something new — we train you on the marking app, and you will not have used it before either.",
-  "Able to report to your assigned centre at the briefing time and stay until results are submitted.",
-  "Happy working as part of a team and following the centre lead\u2019s instructions on the day.",
+  "Free for the whole of Wednesday, 23 September 2026, and for two short training sessions the week before.",
+  "Happy working as part of a team and following the centre lead’s instructions on the day.",
+];
+
+const ROLES = [
+  {
+    title: "Centre Lead",
+    desc: "Runs the centre for the day: holds the timetable, collates and double-checks the scores, and announces the qualifying schools.",
+  },
+  {
+    title: "Invigilator",
+    desc: "Sets up and supervises a hall, keeps exam conditions, and works the marking app on the scripts from that hall.",
+  },
+  {
+    title: "Registration & Materials Officer",
+    desc: "Signs in the school teams, issues and accounts for every question paper and script, and keeps the centre’s paperwork straight.",
+  },
 ];
 
 const PERKS = [
   {
     title: "A paid stipend",
-    desc: "This is paid work, not unpaid service. The figure is confirmed with you when you are selected.",
+    desc: "This is paid work, not unpaid service. Fellows are paid on the day, with transport and feeding allowances on top of the stipend.",
   },
   {
-    title: "Refreshment on the day",
-    desc: "Food and drinks are provided at your centre. You will be looked after from briefing through to the last script.",
+    title: "A Certificate of Fellowship",
+    desc: "Formal recognition of your service as an examination official, issued by the Adéwálé Foundation.",
   },
   {
-    title: "Training on the marking app",
-    desc: "Marking is AI-powered, not manual. You get a full walkthrough of the app, plus the marking scheme and score sheets, before the first student sits down.",
+    title: "Training you keep",
+    desc: "Two sessions in examination administration before the day, plus a full walkthrough of the AI marking app — skills that outlast the fellowship.",
   },
   {
-    title: "A team around you",
-    desc: "A centre lead and fellow volunteers on every shift, each with a defined role.",
+    title: "A route back in",
+    desc: "Outstanding Fellows are invited back as paid judges at the residential camp.",
+  },
+];
+
+const SELECTION_STEPS = [
+  {
+    title: "Apply",
+    desc: "Seventeen questions, about four minutes. Nothing to upload and no essay to write.",
+  },
+  {
+    title: "A short conversation",
+    desc: "Shortlisted applicants get a ten-minute call on WhatsApp. It is a conversation, not an examination.",
+  },
+  {
+    title: "Two training sessions",
+    desc: "One online, one in person, in the week before. Both are compulsory — examination administration and the marking app.",
+  },
+  {
+    title: "Examination day",
+    desc: "You report to your centre, run your role alongside your team, and are paid on the day.",
   },
 ];
 
 const FAQS = [
   {
     q: "Will I be on my own at a centre?",
-    a: "No. Every centre is staffed by a team of volunteers under a centre lead, and the work is split between you — invigilating, marking, and recording scores. You are given one role for the day and there is always someone to ask.",
+    a: "No. Every centre is staffed by a team of Fellows under a Centre Lead, and the work is split between you — invigilating, marking, and recording scores. You are given one role for the day and there is always someone to ask.",
   },
   {
     q: "How does the marking actually work?",
-    a: "Through an AI-powered marking app that we train you on at the briefing. It does the scoring; your job is to run it properly and confirm the results look right. It is what makes finishing a whole zonal round in one day possible.",
+    a: "Through an AI-powered marking app that we train you on before the day. It does the scoring; your job is to run it properly and confirm the results look right. It is what makes finishing a whole zonal round in one day possible.",
   },
   {
     q: "Do I need to be a teacher?",
-    a: "No. Marking is done through our AI-powered marking app rather than by hand, so you are checking and confirming its work rather than grading a pile of scripts yourself. A full briefing and walkthrough are provided on the day.",
+    a: "No. Marking is done through our AI-powered marking app rather than by hand, so you are checking and confirming its work rather than grading a pile of scripts yourself. Training and a full walkthrough are provided.",
+  },
+  {
+    q: "What is the training, and is it compulsory?",
+    a: "Two short sessions in the week before — one online, one in person — covering examination administration and the marking app. Both are compulsory: a centre only runs to time if everyone in it has been through the same briefing.",
   },
   {
     q: "Can I choose my centre?",
-    a: "You tell us your preferred centre in the form and we place you as close to you as we can. Final allocation depends on how many volunteers each centre needs.",
+    a: "You tell us your preferred centre when you apply and we place you as close to you as we can. Final allocation depends on how many Fellows each centre needs, and we pay transport if we post you further afield.",
   },
   {
     q: "How much is the stipend?",
-    a: "This is a paid role. The exact stipend is confirmed with you when you are selected. Refreshment at the centre is covered on the day, so the stipend is yours to keep.",
+    a: "This is a paid role. Fellows are paid on the day, with transport and feeding allowances on top, and the exact figure is confirmed with you when you are selected.",
   },
   {
     q: "When will I hear back?",
-    a: "Selected volunteers are contacted ahead of the event with their centre, reporting time and briefing details.",
+    a: "Shortlisted applicants are contacted on WhatsApp for a short conversation. If you are selected you will be told your centre, your role for the day, and the training times.",
   },
 ];
 
-// Every CTA on the page goes through here so an unset form URL can never ship as
-// a link to nowhere.
-function ApplyButton({ variant = "solid" }: { variant?: "solid" | "outline" }) {
-  const base =
-    "inline-block text-xs font-bold tracking-[0.2em] uppercase px-8 py-4 transition-colors";
-  const styles =
-    variant === "solid"
-      ? "bg-[#E8A020] text-foreground hover:bg-[#F5C55A]"
-      : "border border-[#E8A020] text-primary hover:bg-[#E8A020] hover:text-foreground";
-
-  if (!VOLUNTEER_FORM_URL) {
-    return (
-      <span
-        aria-disabled="true"
-        className={`${base} border border-foreground/20 text-muted-foreground cursor-not-allowed`}
-      >
-        Applications opening soon
-      </span>
-    );
-  }
-
-  return (
-    <a
-      href={VOLUNTEER_FORM_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`${base} ${styles}`}
-    >
-      Apply to volunteer
-    </a>
-  );
-}
-
-export default function VolunteerPage() {
+export default function FellowsPage() {
   return (
     <>
       <PageHeader
         kicker="Paid · Ogun State · One day"
-        title="Call for Volunteer Corps Members"
-        subtitle="We are recruiting corps members serving in Ogun State to join the centre teams running the 2026 Zonal Finals across 10 centres — invigilating, marking on site, and getting the results out the same day."
+        title="Adéwálé NYSC Fellows Programme"
+        subtitle={`We are recruiting ${
+          FELLOWS_HEADCOUNT ? `about ${FELLOWS_HEADCOUNT} ` : ""
+        }corps members serving in Ogun State to administer the 2026 Zonal Finals across ${FELLOWS_CENTRE_COUNT} centres on ${FELLOWS_EVENT_DATE} — invigilating, marking on site, and getting the results out the same day.`}
       />
 
-      {/* Quick facts — the four things a volunteer needs before reading further. */}
+      {/* Quick facts — the four things an applicant needs before reading further. */}
       <section className="px-6 md:px-12 pt-12 md:pt-16">
         <div className="max-w-5xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-px bg-[rgba(10,15,30,0.1)] border border-[rgba(10,15,30,0.1)]">
           {FACTS.map((fact) => (
@@ -189,13 +187,13 @@ export default function VolunteerPage() {
           <p className="text-muted-foreground mt-6 leading-relaxed">
             The Zonal Finals decide which schools reach the Grand Finale, and each
             centre completes its round in a single day. Every centre is staffed by
-            a team of volunteers working alongside a centre lead, so the
-            invigilating, marking and score-checking are shared out — you take one
-            role, with people beside you doing the rest. If you are serving in
-            Ogun State, we would love to have you on a centre team.
+            a team of Fellows working alongside a Centre Lead, so the invigilating,
+            marking and score-checking are shared out — you take one role, with
+            people beside you doing the rest. If you are serving in Ogun State, we
+            would love to have you on a centre team.
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
-            <ApplyButton />
+            <FellowsApplyButton />
             <Link
               href="#centres"
               className="inline-block border border-foreground/20 text-foreground text-xs font-bold tracking-[0.2em] uppercase px-8 py-4 hover:border-[#E8A020] hover:text-primary transition-colors"
@@ -236,8 +234,8 @@ export default function VolunteerPage() {
 
           <p className="serif-display italic text-base md:text-lg text-[rgba(250,247,240,0.7)] mt-12 max-w-2xl">
             You will not be doing all of this alone. Each centre runs with a full
-            team of volunteers and a centre lead, and you are given one clear
-            role for the day.
+            team of Fellows and a Centre Lead, and you are given one clear role
+            for the day.
           </p>
         </div>
       </section>
@@ -259,9 +257,9 @@ export default function VolunteerPage() {
           </div>
 
           <ol className="grid grid-cols-1 md:grid-cols-2 gap-px bg-[rgba(10,15,30,0.1)] border border-[rgba(10,15,30,0.1)] list-none">
-            {CENTRES.map((centre, index) => (
+            {ZONAL_CENTRES_2026.map((centre, index) => (
               <li
-                key={centre.name}
+                key={`${centre.school}-${centre.town}`}
                 className="bg-white p-5 md:p-6 flex items-start gap-4"
               >
                 <span className="font-bebas text-xl text-gold-ink leading-none pt-1 shrink-0">
@@ -269,7 +267,7 @@ export default function VolunteerPage() {
                 </span>
                 <span>
                   <span className="block font-medium text-foreground leading-snug">
-                    {centre.name}
+                    {centre.school}
                   </span>
                   <span className="block text-[11px] font-bold tracking-[0.18em] uppercase text-muted-foreground mt-2">
                     {centre.town}
@@ -293,9 +291,9 @@ export default function VolunteerPage() {
             </h2>
             <p className="text-muted-foreground leading-relaxed">
               No prior competition experience is needed, and no marking experience
-              either — marking runs on our AI-powered app. You get a full briefing
-              and walkthrough, the marking scheme, and a centre lead to escalate to
-              on the day.
+              either — marking runs on our AI-powered app. You get two training
+              sessions before the day, the marking scheme, and a Centre Lead to
+              escalate to while you are there.
             </p>
           </div>
 
@@ -313,8 +311,38 @@ export default function VolunteerPage() {
         </div>
       </section>
 
-      {/* What the day gives back. */}
+      {/* The three roles. The application asks which ones interest you, so the
+          page has to say what they are before it asks. */}
       <section className="px-6 md:px-12 py-16 md:py-24">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-10 md:mb-12">
+            <div className="text-xs md:text-sm font-bold tracking-widest uppercase mb-4 text-gold-ink">
+              Three roles
+            </div>
+            <h2 className="font-bebas text-3xl md:text-4xl lg:text-5xl leading-tight text-foreground">
+              Pick What Suits You
+            </h2>
+            <p className="text-muted-foreground mt-4 max-w-2xl leading-relaxed">
+              You tell us which roles interest you when you apply, and we assign
+              one for the day. Every role is trained, and no role is done alone.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[rgba(10,15,30,0.1)] border border-[rgba(10,15,30,0.1)]">
+            {ROLES.map((role) => (
+              <div key={role.title} className="bg-white p-6 md:p-8">
+                <h3 className="font-bebas text-xl md:text-2xl text-foreground tracking-wide mb-3">
+                  {role.title}
+                </h3>
+                <p className="text-muted-foreground leading-relaxed">{role.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* What the day gives back. */}
+      <section className="bg-muted px-6 md:px-12 py-16 md:py-24">
         <div className="max-w-5xl mx-auto">
           <div className="mb-10 md:mb-12">
             <div className="text-xs md:text-sm font-bold tracking-widest uppercase mb-4 text-gold-ink">
@@ -340,8 +368,40 @@ export default function VolunteerPage() {
         </div>
       </section>
 
+      {/* How selection works. The spec adds a WhatsApp interview and compulsory
+          training between applying and the day — steps an applicant has to be
+          able to see before committing to any of them. */}
+      <section className="bg-[#0A0F1E] px-6 md:px-12 py-14 md:py-20">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-10 md:mb-12">
+            <div className="text-xs md:text-sm font-bold tracking-widest uppercase mb-4 text-primary">
+              How selection works
+            </div>
+            <h2 className="font-bebas text-3xl md:text-4xl lg:text-5xl leading-tight text-white">
+              From Apply<br />To The Day.
+            </h2>
+          </div>
+
+          <ol className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6 list-none">
+            {SELECTION_STEPS.map((step, index) => (
+              <li key={step.title}>
+                <div className="font-bebas text-sm text-primary tracking-[0.2em] mb-3">
+                  {String(index + 1).padStart(2, "0")}
+                </div>
+                <h3 className="font-bebas text-xl md:text-2xl text-white mb-2 tracking-wide">
+                  {step.title}
+                </h3>
+                <p className="text-sm text-[rgba(250,247,240,0.7)] leading-relaxed">
+                  {step.desc}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
       {/* FAQ. */}
-      <section className="bg-muted px-6 md:px-12 py-16 md:py-24">
+      <section className="px-6 md:px-12 py-16 md:py-24">
         <div className="max-w-3xl mx-auto">
           <h2 className="font-bebas text-3xl md:text-4xl leading-tight text-foreground mb-10">
             Before You Apply
@@ -366,10 +426,12 @@ export default function VolunteerPage() {
             Join A Centre Team.<br />Get Paid For It.
           </h2>
           <p className="serif-display italic text-base md:text-lg text-[rgba(250,247,240,0.7)] mt-6 leading-relaxed">
-            Applications close once every centre is staffed, so send yours early.
+            {FELLOWS_APPLICATIONS_CLOSE
+              ? `Applications close on ${FELLOWS_APPLICATIONS_CLOSE}. It takes about four minutes.`
+              : "Applications close once every centre is staffed, so send yours early. It takes about four minutes."}
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
-            <ApplyButton />
+            <FellowsApplyButton />
             <a
               href="mailto:hello@asc2026.ng"
               className="inline-block border border-[rgba(250,247,240,0.25)] text-[#F0EAD8] text-xs font-bold tracking-[0.2em] uppercase px-8 py-4 hover:border-[#E8A020] hover:text-primary transition-colors"
