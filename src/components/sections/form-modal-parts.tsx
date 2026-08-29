@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 
 /**
  * The shared chrome behind the site's dark form modals — school registration and
- * the NYSC Fellows application.
+ * the Adéwálé Fellows application.
  *
  * Extracted so the two modals cannot drift into looking like different products.
  * Everything here is presentational: the field styling, the section rule, and the
@@ -50,15 +50,26 @@ export const RESULT_STYLES: Record<
 export function Field({
   label,
   hint,
+  required,
   children,
 }: {
   label: string;
   hint?: string;
+  /** Marks the label with an asterisk. Opt-in: a form where everything is
+   *  required gains nothing from asterisks on every line. */
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <label className={labelClass}>{label}</label>
+      <label className={labelClass}>
+        {label}
+        {required ? (
+          <span className="ml-1 text-red-400" aria-hidden="true">
+            *
+          </span>
+        ) : null}
+      </label>
       {children}
       {hint ? <p className="mt-2 text-[11px] leading-relaxed text-white/35">{hint}</p> : null}
     </div>

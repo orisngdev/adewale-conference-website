@@ -30,7 +30,7 @@ import {
 } from "./form-modal-parts";
 
 /**
- * The NYSC Fellows application.
+ * The Adéwálé Fellows application.
  *
  * Stepped rather than one long scroll: seventeen questions on a phone with no
  * visible end is where people abandon, and the progress bar plus per-step
@@ -44,7 +44,7 @@ import {
 type StepKey = "you" | "availability" | "judgement" | "declaration";
 
 const STEPS: { key: StepKey; title: string; blurb?: string }[] = [
-  { key: "you", title: "You & your service" },
+  { key: "you", title: "About you" },
   { key: "availability", title: "Availability & role" },
   {
     key: "judgement",
@@ -71,15 +71,17 @@ const radioRowCls =
 function Question({
   label,
   hint,
+  required,
   children,
 }: {
   label: string;
   hint?: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="border border-white/15 bg-white/[0.02] p-4 md:p-5">
-      <Field label={label} hint={hint}>
+      <Field label={label} hint={hint} required={required}>
         {children}
       </Field>
     </div>
@@ -96,10 +98,7 @@ function validateStep(step: StepKey, data: FellowFormData): string {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim()))
         return "That email address does not look right.";
       if (!data.gender) return "Please choose an option for gender.";
-      if (!data.stateCode.trim()) return "Please enter your NYSC state code.";
-      if (!data.ppa.trim()) return "Please enter your Place of Primary Assignment.";
-      if (!data.ppaIsSecondarySchool) return "Please say whether your PPA is a secondary school.";
-      if (!data.ppaLga) return "Please choose the LGA of your PPA.";
+      if (!data.ppaLga) return "Please choose your Local Government Area.";
       if (!data.courseOfStudy.trim()) return "Please enter your course of study.";
       return "";
     case "availability":
@@ -314,7 +313,7 @@ export default function FellowsModal({
               <>
                 <SectionHeader title="About you" />
 
-                <Question label="Full name (as on your NYSC ID card)">
+                <Question label="Full name" required>
                   <input
                     className={inputClass}
                     value={formData.fullName}
@@ -327,6 +326,7 @@ export default function FellowsModal({
                 <Question
                   label="Phone number (WhatsApp)"
                   hint="This is how we reach you if you are shortlisted."
+                  required
                 >
                   <input
                     className={inputClass}
@@ -338,7 +338,7 @@ export default function FellowsModal({
                   />
                 </Question>
 
-                <Question label="Email address">
+                <Question label="Email address" required>
                   <input
                     type="email"
                     className={inputClass}
@@ -349,7 +349,7 @@ export default function FellowsModal({
                   />
                 </Question>
 
-                <Question label="Gender">
+                <Question label="Gender" required>
                   <div className="grid gap-2">
                     {FELLOW_GENDER_OPTIONS.map((option) => (
                       <label key={option} className={radioRowCls}>
@@ -366,7 +366,44 @@ export default function FellowsModal({
                   </div>
                 </Question>
 
-                <SectionHeader title="Your service" />
+                <SectionHeader title="Where you are" />
+
+                <Question
+                  label="Local Government Area"
+                  required
+                  hint="Where you are based. This is what we use to post you to the nearest centre."
+                >
+                  <select
+                    className={selectClass}
+                    value={formData.ppaLga}
+                    onChange={(e) => set("ppaLga", e.target.value)}
+                  >
+                    <option value="" className="bg-[#0A0F1E]">
+                      Select an LGA
+                    </option>
+                    {PPA_LGA_OPTIONS.map((lga) => (
+                      <option key={lga} value={lga} className="bg-[#0A0F1E]">
+                        {lga}
+                      </option>
+                    ))}
+                  </select>
+                </Question>
+
+                <Question label="Course of study" required>
+                  <input
+                    className={inputClass}
+                    value={formData.courseOfStudy}
+                    onChange={(e) => set("courseOfStudy", e.target.value)}
+                    maxLength={120}
+                  />
+                </Question>
+
+                <SectionHeader title="If you are serving" />
+
+                <p className="-mt-2 text-[11px] leading-relaxed text-white/35">
+                  Only for corps members currently serving. Leave blank if that is
+                  not you — it does not affect your application.
+                </p>
 
                 <Question label="NYSC state code" hint="Example: OG/26A/1234">
                   <input
@@ -406,38 +443,12 @@ export default function FellowsModal({
                     ))}
                   </div>
                 </Question>
-
-                <Question label="Local Government Area of your PPA">
-                  <select
-                    className={selectClass}
-                    value={formData.ppaLga}
-                    onChange={(e) => set("ppaLga", e.target.value)}
-                  >
-                    <option value="" className="bg-[#0A0F1E]">
-                      Select an LGA
-                    </option>
-                    {PPA_LGA_OPTIONS.map((lga) => (
-                      <option key={lga} value={lga} className="bg-[#0A0F1E]">
-                        {lga}
-                      </option>
-                    ))}
-                  </select>
-                </Question>
-
-                <Question label="Course of study">
-                  <input
-                    className={inputClass}
-                    value={formData.courseOfStudy}
-                    onChange={(e) => set("courseOfStudy", e.target.value)}
-                    maxLength={120}
-                  />
-                </Question>
               </>
             ) : null}
 
             {step.key === "availability" ? (
               <>
-                <Question label="Please confirm all three">
+                <Question label="Please confirm all three" required>
                   <div className="grid gap-2">
                     {FELLOW_COMMITMENTS.map((commitment) => (
                       <label key={commitment} className={radioRowCls}>
@@ -453,7 +464,7 @@ export default function FellowsModal({
                   </div>
                 </Question>
 
-                <Question label="Which centre would you prefer?">
+                <Question label="Which centre would you prefer?" required>
                   <select
                     className={selectClass}
                     value={formData.preferredCentre}
@@ -470,7 +481,10 @@ export default function FellowsModal({
                   </select>
                 </Question>
 
-                <Question label="If posted to a different centre with transport paid, would you accept?">
+                <Question
+                  label="If posted to a different centre with transport paid, would you accept?"
+                  required
+                >
                   <div className="grid grid-cols-2 gap-2">
                     {YES_NO_OPTIONS.map((option) => (
                       <label key={option} className={radioRowCls}>
@@ -487,7 +501,7 @@ export default function FellowsModal({
                   </div>
                 </Question>
 
-                <Question label="Which roles interest you?" hint="Choose as many as apply.">
+                <Question label="Which roles interest you?" hint="Choose as many as apply." required>
                   <div className="grid gap-2">
                     {FELLOW_ROLE_OPTIONS.map((role) => (
                       <label key={role} className={radioRowCls}>
@@ -506,6 +520,7 @@ export default function FellowsModal({
                 <Question
                   label="Have you invigilated or marked an examination before?"
                   hint="Either answer is fine — training is provided."
+                  required
                 >
                   <div className="grid grid-cols-2 gap-2">
                     {YES_NO_OPTIONS.map((option) => (
@@ -527,7 +542,7 @@ export default function FellowsModal({
 
             {step.key === "judgement"
               ? FELLOW_SCENARIOS.map((scenario) => (
-                  <Question key={scenario.id} label={scenario.prompt}>
+                  <Question key={scenario.id} label={scenario.prompt} required>
                     <div className="grid gap-2">
                       {scenario.options.map((option) => (
                         <label key={option.id} className={radioRowCls}>
@@ -548,7 +563,7 @@ export default function FellowsModal({
 
             {step.key === "declaration" ? (
               <>
-                <Question label="Please confirm all of the following">
+                <Question label="Please confirm all of the following" required>
                   <div className="grid gap-2">
                     {FELLOW_DECLARATIONS.map((declaration) => (
                       <label key={declaration} className={radioRowCls}>

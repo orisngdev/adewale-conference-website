@@ -1,4 +1,4 @@
-# NYSC Fellows applications → Google Sheet
+# Adéwálé Fellows applications → Google Sheet
 
 How an application submitted on `/fellows` ends up as a row in the team's
 spreadsheet, and how to set that up from scratch.
@@ -25,7 +25,7 @@ Paste this as row 1. The order matters: it is the order `FELLOW_SHEET_COLUMNS` i
 wrong headings.
 
 ```
-Timestamp	Full name	Phone	Email	Gender	State code	Batch (derived)	PPA	PPA is a secondary school	LGA of PPA	Course of study	Commitment confirmed	Preferred centre	Accepts another centre	Roles	Invigilated before	Scenario 1	Scenario 2	Scenario score	Declaration	Status	Interview score	Assigned centre
+Timestamp	Full name	Phone	Email	Gender	State code (if serving)	Batch (derived)	PPA (if serving)	PPA is a secondary school	Local Government Area	Course of study	Commitment confirmed	Preferred centre	Accepts another centre	Roles	Invigilated before	Scenario 1	Scenario 2	Scenario score	Declaration	Status	Interview score	Assigned centre
 ```
 
 The last three — **Status**, **Interview score**, **Assigned centre** — are yours.
@@ -168,9 +168,10 @@ still demanding a Google login.
 ## Reviewing applications
 
 Duplicates are expected and intentional: the form accepts every submission rather
-than risk blocking a genuine applicant over a mistyped state code, and a failed
-sheet write asks the applicant to send it again. **De-duplicate on State Code**
-before shortlisting, keeping the most recent row.
+than risk blocking a genuine applicant, and a failed sheet write asks them to send
+it again. **De-duplicate on Email** before shortlisting, keeping the most recent
+row — email is the only identifier every applicant has, since the state code is
+optional now that the programme is open to graduates generally.
 
 Add a `COUNTIF` on the **Preferred centre** column to track applications per
 centre. Ayetoro, Ilaro and Imeko are the hardest places to recruit — watch those

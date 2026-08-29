@@ -61,9 +61,35 @@ function requireEmail(value: unknown, fieldName: string) {
   return email;
 }
 
+function optionalString(value: unknown, fieldName: string, maxLength = 200) {
+  if (value == null || value === "") return "";
+
+  if (typeof value !== "string") {
+    throw new ValidationError(`${fieldName} is invalid.`);
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length > maxLength) {
+    throw new ValidationError(`${fieldName} is too long.`);
+  }
+
+  return trimmed;
+}
+
 function requireOneOf(value: unknown, fieldName: string, options: readonly string[]) {
   const answer = requireString(value, fieldName);
   if (!options.includes(answer)) {
+    throw new ValidationError(`${fieldName} is invalid.`);
+  }
+
+  return answer;
+}
+
+/** An optional choice — blank is fine, but a value that is not on the list is
+ *  still a rejected value rather than one quietly written through to the sheet. */
+function optionalOneOf(value: unknown, fieldName: string, options: readonly string[]) {
+  const answer = optionalString(value, fieldName);
+  if (answer && !options.includes(answer)) {
     throw new ValidationError(`${fieldName} is invalid.`);
   }
 
@@ -113,14 +139,17 @@ function sanitizeFellowPayload(payload: unknown): FellowFormData {
     phone: requireString(data.phone, "Phone number", 40),
     email: requireEmail(data.email, "Email address"),
     gender: requireOneOf(data.gender, "Gender", FELLOW_GENDER_OPTIONS),
-    stateCode: requireString(data.stateCode, "NYSC state code", 40),
-    ppa: requireString(data.ppa, "Place of Primary Assignment", 200),
-    ppaIsSecondarySchool: requireOneOf(
+    // Service details are optional: the programme is open to graduates generally,
+    // and only the subset currently serving have a state code or a PPA to give.
+    stateCode: optionalString(data.stateCode, "NYSC state code", 40),
+    ppa: optionalString(data.ppa, "Place of Primary Assignment", 200),
+    ppaIsSecondarySchool: optionalOneOf(
       data.ppaIsSecondarySchool,
       "Whether your PPA is a secondary school",
       YES_NO_OPTIONS,
     ),
-    ppaLga: requireOneOf(data.ppaLga, "LGA of your PPA", PPA_LGA_OPTIONS),
+    // Still required — this is what centre allocation runs on.
+    ppaLga: requireOneOf(data.ppaLga, "Your Local Government Area", PPA_LGA_OPTIONS),
     courseOfStudy: requireString(data.courseOfStudy, "Course of study", 120),
     commitments: requireAllChecked(data.commitments, "The commitments", FELLOW_COMMITMENTS),
     preferredCentre: requireOneOf(data.preferredCentre, "Preferred centre", FELLOW_CENTRE_OPTIONS),

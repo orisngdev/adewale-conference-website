@@ -547,7 +547,7 @@ export interface FellowEmailData {
 /** Confirmation to the applicant. Deliberately says nothing about their scenario
  *  score — the answers are a selection signal, not feedback. */
 export function buildFellowApplicationEmail(data: FellowEmailData) {
-  const subject = "We received your NYSC Fellows application";
+  const subject = "We received your Fellows application";
   const html = render("fellow-application", "Application received", {
     firstName: data.fullName.split(/\s+/)[0] || data.fullName,
     eventDate: data.eventDate,
@@ -580,7 +580,7 @@ export function buildAdminNewFellowEmail(
   const html = render("admin-new-fellow", data.sheetFailed ? "Application not saved" : "New application", {
     alertLine: data.sheetFailed
       ? "A Fellows application came in but could not be written to the sheet."
-      : "A new corps member has applied to join the Fellows programme.",
+      : "A new graduate has applied to join the Fellows programme.",
     failureNotice,
     fullName: data.fullName,
     phone: data.phone,

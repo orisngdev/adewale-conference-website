@@ -13,7 +13,7 @@ export const PLATFORM_PAGES = [
   { path: "/gallery", label: "Gallery" },
   { path: "/schools", label: "Schools" },
   { path: "/sponsors", label: "Sponsors" },
-  { path: "/fellows", label: "NYSC Fellows" },
+  { path: "/fellows", label: "Fellows Programme" },
   { path: "/faq", label: "FAQ" },
   { path: "/contact", label: "Contact" },
 ] as const;
@@ -37,7 +37,7 @@ export const MAIN_NAV: readonly NavEntry[] = [
   {
     label: "Get Involved",
     items: [
-      { label: "NYSC Fellows", href: "/fellows" },
+      { label: "Fellows Programme", href: "/fellows" },
       { label: "Sponsors", href: "/sponsors" },
       { label: "Register a School", href: "/#register" },
     ],

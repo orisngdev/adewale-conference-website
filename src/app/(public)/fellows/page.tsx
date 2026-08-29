@@ -12,8 +12,8 @@ import {
 import { pageMetadata } from "@/lib/seo";
 
 export const metadata = pageMetadata(
-  "Adéwálé NYSC Fellows Programme",
-  "Paid one-day Fellowships for corps members serving in Ogun State — administer the ASC 2026 Zonal Finals across 10 centres on Wednesday, 23 September 2026.",
+  "Adéwálé Fellows Programme",
+  "Paid one-day Fellowships for graduates and serving corps members in Ogun State — administer the ASC 2026 Zonal Finals across 10 centres on Wednesday, 23 September 2026.",
 );
 
 // Day-of facts. The programme constants live in lib/fellows-programme.ts because
@@ -57,7 +57,7 @@ const RUN_OF_SHOW = [
 ];
 
 const REQUIREMENTS = [
-  "A corps member currently serving in Ogun State.",
+  "A graduate or serving corps member who can get to one of the ten centres in Ogun State on the day.",
   "Comfortable with secondary-school Mathematics, Physics, Chemistry, Biology or English — enough to check the app’s work.",
   "Open to learning something new — we train you on the marking app, and you will not have used it before either.",
   "Free for the whole of Wednesday, 23 September 2026, and for two short training sessions the week before.",
@@ -101,7 +101,7 @@ const PERKS = [
 const SELECTION_STEPS = [
   {
     title: "Apply",
-    desc: "Seventeen questions, about four minutes. Nothing to upload and no essay to write.",
+    desc: "A short form — nothing to upload and no essay to write.",
   },
   {
     title: "A short conversation",
@@ -118,6 +118,10 @@ const SELECTION_STEPS = [
 ];
 
 const FAQS = [
+  {
+    q: "Do I need to be a serving corps member?",
+    a: "No — the programme is open to graduates and serving corps members alike, though where two applications are close we lean towards corps members currently serving in Ogun State. The form asks a few optional questions about your service so that, if you are serving, we can coordinate your release for the day. If you are not serving, leave them blank and apply anyway.",
+  },
   {
     q: "Will I be on my own at a centre?",
     a: "No. Every centre is staffed by a team of Fellows under a Centre Lead, and the work is split between you — invigilating, marking, and recording scores. You are given one role for the day and there is always someone to ask.",
@@ -153,10 +157,10 @@ export default function FellowsPage() {
     <>
       <PageHeader
         kicker="Paid · Ogun State · One day"
-        title="Adéwálé NYSC Fellows Programme"
+        title="Adéwálé Fellows Programme"
         subtitle={`We are recruiting ${
           FELLOWS_HEADCOUNT ? `about ${FELLOWS_HEADCOUNT} ` : ""
-        }corps members serving in Ogun State to administer the 2026 Zonal Finals across ${FELLOWS_CENTRE_COUNT} centres on ${FELLOWS_EVENT_DATE} — invigilating, marking on site, and getting the results out the same day.`}
+        }graduates or serving corps members to administer the 2026 Zonal Finals across ${FELLOWS_CENTRE_COUNT} centres in Ogun State on ${FELLOWS_EVENT_DATE} — invigilating, marking on site, and getting the results out the same day.`}
       />
 
       {/* Quick facts — the four things an applicant needs before reading further. */}
@@ -189,8 +193,9 @@ export default function FellowsPage() {
             centre completes its round in a single day. Every centre is staffed by
             a team of Fellows working alongside a Centre Lead, so the invigilating,
             marking and score-checking are shared out — you take one role, with
-            people beside you doing the rest. If you are serving in Ogun State, we
-            would love to have you on a centre team.
+            people beside you doing the rest. If you are a graduate or serving
+            corps member in Ogun State who can reach one of the centres, we would
+            love to have you on a centre team.
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             <FellowsApplyButton />

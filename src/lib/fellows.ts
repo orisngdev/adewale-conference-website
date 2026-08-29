@@ -1,7 +1,7 @@
 import { LGA_OPTIONS, ZONAL_CENTRE_2026_OPTIONS } from "./forms";
 
 /**
- * The Adéwálé NYSC Fellows application — the one description of its shape.
+ * The Adéwálé Fellows application — the one description of its shape.
  *
  * Shared by the client modal, the API route and the sheet writer, so a field
  * cannot be collected without being validated or written. Deliberately holds no
@@ -16,12 +16,13 @@ export const FELLOW_GENDER_OPTIONS = [
   "Prefer not to say",
 ] as const;
 
-// The LGA question is about where the applicant serves, so it needs an escape
-// hatch the registration form's LGA list does not: someone posted outside Ogun
-// State can still apply, and we would rather know than have them pick a wrong LGA.
+// Where the applicant is based, which is what drives centre allocation. Needs an
+// escape hatch the registration form's LGA list does not: someone outside Ogun
+// State can still apply, and we would rather know that than have them pick a
+// wrong LGA to get past the question.
 export const PPA_LGA_OPTIONS = [
   ...LGA_OPTIONS,
-  "I am not serving in Ogun State",
+  "I am not based in Ogun State",
 ] as const;
 
 export const FELLOW_ROLE_OPTIONS = [
@@ -43,7 +44,7 @@ export const FELLOW_COMMITMENTS = [
 
 export const FELLOW_DECLARATIONS = [
   "The information I have given is true and accurate.",
-  "I understand that any breach of examination integrity means immediate removal and a report to NYSC.",
+  "I understand that any breach of examination integrity means immediate removal, and a report to NYSC if I am a serving corps member.",
   "If selected, I will attend both training sessions and be present for the whole of examination day.",
 ] as const;
 
@@ -126,11 +127,11 @@ export const FELLOW_SHEET_COLUMNS = [
   "Phone",
   "Email",
   "Gender",
-  "State code",
+  "State code (if serving)",
   "Batch (derived)",
-  "PPA",
+  "PPA (if serving)",
   "PPA is a secondary school",
-  "LGA of PPA",
+  "Local Government Area",
   "Course of study",
   "Commitment confirmed",
   "Preferred centre",
@@ -163,11 +164,11 @@ export function mapFellowFields(
     Phone: data.phone,
     Email: data.email,
     Gender: data.gender,
-    "State code": data.stateCode,
+    "State code (if serving)": data.stateCode,
     "Batch (derived)": deriveBatch(data.stateCode),
-    PPA: data.ppa,
+    "PPA (if serving)": data.ppa,
     "PPA is a secondary school": data.ppaIsSecondarySchool,
-    "LGA of PPA": data.ppaLga,
+    "Local Government Area": data.ppaLga,
     "Course of study": data.courseOfStudy,
     "Commitment confirmed": data.commitments.length === FELLOW_COMMITMENTS.length ? "Yes" : "No",
     "Preferred centre": data.preferredCentre,
