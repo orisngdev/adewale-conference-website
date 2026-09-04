@@ -18,6 +18,39 @@ interface SendEmailInput {
   bcc?: EmailRecipient[];
 }
 
+/**
+ * Domains that can never receive mail. RFC 2606 reserves example.com/net/org
+ * and the .test / .example / .invalid / .localhost TLDs for documentation and
+ * testing; RFC 6761 makes .local mDNS-only (which is where the synthetic
+ * student addresses live).
+ *
+ * Sending to one of these is a guaranteed hard bounce, and bounce rate is
+ * scored against the sending domain's reputation — so a dev database seeded
+ * with example.com educators could quietly damage deliverability for real
+ * mail. Dropping them is correct in every environment, not a dev-only hack.
+ */
+const UNDELIVERABLE_DOMAINS = ["example.com", "example.net", "example.org"];
+const UNDELIVERABLE_TLDS = [".test", ".example", ".invalid", ".localhost", ".local"];
+
+export function isUndeliverableAddress(email: string | null | undefined): boolean {
+  const at = (email ?? "").trim().toLowerCase();
+  const domain = at.slice(at.lastIndexOf("@") + 1);
+  if (!domain || !at.includes("@")) return true; // nothing to deliver to
+  if (UNDELIVERABLE_DOMAINS.includes(domain)) return true;
+  return UNDELIVERABLE_TLDS.some((tld) => domain.endsWith(tld));
+}
+
+/** Split recipients into the ones worth sending to and the ones that can't receive. */
+function partitionDeliverable(recipients: EmailRecipient[]) {
+  const deliverable: EmailRecipient[] = [];
+  let skipped = 0;
+  for (const recipient of recipients) {
+    if (isUndeliverableAddress(recipient?.email)) skipped++;
+    else deliverable.push(recipient);
+  }
+  return { deliverable, skipped };
+}
+
 function getApiKey() {
   return process.env.SENDGRID_API_KEY ?? "";
 }
@@ -79,6 +112,17 @@ export async function sendEmail({ to, subject, html, bcc }: SendEmailInput): Pro
     return false;
   }
 
+  // Reserved/undeliverable addresses (seeded dev data) never reach SendGrid, so
+  // they cannot bounce against the sending domain.
+  const { deliverable, skipped } = partitionDeliverable(to);
+  if (skipped) {
+    console.warn(`Skipping ${skipped} undeliverable recipient(s) (reserved domain).`);
+  }
+  if (deliverable.length === 0) {
+    return false;
+  }
+  const deliverableBcc = bcc ? partitionDeliverable(bcc).deliverable : undefined;
+
   sendgrid.setApiKey(apiKey);
 
   // Spam filters score HTML-only mail worse — always include a text/plain
@@ -91,8 +135,8 @@ export async function sendEmail({ to, subject, html, bcc }: SendEmailInput): Pro
     ...(replyTo ? { replyTo } : {}),
     personalizations: [
       {
-        to,
-        ...(bcc?.length ? { bcc } : {}),
+        to: deliverable,
+        ...(deliverableBcc?.length ? { bcc: deliverableBcc } : {}),
       },
     ],
     subject,
