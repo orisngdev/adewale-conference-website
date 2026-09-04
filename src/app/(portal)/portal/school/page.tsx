@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, SectionHeading, StatTile } from "@/components/portal/ui";
 import { SubmitButton } from "@/components/portal/submit-button";
@@ -27,27 +28,45 @@ export default async function SchoolOverview() {
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  const [{ data: regData }, { data: memberData }, { data: editionData }, { data: guidelineRows }] =
-    await Promise.all([
-      supabase
-        .from("registrations")
-        .select("id, edition_year, status, decline_reason, reps, school_id, schools(name)")
-        .order("edition_year", { ascending: false }),
-      supabase.from("school_members").select("status, schools(name)"),
-      supabase
-        .from("editions")
-        .select("year, title, registration_open, stages, current_stage")
-        .order("year", { ascending: false }),
-      // The competition guideline is a resource (type "guidelines") — single
-      // source of truth, managed in Admin → Resources.
-      supabase
-        .from("resources")
-        .select("id, edition_year")
-        .eq("type", "guidelines")
-        .eq("published", true)
-        .order("created_at", { ascending: false }),
-    ]);
+  const [
+    { data: regData },
+    { data: memberData },
+    { data: editionData },
+    { data: guidelineRows },
+    { data: announcementRows },
+  ] = await Promise.all([
+    supabase
+      .from("registrations")
+      .select("id, edition_year, status, decline_reason, reps, school_id, schools(name)")
+      .order("edition_year", { ascending: false }),
+    supabase.from("school_members").select("status, schools(name)"),
+    supabase
+      .from("editions")
+      .select("year, title, registration_open, stages, current_stage")
+      .order("year", { ascending: false }),
+    // The competition guideline is a resource (type "guidelines") — single
+    // source of truth, managed in Admin → Resources.
+    supabase
+      .from("resources")
+      .select("id, edition_year")
+      .eq("type", "guidelines")
+      .eq("published", true)
+      .order("created_at", { ascending: false }),
+    // The three most recent announcements aimed at this school. RLS
+    // (can_read_announcement) decides which rows come back.
+    supabase
+      .from("announcements")
+      .select("id, title, sent_at")
+      .eq("status", "sent")
+      .order("sent_at", { ascending: false })
+      .limit(3),
+  ]);
   const registrations = (regData ?? []) as unknown as RegistrationWithRelations[];
+  const announcements = (announcementRows ?? []) as {
+    id: string;
+    title: string;
+    sent_at: string | null;
+  }[];
   const totalReps = registrations.reduce(
     (n, r) => n + (Array.isArray(r.reps) ? (r.reps as Rep[]).length : 0),
     0,
@@ -224,6 +243,30 @@ export default async function SchoolOverview() {
         <StatTile label="Representatives" value={totalReps} />
         <StatTile label="Latest status" value={registrations[0]?.status ?? "—"} />
       </div>
+
+      {announcements.length > 0 ? (
+        <div>
+          <SectionHeading
+            action={{ href: "/portal/announcements", label: "All announcements →" }}
+          >
+            Latest announcements
+          </SectionHeading>
+          <Card className="divide-y divide-foreground/5">
+            {announcements.map((a) => (
+              <Link
+                key={a.id}
+                href={`/portal/announcements/${a.id}`}
+                className="block p-4 hover:bg-foreground/2"
+              >
+                <p className="font-medium text-foreground">{a.title}</p>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  {a.sent_at ? new Date(a.sent_at).toLocaleDateString() : ""}
+                </p>
+              </Link>
+            ))}
+          </Card>
+        </div>
+      ) : null}
 
       {roster.length > 0 && (accepted || rosterHasProgress) ? (
         <div>

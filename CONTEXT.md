@@ -104,6 +104,14 @@ Who a Resource is shown to — **Students**, **Coordinators**, or **both**. A St
 A free, Public-tier Resource of study material (past questions, study guide, syllabus). The portal logs who opens/downloads each one, which feeds a Student's Progress.
 _Avoid_: study resource (use Resource for the umbrella).
 
+**Announcement**:
+A one-off message an admin writes and sends to educators — a venue change, a deadline reminder, a circular with a file attached. It has a **Recipient scope** and goes out by email, as an in-portal notification, or both. Educators read it at `/portal/announcements`. Drafted first, then sent; once sent it is a record and cannot be edited or re-sent. Announcements never reach Students, who sign in with an Access code and have no address on file.
+_Avoid_: broadcast, blast, notice, circular; news (reserve for the public Sanity-managed News post).
+
+**Recipient scope**:
+Who an Announcement is sent to — **All educators**, **Coordinating teachers**, or **Principals** — optionally narrowed to one Edition's schools. Distinct from a Resource's [Audience](#programme), which is about Students vs Coordinators. The teacher/principal split is *derived* from the addresses on each school's Registration entry, so an educator who joined later is in neither group and a narrowed send skips them.
+_Avoid_: audience (taken by Resource), segment, mailing list.
+
 ### Analytics
 
 **Active Student**:

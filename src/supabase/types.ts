@@ -9,6 +9,7 @@ export type PermissionModule =
   | "registrations"
   | "participants"
   | "content"
+  | "announcements"
   | "labs"
   | "analytics";
 
@@ -30,6 +31,7 @@ export const DEFAULT_EMPTY_PERMISSIONS: AdminPermissionsMap = {
   registrations: "none",
   participants: "none",
   content: "none",
+  announcements: "none",
   labs: "none",
   analytics: "none",
 };
@@ -39,6 +41,7 @@ export const DEFAULT_SUPER_ADMIN_PERMISSIONS: AdminPermissionsMap = {
   registrations: "manage",
   participants: "manage",
   content: "manage",
+  announcements: "manage",
   labs: "manage",
   analytics: "manage",
 };
@@ -53,6 +56,7 @@ export const PRESET_ROLE_PERMISSIONS: Record<
     registrations: "manage",
     participants: "manage",
     content: "view",
+    announcements: "manage",
     labs: "none",
     analytics: "view",
   },
@@ -61,6 +65,7 @@ export const PRESET_ROLE_PERMISSIONS: Record<
     registrations: "none",
     participants: "view",
     content: "manage",
+    announcements: "view",
     labs: "none",
     analytics: "view",
   },
@@ -69,6 +74,7 @@ export const PRESET_ROLE_PERMISSIONS: Record<
     registrations: "none",
     participants: "none",
     content: "view",
+    announcements: "none",
     labs: "manage",
     analytics: "view",
   },
@@ -77,6 +83,7 @@ export const PRESET_ROLE_PERMISSIONS: Record<
     registrations: "view",
     participants: "view",
     content: "view",
+    announcements: "view",
     labs: "view",
     analytics: "view",
   },

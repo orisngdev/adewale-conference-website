@@ -35,9 +35,15 @@ export default async function PortalLayout({
   if (email) {
     tabs.push({ href: "/portal", label: "Home" });
     if (role === "admin") tabs.push({ href: "/portal/admin", label: "Admin" });
-    else if (role === "coordinator")
+    else if (role === "coordinator") {
       tabs.push({ href: "/portal/school", label: "My school" });
-    else tabs.push({ href: "/portal/student", label: "My dashboard" });
+      // Announcements live outside the school sidebar (they are a top-level
+      // route), so without this tab an educator could only reach them from a
+      // bell notification. Coordinators only: students hold no school
+      // membership, so the page would always be empty for them, and admins have
+      // the console's own Announcements module.
+      tabs.push({ href: "/portal/announcements", label: "Announcements" });
+    } else tabs.push({ href: "/portal/student", label: "My dashboard" });
     // Settings lives in each role's sidebar, not up here.
   }
 

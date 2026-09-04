@@ -40,6 +40,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
   "registrations",
   "participants",
   "content",
+  "announcements",
   "labs",
   "analytics",
   "team",
@@ -50,6 +51,7 @@ export const MODULE_LABELS: Record<PermissionModule, string> = {
   registrations: "Registrations & Schools",
   participants: "Participants & Swaps",
   content: "Academic Content",
+  announcements: "Announcements",
   labs: "Tech Labs & Challenges",
   analytics: "Analytics & Insights",
 };
@@ -60,6 +62,7 @@ export const MODULE_DESCRIPTIONS: Record<PermissionModule, string> = {
   registrations: "Registrations, waitlist, editions, schools, replacements",
   participants: "Participant rosters, advancement, certificates",
   content: "Assessments, question bank, resources",
+  announcements: "Broadcasts to educators by email and in-portal",
   labs: "Tech labs, challenges, workbench submissions",
   analytics: "Analytics charts and registration statistics",
 };
@@ -117,6 +120,7 @@ const ROUTE_MODULES: { prefix: string; module: PermissionModule }[] = [
   { prefix: "/portal/admin/assessments", module: "content" },
   { prefix: "/portal/admin/question-bank", module: "content" },
   { prefix: "/portal/admin/resources", module: "content" },
+  { prefix: "/portal/admin/announcements", module: "announcements" },
   { prefix: "/portal/admin/labs", module: "labs" },
   { prefix: "/portal/admin/challenges", module: "labs" },
   { prefix: "/portal/admin/users", module: "team" },

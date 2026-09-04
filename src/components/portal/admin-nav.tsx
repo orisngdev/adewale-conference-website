@@ -11,6 +11,7 @@ import {
   FlaskConical,
   FolderDown,
   Hourglass,
+  Megaphone,
   Trophy,
   Users,
   School,
@@ -33,6 +34,7 @@ const LABS: NavLink = { href: "/portal/admin/labs", label: "Labs", icon: FlaskCo
 const CHALLENGES: NavLink = { href: "/portal/admin/challenges", label: "Challenges", icon: Trophy, short: "Arena", module: "labs" };
 const QUESTION_BANK: NavLink = { href: "/portal/admin/question-bank", label: "Question bank", icon: FileQuestion, short: "Bank", module: "content" };
 const RESOURCES: NavLink = { href: "/portal/admin/resources", label: "Resources", icon: FolderDown, short: "Guides", module: "content" };
+const ANNOUNCEMENTS: NavLink = { href: "/portal/admin/announcements", label: "Announcements", icon: Megaphone, short: "News", module: "announcements" };
 const USERS: NavLink = { href: "/portal/admin/users", label: "Users", icon: Users, module: "team" };
 const SCHOOLS: NavLink = { href: "/portal/admin/schools", label: "Schools", icon: School, module: "registrations" };
 const PARTICIPANTS: NavLink = { href: "/portal/admin/participants", label: "Participants", icon: UserRound, short: "People", module: "participants" };
@@ -48,12 +50,12 @@ const CONFIG: SidebarConfig = {
   overview: OVERVIEW,
   groups: [
     { title: "Insights", links: [ANALYTICS] },
-    { title: "Program", links: [EDITIONS, REGISTRATIONS, WAITLIST, ASSESSMENTS, LABS, CHALLENGES, QUESTION_BANK, RESOURCES] },
+    { title: "Program", links: [EDITIONS, REGISTRATIONS, WAITLIST, ANNOUNCEMENTS, ASSESSMENTS, LABS, CHALLENGES, QUESTION_BANK, RESOURCES] },
     { title: "People", links: [PARTICIPANTS, REPLACEMENTS, INFO_CHANGES, USERS, SCHOOLS, SPONSORS] },
     { title: "Site", links: [SETTINGS] },
   ],
   bottom: [OVERVIEW, ANALYTICS, REGISTRATIONS, USERS],
-  more: [ASSESSMENTS, PARTICIPANTS, REPLACEMENTS, INFO_CHANGES, EDITIONS, WAITLIST, LABS, CHALLENGES, QUESTION_BANK, RESOURCES, SCHOOLS, SPONSORS, SETTINGS],
+  more: [ANNOUNCEMENTS, ASSESSMENTS, PARTICIPANTS, REPLACEMENTS, INFO_CHANGES, EDITIONS, WAITLIST, LABS, CHALLENGES, QUESTION_BANK, RESOURCES, SCHOOLS, SPONSORS, SETTINGS],
 };
 
 // A link is shown when it has no module (always-open, e.g. Overview / Sponsors)

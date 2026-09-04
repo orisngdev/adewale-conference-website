@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import sendgrid, { type MailDataRequired } from "@sendgrid/mail";
 import { SITE_URL } from "./site";
+import {
+  ANNOUNCEMENT_TARGET_EMAIL_LABEL,
+  type AnnouncementTargetRole,
+} from "./announcements";
 
 const DEFAULT_FROM_NAME = "Adewale Students Conference";
 const EMAILS_DIR = join(process.cwd(), "src", "emails");
@@ -11,11 +15,19 @@ interface EmailRecipient {
   name?: string;
 }
 
+/** A file carried by the message itself. SendGrid requires base64, not a Buffer. */
+export interface EmailAttachment {
+  filename: string;
+  content: string;
+  type?: string;
+}
+
 interface SendEmailInput {
   to: EmailRecipient[];
   subject: string;
   html: string;
   bcc?: EmailRecipient[];
+  attachments?: EmailAttachment[];
 }
 
 /**
@@ -100,7 +112,13 @@ export function getNotifyRecipients(): EmailRecipient[] {
  * local development and form submissions never fail just because email is not
  * configured. Real SendGrid errors are surfaced to the caller.
  */
-export async function sendEmail({ to, subject, html, bcc }: SendEmailInput): Promise<boolean> {
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  bcc,
+  attachments,
+}: SendEmailInput): Promise<boolean> {
   if (!emailSendsEnabled()) {
     console.warn("ADEWALE_EMAILS_ENABLED disables email sending; skipping email send.");
     return false;
@@ -144,10 +162,97 @@ export async function sendEmail({ to, subject, html, bcc }: SendEmailInput): Pro
       { type: "text/plain", value: text },
       { type: "text/html", value: html },
     ],
+    // SendGrid carries attachments on the message, not per personalization.
+    ...(attachments?.length ? { attachments } : {}),
   };
 
   const [response] = await sendgrid.send(mail);
   return response.statusCode === 202;
+}
+
+/** How many recipients SendGrid accepts in one request's personalizations. */
+const BULK_BATCH_SIZE = 500;
+
+/**
+ * One message, many recipients — for broadcasts whose body carries nothing
+ * recipient-specific.
+ *
+ * Each recipient gets their OWN `to` personalization (never bcc, which would
+ * leak the whole educator list to everyone), batched so a thousand educators is
+ * two API calls rather than a thousand serial ones — the difference between a
+ * couple of seconds and blowing past the serverless function limit mid-send.
+ * Attachments ride once per request, not once per recipient.
+ *
+ * Never throws: a failing batch is counted, and the rest still go out, so a
+ * partial outage is reportable instead of silent.
+ *
+ * `skipped` counts recipients dropped as undeliverable (reserved domains — the
+ * seeded dev educators). They are reported rather than hidden, so a test send
+ * that reaches nobody does not look like a silent success.
+ */
+export async function sendBulkEmail(input: {
+  recipients: EmailRecipient[];
+  subject: string;
+  html: string;
+  attachments?: EmailAttachment[];
+}): Promise<{ sent: number; failed: number; skipped: number }> {
+  const addressed = input.recipients.filter((r) => r.email?.trim());
+  const { deliverable: recipients, skipped } = partitionDeliverable(addressed);
+  if (skipped) {
+    console.warn(`Skipping ${skipped} undeliverable recipient(s) (reserved domain).`);
+  }
+  if (recipients.length === 0) return { sent: 0, failed: 0, skipped };
+
+  if (!emailSendsEnabled()) {
+    console.warn("ADEWALE_EMAILS_ENABLED disables email sending; skipping bulk send.");
+    return { sent: 0, failed: 0, skipped };
+  }
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.warn("SENDGRID_API_KEY is not configured; skipping bulk send.");
+    return { sent: 0, failed: 0, skipped };
+  }
+  sendgrid.setApiKey(apiKey);
+
+  const text = htmlToText(input.html);
+  const replyTo = getReplyTo();
+  let sent = 0;
+  let failed = 0;
+
+  for (let i = 0; i < recipients.length; i += BULK_BATCH_SIZE) {
+    const batch = recipients.slice(i, i + BULK_BATCH_SIZE);
+    const mail: MailDataRequired = {
+      from: { email: getSenderAddress(), name: getSenderName() },
+      ...(replyTo ? { replyTo } : {}),
+      personalizations: batch.map((recipient) => ({ to: [recipient] })),
+      subject: input.subject,
+      content: [
+        { type: "text/plain", value: text },
+        { type: "text/html", value: input.html },
+      ],
+      ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+    };
+
+    try {
+      const [response] = await sendgrid.send(mail);
+      if (response.statusCode === 202) sent += batch.length;
+      else failed += batch.length;
+    } catch (error) {
+      // Log the message and status only. A SendGrid ResponseError carries the
+      // response body, which echoes the personalizations — logging the whole
+      // object would put up to BULK_BATCH_SIZE educator addresses into the
+      // platform logs on every failed batch.
+      const status = (error as { code?: number })?.code;
+      console.error(
+        `Bulk email batch failed (${batch.length} recipients${status ? `, status ${status}` : ""}): ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+      failed += batch.length;
+    }
+  }
+
+  return { sent, failed, skipped };
 }
 
 /**
@@ -450,6 +555,98 @@ export function buildDeclinedEmail(data: {
   });
   const to: EmailRecipient[] = [{ email: data.email, ...(data.name ? { name: data.name } : {}) }];
   return { to, subject, html };
+}
+
+/**
+ * A free-form announcement from the admin console.
+ *
+ * `bodyHtml` is produced by markdownToEmailHtml — the ONE place admin-authored
+ * text becomes raw HTML — and is interpolated with {{{ }}} accordingly. The CTA
+ * routes through the login redirect so an unauthenticated click lands on login
+ * and comes back to the announcement.
+ */
+export function buildAnnouncementEmail(data: {
+  title: string;
+  bodyHtml: string;
+  announcementPath: string;
+  editionYear: number | null;
+  targetRole: AnnouncementTargetRole;
+  sentAt: Date;
+  inlineNames: string[];
+  linkOnlyNames: string[];
+}) {
+  const files = [...data.inlineNames, ...data.linkOnlyNames];
+  const fileItems = files
+    .map(
+      (name) =>
+        `<li style="margin:0 0 4px;">${escapeHtml(name)}${
+          data.linkOnlyNames.includes(name)
+            ? ' <span style="color:#8a8672;">(in the portal)</span>'
+            : ""
+        }</li>`,
+    )
+    .join("");
+  const attachmentBlock = files.length
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border-top:1px solid rgba(10,15,30,0.12);margin:22px 0 0;">
+  <tr><td style="padding:18px 0 0;">
+    <p class="body-font" style="margin:0 0 8px;font-size:11px;font-weight:bold;letter-spacing:0.12em;text-transform:uppercase;color:#8a5e0e;">${
+      files.length === 1 ? "Attachment" : "Attachments"
+    }</p>
+    <ul class="body-font" style="margin:0;padding-left:20px;font-size:14px;line-height:22px;color:#4A4E5C;">${fileItems}</ul>
+    ${
+      data.linkOnlyNames.length
+        ? '<p class="body-font" style="margin:10px 0 0;font-size:12px;line-height:18px;color:#8a8672;">Larger files are not attached to this email &mdash; open the announcement in your portal to download them.</p>'
+        : ""
+    }
+  </td></tr>
+</table>`
+    : "";
+
+  // "At a glance": the announcement's own facts, above the message body, so the
+  // email says what this is and who it went to without opening the portal.
+  // Rows are label/value pairs in a table — the only layout email clients render
+  // consistently. A row is omitted rather than shown empty.
+  const rows: [string, string][] = [
+    [
+      "Sent",
+      data.sentAt.toLocaleDateString("en-NG", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      }),
+    ],
+    ["Edition", data.editionYear ? String(data.editionYear) : "All editions"],
+    ["For", ANNOUNCEMENT_TARGET_EMAIL_LABEL[data.targetRole]],
+  ];
+  if (files.length) {
+    rows.push(["Files", `${files.length} attached`]);
+  }
+
+  // Each row on ONE line: htmlToText breaks on </tr> but not </td>, so a row
+  // split across source lines would put the label and its value on separate
+  // lines of the plain-text alternative.
+  const detailRows = rows
+    .map(
+      ([label, value]) =>
+        `<tr><td class="body-font" style="padding:3px 14px 3px 0;font-size:11px;font-weight:bold;letter-spacing:0.1em;text-transform:uppercase;color:#8a8672;white-space:nowrap;vertical-align:top;">${escapeHtml(label)}</td><td class="body-font" style="padding:3px 0;font-size:14px;line-height:20px;color:#0A0F1E;">${escapeHtml(value)}</td></tr>`,
+    )
+    .join("");
+
+  const detailsCard = `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;background:#FAF7F0;border-left:3px solid #E8A020;margin:0 0 24px;">
+  <tr><td style="padding:16px 18px;">
+    <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${detailRows}</table>
+  </td></tr>
+</table>`;
+
+  const html = render("announcement", data.title, {
+    title: data.title,
+    detailsCard,
+    bodyHtml: data.bodyHtml,
+    announcementUrl: getPortalLoginUrl(data.announcementPath),
+    attachmentBlock,
+  });
+
+  return { subject: data.title, html };
 }
 
 /** Manual registration open/closed announcement to school educators. */

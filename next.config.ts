@@ -28,6 +28,7 @@ const nextConfig: NextConfig = {
     "/api/sponsorship": ["./src/emails/**/*"],
     "/api/fellows": ["./src/emails/**/*"],
     "/portal/admin/editions": ["./src/emails/**/*"],
+    "/portal/admin/announcements": ["./src/emails/**/*"],
   },
   // The Fellows page was briefly published as /volunteer before the programme was
   // branded; keep any link already shared working.
