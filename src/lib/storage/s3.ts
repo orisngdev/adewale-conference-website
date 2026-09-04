@@ -12,15 +12,25 @@ import type { StorageProvider } from "./types";
 // `configured: false` and the app degrades gracefully (uploads are refused, the
 // rest of the portal is unaffected).
 //
-// Uses RESOURCE_S3_* names because Netlify reserves the bare AWS_* names (it
-// won't let you set AWS_REGION / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY). The
-// old AWS_* names are still read as a fallback for local dev.
-const region = process.env.RESOURCE_S3_REGION || process.env.AWS_REGION || "";
-const bucket = process.env.RESOURCE_S3_BUCKET || process.env.AWS_S3_BUCKET || "";
-const accessKeyId =
-  process.env.RESOURCE_S3_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || "";
-const secretAccessKey =
-  process.env.RESOURCE_S3_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || "";
+// Every value is read from RESOURCE_S3_* and nothing else. The bare AWS_* names
+// are not a fallback, they are a hazard: this app deploys to Vercel, whose
+// functions run on Lambda, and Lambda *always* injects AWS_ACCESS_KEY_ID,
+// AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN and AWS_REGION into the function
+// environment. Those describe Vercel's own execution role and Vercel's own
+// region — neither has any access to this bucket. Falling back to them turns a
+// missing setting into an opaque AccessDenied (or a cross-region request)
+// instead of the "not configured" banner, and on a developer's laptop the same
+// fallback silently picks up whatever admin credential is in the shell. That is
+// how this site ended up holding full control of the AWS account.
+//
+// The key must be the scoped IAM user `adewale-website-s3` —
+// Get/Put/DeleteObject on `adewale-student-conf/*` and nothing else. A static
+// key at all is a hosting constraint; the backup workflows, which run in GitHub
+// Actions, use OIDC and hold no key.
+const region = process.env.RESOURCE_S3_REGION || "";
+const bucket = process.env.RESOURCE_S3_BUCKET || "";
+const accessKeyId = process.env.RESOURCE_S3_ACCESS_KEY_ID || "";
+const secretAccessKey = process.env.RESOURCE_S3_SECRET_ACCESS_KEY || "";
 
 let client: S3Client | null = null;
 function getClient(): S3Client {

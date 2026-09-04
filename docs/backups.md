@@ -17,14 +17,26 @@ button:
 
 ## One-time setup
 
-1. Create a private S3 bucket (block all public access) and an IAM user whose
-   policy allows only `s3:PutObject` on `arn:aws:s3:::<bucket>/adewale-portal/*`.
+1. Create a private S3 bucket (block all public access). Uploads authenticate
+   with **OIDC**, not a key: the job assumes
+   `arn:aws:iam::846268246033:role/adewale-ci-backup`, whose policy allows only
+   `s3:PutObject` + `s3:AbortMultipartUpload` on the bucket. Write-only by
+   design — a compromised backup run can add objects but can neither read the
+   existing dumps (they contain the Supabase `auth` schema) nor destroy them.
+   `AbortMultipartUpload` is needed because `aws s3 cp` goes multipart above
+   8 MB and a dump crosses that. The role's trust policy pins the subject with
+   `StringEquals` on `repo:orisngdev/adewale-conference-website:ref:refs/heads/main`
+   — this repo is public, so a `StringLike` pattern or any subject admitting
+   `pull_request` would let a fork's PR workflow assume the role.
 2. Add a **lifecycle rule** on the `adewale-portal/` prefix — e.g. expire objects
    after 30 days — so retention is automatic.
 3. Set the repo secrets (Settings → Secrets and variables → Actions):
    `SUPABASE_DB_URL` (Session pooler URI — the same one in `.env`; the direct
-   connection is IPv6-only and fails on GitHub runners), `AWS_ACCESS_KEY_ID`,
-   `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BACKUP_BUCKET`.
+   connection is IPv6-only and fails on GitHub runners), `AWS_REGION`,
+   `S3_BACKUP_BUCKET`. There is deliberately **no** `AWS_ACCESS_KEY_ID` /
+   `AWS_SECRET_ACCESS_KEY` secret — both were deleted in the credential
+   migration; `id-token: write` in the workflow is what makes auth work. Don't
+   recreate them.
 4. Run the workflow manually once and confirm the object lands in the bucket.
 5. In GitHub notification settings, make sure failed-workflow emails are on —
    a backup that silently stops running is the failure mode to fear.
