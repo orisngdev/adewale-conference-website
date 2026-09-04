@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
   // one lab to another showed the previous lab's content until a hard refresh.
   experimental: {
     staleTimes: { dynamic: 0 },
+    // Server Actions default to a 1 MB request body, which silently rejected any
+    // file upload above it (the resources form has always advertised 50 MB).
+    // Raise it to the largest attachment/resource we accept.
+    serverActions: { bodySizeLimit: "12mb" },
   },
   // Allow HMR / dev resources when testing from a phone on the LAN (e.g. the PWA).
   // Dev-only; add your machine's current LAN IP if it changes.
