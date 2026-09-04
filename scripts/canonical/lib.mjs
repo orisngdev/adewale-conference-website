@@ -1,9 +1,9 @@
-// Shared plumbing for the canonical data scripts (merge-schools, reconcile-registrations,
-// import-zonal-results).
+// Shared plumbing for the canonical data scripts. Those scripts (merge-schools,
+// reconcile-registrations, import-zonal-results and the rest) were one-time imports and
+// have been deleted; this file survives them because check-normalizers.mjs executes its
+// normalizeSchoolName as one of the three copies it holds to each other.
 //
-// The CSV reader and PostgREST client are lifted from scripts/backfill-competition-history.mjs
-// so the two generations of import script behave identically. The important addition is
-// normalizeSchoolName: it is character-for-character equal to public.school_norm_name in
+// normalizeSchoolName is character-for-character equal to public.school_norm_name in
 // 20260822090000_canonical_school_identity.sql and to normalizeSchoolName in
 // src/lib/school-identity.ts. Five divergent copies of this function are what fragmented the
 // schools table in the first place — do not fork a sixth.

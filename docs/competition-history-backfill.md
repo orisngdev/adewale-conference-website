@@ -51,22 +51,11 @@ sheet:asc-history:<year>:<source-tab>:row:<source-row>
 The script is safe to re-run. It defaults to dry-run and writes only when passed
 `--apply`.
 
-## Commands
+## The script is gone
 
-The script loads `.env` by default. Pass `--prod` to load `.env.prod` instead, or
-`--env-file <path>` for any other file. Variables already set in the shell take
-precedence over the env file.
-
-Dev (`.env`):
-
-```sh
-npm run backfill:competition:dry-run
-npm run backfill:competition:apply
-```
-
-Prod (`.env.prod`):
-
-```sh
-npm run backfill:competition:prod:dry-run
-npm run backfill:competition:prod:apply
-```
+`scripts/backfill-competition-history.mjs` and its four
+`backfill:competition:*` npm scripts were deleted once the backfill had run —
+it was a one-time import, and a one-time importer left lying around is a loaded
+gun pointed at prod. The idempotency key above is the durable part: it records
+how a re-import would recognise rows it had already written, so this document
+is enough to rebuild the script if the sheet ever needs replaying.
