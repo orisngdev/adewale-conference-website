@@ -42,13 +42,16 @@ export async function provisionStudent(
   // genuinely new rep who happens to share the name.
   const { data: existingRows } = await admin
     .from("students")
-    .select("id, access_code")
+    .select("id, access_code, auth_user_id")
     .eq("school_id", schoolId)
     .ilike("name", trimmed)
     .is("deactivated_at", null)
     .limit(1);
   const existing = existingRows?.[0];
-  if (existing?.access_code) {
+  // Only a row that can actually sign in counts as a returning student. A
+  // history-only row (imported for the record, no auth user) matches by name
+  // too, and handing back its code would mint a login that never works.
+  if (existing?.access_code && existing.auth_user_id) {
     await admin
       .from("students")
       .update({ edition_year: editionYear, level: level || null })
@@ -67,6 +70,28 @@ export async function provisionStudent(
   if (cErr || !created.user) {
     console.error("provisionStudent: createUser failed:", cErr?.message);
     return { error: `Could not create access: ${cErr?.message ?? "unknown error"}` };
+  }
+
+  // Adopt the history-only row rather than inserting beside it: the unique
+  // (school, lower(name)) index would reject a second row anyway, and the
+  // student keeps one identity. It gets a real code, address and login.
+  if (existing) {
+    const { error: adoptErr } = await admin
+      .from("students")
+      .update({
+        access_code: code,
+        auth_email: authEmail,
+        auth_user_id: created.user.id,
+        edition_year: editionYear,
+        level: level || null,
+      })
+      .eq("id", existing.id);
+    if (adoptErr) {
+      await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
+      console.error("provisionStudent: adopt failed:", adoptErr.message);
+      return { error: `Could not save student: ${adoptErr.message}` };
+    }
+    return { code, created: true };
   }
 
   const { error: sErr } = await admin.from("students").insert({
