@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { createAdminClient } from "@/supabase/admin";
 import { makeAccessCode } from "@/lib/provision-student";
+import { studentAuthEmail } from "@/lib/student-accounts";
 import {
   type AirtableRecord,
   type SchoolRecordFields,
@@ -438,7 +439,7 @@ export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {
   // the auth API. Steady-state runs have zero of these.
   await mapLimit([...creations.values()], 5, async (student) => {
     const code = makeAccessCode();
-    const authEmail = `student.${code.toLowerCase()}@students.adewaleconference.local`;
+    const authEmail = studentAuthEmail(code);
     const { data: created, error: userError } = await supabase.auth.admin.createUser({
       email: authEmail,
       password: code,

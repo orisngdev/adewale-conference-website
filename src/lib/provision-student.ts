@@ -3,6 +3,7 @@
 // is the actual server gate — it can't be constructed in the browser.
 import { randomBytes } from "crypto";
 import { createAdminClient } from "@/supabase/admin";
+import { studentAuthEmail } from "@/lib/student-accounts";
 
 // Core student-provisioning shared by the coordinator's Students page and the
 // public-registration onboarding: a Supabase auth user with a synthetic email +
@@ -56,7 +57,7 @@ export async function provisionStudent(
   }
 
   const code = makeAccessCode();
-  const authEmail = `student.${code.toLowerCase()}@students.adewaleconference.local`;
+  const authEmail = studentAuthEmail(code);
   const { data: created, error: cErr } = await admin.auth.admin.createUser({
     email: authEmail,
     password: code,

@@ -3,6 +3,7 @@ import { Card, SectionHeading } from "@/components/portal/ui";
 import ResetForm from "@/components/portal/reset-form";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
+import { isCodeLoginEmail } from "@/lib/student-accounts";
 import { updateName } from "@/app/(portal)/portal/settings/actions";
 
 // Shared "Your account" section (name + password) rendered inside each role's
@@ -22,11 +23,14 @@ export default async function AccountSettings({
     .eq("id", user?.id ?? "")
     .maybeSingle();
 
+  // A Rep's password IS their access code — a password form here locks them out.
+  const codeLogin = isCodeLoginEmail(user?.email);
+
   return (
     <div>
       {showHeading ? <SectionHeading>Your account</SectionHeading> : null}
       <Card className="p-5 space-y-4">
-        {user?.email ? (
+        {user?.email && !codeLogin ? (
           <p className="text-sm text-muted-foreground">
             Signed in as <span className="text-foreground font-medium">{user.email}</span>
           </p>
@@ -48,12 +52,20 @@ export default async function AccountSettings({
             Save name
           </ConfirmSubmitButton>
         </form>
-        <div className="max-w-md">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">
-            Change password
+        {codeLogin ? (
+          <p className="text-sm text-muted-foreground">
+            You sign in with your access code — there is no password to change. If your
+            code stops working, ask your school&apos;s coordinating teacher to check it
+            for you.
           </p>
-          <ResetForm />
-        </div>
+        ) : (
+          <div className="max-w-md">
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">
+              Change password
+            </p>
+            <ResetForm />
+          </div>
+        )}
       </Card>
     </div>
   );

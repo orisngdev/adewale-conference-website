@@ -10,6 +10,7 @@
 // in here would put regression risk on that send for no gain today.
 
 import type { createClient } from "@/supabase/server";
+import { STUDENT_EMAIL_DOMAIN } from "@/lib/student-accounts";
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -46,9 +47,6 @@ export interface ResolvedRecipients {
   /** People, not sends: someone who is both owner and member counts once. */
   recipientCount: number;
 }
-
-/** Synthetic domain minted for code-login students in ./provision-student. */
-const STUDENT_EMAIL_DOMAIN = "@students.adewaleconference.local";
 
 /**
  * Students never hold a school_members row, so they cannot reach this resolver —

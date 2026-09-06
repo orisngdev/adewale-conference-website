@@ -23,14 +23,25 @@ export async function studentLogin(
     .select("auth_email")
     .eq("access_code", code)
     .maybeSingle();
-  if (!student) return "Invalid code.";
+  if (!student) {
+    console.warn(`studentLogin: no students row for code ${code}`);
+    return "Invalid code.";
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({
     email: student.auth_email,
     password: code,
   });
-  if (error) return "Invalid code.";
+  if (error) {
+    // Real code, account rejected it — usually the password drifted off the
+    // access code, or the row has no auth user. Same message either way, so
+    // separate them in the logs.
+    console.warn(
+      `studentLogin: code ${code} exists but sign-in failed for ${student.auth_email}: ${error.message}`,
+    );
+    return "Invalid code.";
+  }
 
   redirect("/portal/student");
 }
