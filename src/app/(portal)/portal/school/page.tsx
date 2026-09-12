@@ -4,7 +4,12 @@ import { Card, SectionHeading, StatTile } from "@/components/portal/ui";
 import { SubmitButton } from "@/components/portal/submit-button";
 import { EditionStages, nextStage } from "@/components/portal/edition-stages";
 import { resubmitRegistration } from "./actions";
-import { StageResults } from "@/components/portal/stage-results";
+import { StageResults, type StageResultRow } from "@/components/portal/stage-results";
+import {
+  paperLinksForStudents,
+  withPaperLinks,
+  type PaperLinkIndex,
+} from "@/lib/paper-results";
 import ClaimForm from "@/components/portal/claim-form";
 import RegisterEditionForm from "@/components/portal/register-edition-form";
 import { pageMetadata } from "@/lib/seo";
@@ -99,7 +104,7 @@ export default async function SchoolOverview() {
   const { data: stageData } = entry
     ? await supabase
         .from("registration_stage_results")
-        .select("id, registration_id, stage, outcome, score, note")
+        .select("id, registration_id, stage, outcome, score, score_max, note, reason, lga_rank, state_rank")
         .eq("registration_id", entry.id)
     : { data: [] as StageResult[] };
   const stageResults = (stageData ?? []) as StageResult[];
@@ -110,7 +115,7 @@ export default async function SchoolOverview() {
   const { data: allStageData } = registrationIds.length
     ? await supabase
         .from("registration_stage_results")
-        .select("id, registration_id, stage, outcome, score, note")
+        .select("id, registration_id, stage, outcome, score, score_max, note, reason, lga_rank, state_rank")
         .in("registration_id", registrationIds)
     : { data: [] as StageResult[] };
   const stageResultsByRegistration = new Map<string, StageResult[]>();
@@ -123,26 +128,42 @@ export default async function SchoolOverview() {
   // Each rep's individual progress + certificates (coordinator view). The roster
   // is materialised at approval; empty until then or until "Sync roster".
   const schoolId = (entry as { school_id?: string | null } | null)?.school_id ?? null;
-  let roster: { id: string; name: string; level: string | null }[] = [];
+  // Deliberately every edition's reps, not just this year's — a coordinator's
+  // history is the point. But that means the list mixes years, so each rep says
+  // which sitting they are from and the newest lead.
+  let roster: { id: string; name: string; level: string | null; edition_year: number | null }[] = [];
   const repResultsById: Record<string, StudentStageResult[]> = {};
+  // Which paper exam produced each rep's stage score, for the "see the full
+  // paper" link on their chip.
+  let paperLinks: PaperLinkIndex = new Map();
   const repCertsById: Record<string, { id: string; type: string | null; asset_url: string | null }[]> = {};
   if (schoolId) {
     const { data: studentRows } = await supabase
       .from("students")
-      .select("id, name, level")
+      .select("id, name, level, edition_year")
       .eq("school_id", schoolId)
       .is("deactivated_at", null)
+      .order("edition_year", { ascending: false })
       .order("name");
-    roster = (studentRows ?? []) as { id: string; name: string; level: string | null }[];
+    roster = (studentRows ?? []) as {
+      id: string;
+      name: string;
+      level: string | null;
+      edition_year: number | null;
+    }[];
     const ids = roster.map((s) => s.id);
     if (ids.length) {
-      const [{ data: ssr }, { data: certs }] = await Promise.all([
+      const [{ data: ssr }, { data: certs }, links] = await Promise.all([
         supabase
           .from("student_stage_results")
-          .select("id, student_id, stage, outcome, score, note")
+          // score_max/breakdown carry the paper exam's total and per-subject
+          // scores for each rep.
+          .select("id, student_id, stage, edition_year, outcome, score, score_max, note, breakdown")
           .in("student_id", ids),
         supabase.from("certificates").select("id, student_id, type, asset_url").in("student_id", ids),
+        paperLinksForStudents(supabase, ids),
       ]);
+      paperLinks = links;
       for (const r of (ssr ?? []) as StudentStageResult[]) (repResultsById[r.student_id] ??= []).push(r);
       for (const c of (certs ?? []) as {
         id: string;
@@ -232,7 +253,11 @@ export default async function SchoolOverview() {
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">
                 Your stage results
               </p>
-              <StageResults stages={entryEdition.stages} results={stageResults} />
+              <StageResults
+                edition={entryEdition.year}
+                stages={entryEdition.stages}
+                results={stageResults}
+              />
             </div>
           ) : null}
         </Card>
@@ -277,14 +302,31 @@ export default async function SchoolOverview() {
               const certs = (repCertsById[s.id] ?? []).filter((c) => c.asset_url);
               return (
                 <Card key={s.id} className="p-4 space-y-2">
-                  <span className="font-medium text-foreground">
-                    {s.name}
-                    {s.level ? <span className="text-muted-foreground"> · {s.level}</span> : null}
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium text-foreground">{s.name}</span>
+                    {s.level ? (
+                      <span className="text-sm text-muted-foreground">{s.level}</span>
+                    ) : null}
+                    {s.edition_year != null ? (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                          latest && s.edition_year === latest.year
+                            ? "bg-primary/10 text-primary"
+                            : "bg-foreground/5 text-muted-foreground"
+                        }`}
+                      >
+                        {s.edition_year}
+                      </span>
+                    ) : null}
                   </span>
                   {results.length ? (
                     <StageResults
+                      edition={entryEdition?.year ?? latest?.year}
                       stages={entryEdition?.stages ?? latest?.stages ?? []}
-                      results={results as unknown as StageResult[]}
+                      results={withPaperLinks(
+                        results as unknown as StageResultRow[],
+                        paperLinks.get(s.id),
+                      )}
                     />
                   ) : (
                     <p className="text-xs text-muted-foreground">No stage results yet.</p>
@@ -332,7 +374,11 @@ export default async function SchoolOverview() {
                   </div>
                   {edition && results.length ? (
                     <div className="mt-3 border-t border-foreground/5 pt-3">
-                      <StageResults stages={edition.stages} results={results} />
+                      <StageResults
+                        edition={edition.year}
+                        stages={edition.stages}
+                        results={results}
+                      />
                     </div>
                   ) : (
                     <p className="mt-3 text-xs text-muted-foreground">
