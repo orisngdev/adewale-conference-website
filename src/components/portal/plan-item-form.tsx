@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SubmitButton } from "@/components/portal/submit-button";
+import { Select } from "@/components/ui/select";
 
 const inputCls =
   "w-full rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
@@ -19,35 +20,35 @@ export default function PlanItemForm({
   return (
     <form action={action} className="space-y-2">
       <div className="grid gap-2 sm:grid-cols-2">
-        <select
+        <Select
           name="item_type"
           value={type}
           onChange={(e) => setType(e.target.value)}
-          className={inputCls}
+          className="w-full"
         >
           <option value="assessment">Practice / exam</option>
           <option value="material">Study pack</option>
           <option value="link">External link</option>
           <option value="note">Note</option>
-        </select>
+        </Select>
         <input name="title" placeholder="Label (optional)" className={inputCls} />
       </div>
 
       {type === "assessment" ? (
-        <select name="assessment_id" className={inputCls}>
+        <Select className="w-full" name="assessment_id">
           <option value="">Select an assessment…</option>
           {assessments.map((a) => (
             <option key={a.id} value={a.id}>{a.title} ({a.mode})</option>
           ))}
-        </select>
+        </Select>
       ) : null}
       {type === "material" ? (
-        <select name="resource_id" className={inputCls}>
+        <Select className="w-full" name="resource_id">
           <option value="">Select a study pack…</option>
           {materials.map((m) => (
             <option key={m._id} value={m._id}>{m.title}</option>
           ))}
-        </select>
+        </Select>
       ) : null}
       {type === "link" ? (
         <input name="external_url" placeholder="https://…" className={inputCls} />

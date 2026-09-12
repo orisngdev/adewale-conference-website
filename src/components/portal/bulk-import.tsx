@@ -7,6 +7,7 @@ import {
   importQuestions,
   type ImportState,
 } from "@/app/(portal)/portal/admin/question-bank/actions";
+import { Select } from "@/components/ui/select";
 
 const initial: ImportState = { stage: "idle" };
 
@@ -32,10 +33,10 @@ export default function BulkImport({ assessmentId }: { assessmentId?: string }) 
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm text-muted-foreground">
             Default pool
-            <select name="mode" defaultValue="practice" className={`ml-2 ${inputCls}`}>
+            <Select name="mode" defaultValue="practice" className="ml-2">
               <option value="practice">Practice</option>
               <option value="exam">Exam</option>
-            </select>
+            </Select>
           </label>
           <input
             type="file"

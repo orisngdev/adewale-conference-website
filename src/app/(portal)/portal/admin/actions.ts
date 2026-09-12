@@ -29,7 +29,7 @@ import {
 import { permissionsFromForm } from "@/lib/admin-permissions";
 import { ZONAL_FINALS_OPTIONS } from "@/lib/forms";
 // Type only, so the "use server" boundary is untouched at runtime.
-import type { CentreSaveState } from "@/components/portal/centre-allocation-form";
+import type { CentreSaveState } from "@/components/portal/centre-save-state";
 import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 
 const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];
@@ -1075,16 +1075,26 @@ export async function advanceStudent(studentId: string, formData: FormData) {
 
   const supabase = await createClient();
   if (!(await isEditableStudent(supabase, studentId))) return;
+  // The conflict target must name all three key columns (student_id, stage,
+  // edition_year) — see 20260909090000. Naming only the first two raised 42P10
+  // and this `if (error) return;` swallowed it, so per-rep scores silently
+  // never landed.
+  const { data: student } = await supabase
+    .from("students")
+    .select("edition_year")
+    .eq("id", studentId)
+    .maybeSingle();
   const { error } = await supabase.from("student_stage_results").upsert(
     {
       student_id: studentId,
       stage,
+      edition_year: (student?.edition_year as number | null) ?? null,
       outcome,
       score: scoreNum != null && !Number.isNaN(scoreNum) ? scoreNum : null,
       note,
       updated_at: new Date().toISOString(),
     },
-    { onConflict: "student_id,stage" },
+    { onConflict: "student_id,stage,edition_year" },
   );
   if (error) return;
   revalidatePath("/portal/admin/participants");
@@ -1128,9 +1138,19 @@ async function cascadeAdvance(
     );
   }
   if (studentIds.length) {
+    // Keyed by the COMPETITION's edition (reg.edition_year), not each rep's own
+    // tag — the row records "this rep's outcome at this stage of this edition".
+    // Outcome-only: score/score_max/breakdown are deliberately absent so a
+    // cascade can never wipe a rep's paper-exam score.
     await supabase.from("student_stage_results").upsert(
-      studentIds.map((sid) => ({ student_id: sid, stage, outcome, updated_at: now })),
-      { onConflict: "student_id,stage" },
+      studentIds.map((sid) => ({
+        student_id: sid,
+        stage,
+        edition_year: (reg.edition_year as number | null) ?? null,
+        outcome,
+        updated_at: now,
+      })),
+      { onConflict: "student_id,stage,edition_year" },
     );
   }
 
@@ -1195,11 +1215,23 @@ export async function sendSchoolBack(registrationId: string, formData: FormData)
   if (fromIdx < 0) return;
   const toClear = stages.slice(fromIdx); // from_stage and everything after it
 
+  // A score is a MEASUREMENT; an outcome is a DECISION. Sending a school back
+  // undoes the decision, so a row that carries a score (a paper-exam result, a
+  // match result) is reset to `pending` and keeps its score/score_max — only
+  // rows with nothing measured are deleted. Deleting everything, as this used
+  // to, threw away hundreds of scanned exam scores to correct one advancement.
+  await supabase
+    .from("registration_stage_results")
+    .update({ outcome: "pending", note: null, reason: null, updated_at: new Date().toISOString() })
+    .eq("registration_id", registrationId)
+    .in("stage", toClear)
+    .not("score", "is", null);
   await supabase
     .from("registration_stage_results")
     .delete()
     .eq("registration_id", registrationId)
-    .in("stage", toClear);
+    .in("stage", toClear)
+    .is("score", null);
 
   // Preserve tournament history while removing the affected artifacts from the
   // live bracket/boards.
@@ -1230,11 +1262,21 @@ export async function sendSchoolBack(registrationId: string, formData: FormData)
       .is("deactivated_at", null);
     const ids = ((sts ?? []) as { id: string }[]).map((s) => s.id);
     if (ids.length) {
+      // Same measurement/decision split as the school rows above: a rep who
+      // sat the paper exam keeps their score and subject breakdown, and only
+      // the outcome is rolled back to pending.
+      await supabase
+        .from("student_stage_results")
+        .update({ outcome: "pending", note: null, updated_at: new Date().toISOString() })
+        .in("student_id", ids)
+        .in("stage", toClear)
+        .not("score", "is", null);
       await supabase
         .from("student_stage_results")
         .delete()
         .in("student_id", ids)
-        .in("stage", toClear);
+        .in("stage", toClear)
+        .is("score", null);
     }
   }
 
@@ -1299,16 +1341,21 @@ async function markSchoolAndReps(
     .is("deactivated_at", null);
   const ids = ((students ?? []) as { id: string }[]).map((s) => s.id);
   if (ids.length) {
+    // Outcome-only fan-out. `score` is deliberately NOT in this payload: the
+    // school-level decision carries the SCHOOL's score, and writing it (or
+    // null) down to each rep would erase per-rep scores — which is exactly
+    // what a paper-exam import publishes. A rep's score is written only by
+    // advanceStudent or a paper-exam commit.
     await supabase.from("student_stage_results").upsert(
       ids.map((student_id) => ({
         student_id,
         stage,
+        edition_year: (reg.edition_year as number | null) ?? null,
         outcome,
-        score: null,
         note: extras.reason ?? extras.note ?? null,
         updated_at: now,
       })),
-      { onConflict: "student_id,stage" },
+      { onConflict: "student_id,stage,edition_year" },
     );
   }
 }

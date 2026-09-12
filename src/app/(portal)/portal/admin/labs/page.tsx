@@ -10,6 +10,7 @@ import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { LAB_WORKBENCHES, type Lab, type LabStep, type QuizAssessmentOption } from "@/lib/labs";
 import { createLab, updateLab, toggleLabPublished, deleteLab } from "./actions";
+import { Select } from "@/components/ui/select";
 
 export const metadata = pageMetadata("Labs", "Author guided learning paths.");
 export const dynamic = "force-dynamic";
@@ -118,14 +119,14 @@ export default async function AdminLabs({
                 </label>
                 <label className="text-sm">
                   <span className="text-muted-foreground">Code editor</span>
-                  <select name="workbench_url" defaultValue="" className={inputCls}>
+                  <Select className="w-full" name="workbench_url" defaultValue="">
                     <option value="">None — reading-only lab</option>
                     {LAB_WORKBENCHES.map((w) => (
                       <option key={w.url} value={w.url}>
                         {w.label}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <span className="mt-1 block text-xs text-muted-foreground">
                     Pick an editor to give this lab a pop-up where students build alongside the
                     lessons, or choose None for a reading-only lab.
@@ -168,7 +169,7 @@ export default async function AdminLabs({
                   </label>
                   <label className="text-sm">
                     <span className="text-muted-foreground">Code editor</span>
-                    <select name="workbench_url" defaultValue={active.workbench_url ?? ""} className={inputCls}>
+                    <Select className="w-full" name="workbench_url" defaultValue={active.workbench_url ?? ""}>
                       <option value="">None — reading-only lab</option>
                       {LAB_WORKBENCHES.map((w) => (
                         <option key={w.url} value={w.url}>
@@ -178,7 +179,7 @@ export default async function AdminLabs({
                       {!activeWorkbenchKnown ? (
                         <option value={active.workbench_url ?? ""}>Custom — {active.workbench_url}</option>
                       ) : null}
-                    </select>
+                    </Select>
                     <span className="mt-1 block text-xs text-muted-foreground">
                       Pick an editor so students build alongside the lessons, or None for a
                       reading-only lab.

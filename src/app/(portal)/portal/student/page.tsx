@@ -3,13 +3,18 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, SectionHeading, StatTile, StatusBadge } from "@/components/portal/ui";
 import { EditionStages, nextStage } from "@/components/portal/edition-stages";
-import { StageResults } from "@/components/portal/stage-results";
+import { StageResults, type StageResultRow } from "@/components/portal/stage-results";
+import {
+  paperLinksForStudents,
+  withPaperLinks,
+  type PaperLinkIndex,
+} from "@/lib/paper-results";
 import LinkAccountForm from "@/components/portal/link-account-form";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
-import type { Edition, RegistrationWithRelations, StageResult, StudentStageResult } from "@/supabase/types";
+import type { Edition, RegistrationWithRelations, StudentStageResult } from "@/supabase/types";
 
 export const metadata = pageMetadata("Student dashboard", "Your conference overview.");
 export const dynamic = "force-dynamic";
@@ -57,16 +62,24 @@ export default async function StudentOverview() {
   // certificates.student_id, not the owner-registration join above).
   let stageResults: StudentStageResult[] = [];
   let personalCerts: { id: string; type: string | null; asset_url: string | null }[] = [];
+  // Which paper exam produced each stage score, so the chip can link to the
+  // full item-by-item review.
+  let paperLinks: PaperLinkIndex = new Map();
+  const linkedStudentId = linked?.id ?? null;
   if (linked) {
-    const [{ data: ssr }, { data: pc }] = await Promise.all([
+    const [{ data: ssr }, { data: pc }, links] = await Promise.all([
       supabase
         .from("student_stage_results")
-        .select("id, student_id, stage, outcome, score, note")
+        // score_max/breakdown carry the paper exam's total and per-subject
+        // scores; edition_year is part of the row's key.
+        .select("id, student_id, stage, edition_year, outcome, score, score_max, note, breakdown")
         .eq("student_id", linked.id),
       supabase.from("certificates").select("id, type, asset_url").eq("student_id", linked.id),
+      paperLinksForStudents(supabase, [linked.id]),
     ]);
     stageResults = (ssr ?? []) as StudentStageResult[];
     personalCerts = (pc ?? []) as { id: string; type: string | null; asset_url: string | null }[];
+    paperLinks = links;
   }
 
   // School-wide certs (via owned registrations) + this student's personal certs.
@@ -168,8 +181,12 @@ export default async function StudentOverview() {
                   Your stage results
                 </p>
                 <StageResults
+                  edition={latest.year}
                   stages={latest.stages}
-                  results={stageResults as unknown as StageResult[]}
+                  results={withPaperLinks(
+                    stageResults as unknown as StageResultRow[],
+                    paperLinks.get(linkedStudentId ?? ""),
+                  )}
                 />
               </div>
             ) : null}

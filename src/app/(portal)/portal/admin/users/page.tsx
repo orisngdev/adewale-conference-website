@@ -9,10 +9,10 @@ import {
   FilterBar,
   Pagination,
   clampPage,
-  filterSelectCls,
   pageBounds,
   parsePage,
 } from "@/components/portal/list-controls";
+import { Select } from "@/components/ui/select";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser, requireModuleView } from "@/supabase/auth";
@@ -122,14 +122,14 @@ export default async function AdminUsers({
         <div>
           <SectionHeading>{total} user{total === 1 ? "" : "s"}</SectionHeading>
           <FilterBar q={q} placeholder="Search name or email…">
-            <select name="role" defaultValue={role ?? ""} className={filterSelectCls}>
+            <Select name="role" defaultValue={role ?? ""}>
               <option value="">Any role</option>
               {ROLES.map((r) => (
                 <option key={r} value={r} className="capitalize">
                   {r}
                 </option>
               ))}
-            </select>
+            </Select>
           </FilterBar>
           {profiles.length === 0 ? (
             <EmptyState title={filtering ? "No matches" : "No users yet"}>

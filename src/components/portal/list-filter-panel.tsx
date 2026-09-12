@@ -4,9 +4,7 @@ import { ListFilter, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-
-const filterSelectCls =
-  "rounded-md border border-foreground/15 bg-card px-2 py-2 text-sm outline-none focus:border-primary";
+import { Select } from "@/components/ui/select";
 
 /** Labelled select for use inside {@link FilterPanel}. */
 export function FilterField({
@@ -25,9 +23,9 @@ export function FilterField({
       <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
         {label}
       </span>
-      <select name={name} defaultValue={defaultValue ?? ""} className={`${filterSelectCls} mt-1 w-full`}>
+      <Select name={name} defaultValue={defaultValue ?? ""} className="mt-1 w-full">
         {children}
-      </select>
+      </Select>
     </label>
   );
 }

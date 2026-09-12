@@ -10,6 +10,7 @@ import {
   listAirtableRecords,
 } from "@/lib/airtable";
 import { airtableCreatedAt } from "@/lib/airtable-created-at";
+import { chunk, mapLimit } from "@/lib/batch";
 // Shared with public.school_norm_name and the canonical scripts. This local copy
 // used to omit the "&" rule, which now disagrees with schools_norm_name_key.
 import { normalizeSchoolName } from "@/lib/school-identity";
@@ -70,24 +71,6 @@ function makeClaimCode() {
     .replace(/[^a-zA-Z0-9]/g, "")
     .slice(0, 8)
     .toUpperCase();
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const out: T[][] = [];
-  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
-  return out;
-}
-
-async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>) {
-  let next = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(limit, items.length) }, async () => {
-      while (next < items.length) {
-        const index = next++;
-        await fn(items[index]);
-      }
-    }),
-  );
 }
 
 export async function syncAirtableToPortal(): Promise<AirtableSyncSummary> {

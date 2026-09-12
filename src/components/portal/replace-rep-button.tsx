@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { requestReplacement } from "@/app/(portal)/portal/school/actions";
 import type { ReplacementResult } from "@/supabase/types";
 import { GENDER_OPTIONS, CLASS_OPTIONS } from "@/lib/forms";
+import { Select } from "@/components/ui/select";
 
 const inputCls =
   "w-full rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
@@ -89,27 +90,27 @@ export default function ReplaceRepButton({
                       <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
                         Class
                       </span>
-                      <select name="new_level" defaultValue={level ?? ""} className={inputCls}>
+                      <Select className="w-full" name="new_level" defaultValue={level ?? ""}>
                         <option value="">—</option>
                         {CLASS_OPTIONS.map((c) => (
                           <option key={c} value={c}>
                             {c}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     <label className="block">
                       <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
                         Gender
                       </span>
-                      <select name="gender" defaultValue="" className={inputCls}>
+                      <Select className="w-full" name="gender" defaultValue="">
                         <option value="">—</option>
                         {GENDER_OPTIONS.map((g) => (
                           <option key={g} value={g}>
                             {g}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                   </div>
 

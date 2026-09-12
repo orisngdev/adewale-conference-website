@@ -29,6 +29,7 @@ import {
 import { ACCESS_LABEL, accessRank, type ResourceAccess } from "@/lib/resource-access";
 import { resourceStorage } from "@/lib/storage";
 import { createResource, deleteResource, setResourcePublished } from "./actions";
+import { Select } from "@/components/ui/select";
 
 export const metadata = pageMetadata("Resources", "Upload and manage the study library — no Sanity needed.");
 export const dynamic = "force-dynamic";
@@ -121,11 +122,11 @@ export default async function AdminResources() {
 
                 <label className="space-y-1">
                   <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Who can access</span>
-                  <select name="access" defaultValue="public" className={`w-full ${inputCls}`}>
+                  <Select name="access" defaultValue="public" className="w-full">
                     {RESOURCE_ACCESS_OPTIONS.map((a) => (
                       <option key={a.value} value={a.value}>{a.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
 
                 {/* Audience + Subject/Level — Subject/Level hide for coordinator-only resources. */}

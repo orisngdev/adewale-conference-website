@@ -20,6 +20,7 @@ import {
   removeAssignment,
   togglePlanPublished,
 } from "../actions";
+import { Select } from "@/components/ui/select";
 
 export const dynamic = "force-dynamic";
 
@@ -169,10 +170,10 @@ export default async function PlanBuilder({ params }: { params: Promise<{ id: st
           <Card className="p-4 space-y-3">
             <form action={assignByLevel.bind(null, plan.id)} className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">Assign to level:</span>
-              <select name="level" defaultValue="" className={inputCls}>
+              <Select name="level" defaultValue="">
                 <option value="">All levels</option>
                 {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-              </select>
+              </Select>
               <SubmitButton size="sm" variant="outline" pendingText="Assigning…">Assign level</SubmitButton>
             </form>
 

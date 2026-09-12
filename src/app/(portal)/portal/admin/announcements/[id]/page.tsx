@@ -29,6 +29,7 @@ import {
   deleteAnnouncementAttachment,
   updateAnnouncementDraft,
 } from "../actions";
+import { Select } from "@/components/ui/select";
 
 export const metadata = pageMetadata("Announcement", "Review and send an announcement.");
 export const dynamic = "force-dynamic";
@@ -179,44 +180,44 @@ export default async function AdminAnnouncementDetail({
                       <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                         Send by
                       </span>
-                      <select
+                      <Select
                         name="channels"
                         defaultValue={announcement.channels}
-                        className={`w-full ${inputCls}`}
+                        className="w-full"
                       >
                         {ANNOUNCEMENT_CHANNEL_OPTIONS.map((c) => (
                           <option key={c.value} value={c.value}>
                             {c.label}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
 
                     <label className="space-y-1">
                       <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                         Send to
                       </span>
-                      <select
+                      <Select
                         name="target_role"
                         defaultValue={announcement.targetRole}
-                        className={`w-full ${inputCls}`}
+                        className="w-full"
                       >
                         {ANNOUNCEMENT_TARGET_OPTIONS.map((t) => (
                           <option key={t.value} value={t.value}>
                             {t.label}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
 
                     <label className="space-y-1">
                       <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                         Edition
                       </span>
-                      <select
+                      <Select
                         name="edition_year"
                         defaultValue={announcement.editionYear ?? ""}
-                        className={`w-full ${inputCls}`}
+                        className="w-full"
                       >
                         <option value="">All editions</option>
                         {editionYears.map((year) => (
@@ -224,7 +225,7 @@ export default async function AdminAnnouncementDetail({
                             {year} only
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                   </div>
 

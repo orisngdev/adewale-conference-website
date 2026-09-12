@@ -45,6 +45,45 @@ _Avoid_: question set.
 **Promotion**:
 The one-way act of copying a retired Exam question into the practice pool so a later cohort can drill on real past material.
 
+### Paper exam
+
+**Paper Exam**:
+The 100-question bubble-sheet qualifying instrument sat at a Zone centre and graded by the portal from captured marks. Each question has four options (A–D) or five (A–E); the count is the exam's own, because a letter past it is a misread rather than an answer. Not an [Exam](#assessments), which is the online, server-graded CBT: a Paper Exam has no attempt, no timer and no proctoring, and it can hold a result for a Rep with no login.
+_Avoid_: Assessment, Exam, quiz, ZipGrade (a capture tool, not the exam).
+
+**Paper Item**:
+One numbered question on a Paper Exam, carrying its own Subject tag and correct answer. Not an [Item](#learning-plans), which is a Learning Plan step.
+_Avoid_: question (ambiguous with the Question Bank), item.
+
+**Key version**:
+One of up to four answer keys (A–D) a Paper Exam may be printed in, bubbled on the sheet. Version A is canonical; B–D exist so neighbours cannot copy.
+
+**Candidate number**:
+The 3-digit number printed and bubbled on a Rep's answer sheet (`students.exam_id`, authoritative in `paper_exam_candidates`). One list per exam — 001 upward, never reused, ceiling 999.
+_Avoid_: exam ID, student ID, ZipGrade ID, and never the access code (a credential — never printed or exported).
+
+**Answer Sheet Pack**:
+The per-Class PDF a capture tool prints with each Rep's name and Candidate number already filled in, so nobody bubbles their own identity. Because the Class field holds the Rep's class, packs come out per class (all SS1, all SS2) — safe to split by hand, since Candidate numbers are unique across the whole exam.
+
+**Paper**:
+One physical answer sheet and the marks captured off it. A Paper is graded by us against our own key — the capture tool's total is only cross-checked, never trusted.
+_Avoid_: attempt (reserved for CBT), submission, scan.
+
+**Capture**:
+Getting marks off paper and into the portal (an external phone-camera grader today; an in-app scanner later). Capture is not grading; grading is always ours.
+_Avoid_: scan, marking.
+
+**Subject subscore** / **Breakdown**:
+A Rep's correct/out-of within one Subject of a Paper Exam; the set of them is the Breakdown (`student_stage_results.breakdown`). Keys are the exam's own published subject spelling.
+
+**School score**:
+A Participant's score for a stage, aggregated from its Reps' Paper totals by a rule recorded on the exam (currently the sum of all Reps).
+_Avoid_: team score, average.
+
+**Cutoff**:
+The reviewed rank threshold that commits who advances past a stage. Always previewed first, and blocked when a tie straddles it — that is settled by widening the count or by a Face-off, never by sort order.
+_Avoid_: pass mark.
+
 ### Learning plans
 
 **Learning Plan**:

@@ -12,7 +12,7 @@ import {
 } from "@/components/portal/ui";
 import { RegistrationDetails } from "@/components/portal/registration-details";
 import { RegistrationContactEditor } from "@/components/portal/registration-contact-editor";
-import { filterSelectCls } from "@/components/portal/list-controls";
+import { Select } from "@/components/ui/select";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
@@ -198,17 +198,17 @@ export default async function RegistrationDetailPage({
                     className="space-y-2"
                   >
                     <div className="flex flex-wrap gap-2">
-                      <select
+                      <Select
                         name="status"
                         defaultValue={registration.status}
-                        className={`${filterSelectCls} flex-1 capitalize`}
+                        className="flex-1 capitalize"
                       >
                         {STATUSES.map((s) => (
                           <option key={s} value={s}>
                             {s}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                       <ConfirmSubmitButton
                         size="sm"
                         variant="outline"
@@ -228,7 +228,7 @@ export default async function RegistrationDetailPage({
                         rows={2}
                         defaultValue={registration.decline_reason ?? ""}
                         placeholder="e.g. No female representative — please replace one rep and resubmit."
-                        className={`${filterSelectCls} mt-1 w-full`}
+                        className="mt-1 w-full rounded-md border border-input bg-card px-2 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
                       />
                       <span className="mt-1 block text-[11px] text-muted-foreground">
                         Only used when you set the status to declined; the school sees this and can

@@ -140,8 +140,13 @@ export interface StageResult {
   stage: string;
   outcome: StageOutcome;
   score: number | null;
+  /** Denominator for `score` where the source has one. Null = a bare figure. */
+  score_max?: number | null;
   note: string | null;
   reason?: string | null;
+  lga_rank?: number | null;
+  state_rank?: number | null;
+  qualification_type?: string | null;
 }
 
 // The per-STUDENT mirror of StageResult — how one rep fared at a stage.
@@ -149,10 +154,18 @@ export interface StudentStageResult {
   id: string;
   student_id: string;
   stage: string;
+  /** Part of the row's key: (student_id, stage, edition_year). */
+  edition_year?: number | null;
   outcome: StageOutcome;
   score: number | null;
+  score_max?: number | null;
+  /** Per-subject scores where the source has them — a paper exam does. */
+  breakdown?: SubjectBreakdown | null;
   note: string | null;
 }
+
+/** Per-subject scores, keyed exactly as paper_exams.subjects. */
+export type SubjectBreakdown = Record<string, { correct: number; out_of: number }>;
 
 export interface Certificate {
   id: string;
@@ -310,6 +323,86 @@ export interface Assessment {
 }
 /** @deprecated use Assessment — kept for one release during the rename. */
 export type Quiz = Assessment;
+
+// ── paper exam ──────────────────────────────────────────────────────────────
+// A Paper Exam is NOT an Assessment: see
+// docs/adr/0009-paper-qualifying-exam-as-its-own-domain.md.
+
+export type PaperExamStatus = "draft" | "printed" | "grading" | "published";
+
+export interface PaperExam {
+  id: string;
+  edition_year: number;
+  stage: string;
+  title: string;
+  item_count: number;
+  /** Bubbles per question: 4 (A-D) or 5 (A-E). Both sheets are in use. */
+  option_count: number;
+  /** A deliberate import of a past sitting, exempt from the past-edition lock. */
+  is_backfill: boolean;
+  /** This exam's own ordered subject vocabulary; these become breakdown keys. */
+  subjects: string[];
+  source_quiz_name: string | null;
+  school_score_rule: "sum_all" | "sum_top_n" | "mean_present" | "best";
+  school_score_top_n: number;
+  /** Until this is set, per-item correct answers never leave the server. */
+  review_released: boolean;
+  status: PaperExamStatus;
+  created_at?: string;
+}
+
+export interface PaperExamItem {
+  id: string;
+  exam_id: string;
+  version: string;
+  position: number;
+  subject: string;
+  correct: string;
+}
+
+export type PaperStatus = "matched" | "unmatched" | "ambiguous" | "duplicate" | "discarded";
+
+export interface PaperExamPaper {
+  id: string;
+  exam_id: string;
+  import_id: string;
+  external_id: string | null;
+  exam_no: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  class_name: string | null;
+  version: string;
+  version_assumed: boolean;
+  responses: (string | null)[];
+  total: number | null;
+  attempted: number | null;
+  invalid_marks: number;
+  subscores: SubjectBreakdown | null;
+  capture_num_correct: number | null;
+  key_mismatches: number | null;
+  /** The number matched but the sheet's name is somebody else. */
+  name_mismatch: boolean;
+  student_id: string | null;
+  match_method: string | null;
+  status: PaperStatus;
+  resolution_note: string | null;
+}
+
+export interface PaperExamImport {
+  id: string;
+  exam_id: string;
+  source: "zipgrade_csv" | "in_app_scanner";
+  filename: string | null;
+  header_map: Record<string, unknown> | null;
+  row_count: number;
+  matched_count: number;
+  undecided_count: number;
+  error_count: number;
+  key_mismatch_count: number;
+  status: "staged" | "committed" | "discarded";
+  created_at: string;
+  committed_at: string | null;
+}
 
 export interface Question {
   id: string;

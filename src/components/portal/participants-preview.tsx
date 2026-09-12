@@ -41,6 +41,8 @@ import type {
   PreviewView,
   QualificationFilter,
 } from "@/components/portal/participants-preview-types";
+import { Select } from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 
 const PAGE_SIZE = 20;
 const inputClass =
@@ -96,19 +98,6 @@ function makeHref(
     if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
   }
   return `/portal/admin/participants?${params.toString()}`;
-}
-
-/** Fallback to the previous tabbed layout. Same data, same actions — kept reachable
- *  in case this layout is missing something on the day it is needed. */
-function LegacyHref({ activeYear, q }: { activeYear: number | null; q?: string }) {
-  const params = new URLSearchParams({ ui: "legacy" });
-  if (activeYear) params.set("edition", String(activeYear));
-  if (q) params.set("q", q);
-  return (
-    <Button asChild size="sm" variant="ghost">
-      <Link href={`/portal/admin/participants?${params.toString()}`}>Previous layout</Link>
-    </Button>
-  );
 }
 
 function PreviewNav({ activeYear, view, counts }: {
@@ -361,8 +350,8 @@ function QualificationsWorkspace({
                       </Link>
                     </div>
                     <label className="text-xs text-muted-foreground"><span className="lg:hidden">Score</span><input name="score" type="number" step="any" defaultValue={result?.score ?? ""} disabled={!canManage} className={`${inputClass} mt-1 w-full lg:mt-0`} /></label>
-                    <label className="text-xs text-muted-foreground"><span className="lg:hidden">Reason</span><select name="reason" defaultValue={result?.reason ?? ""} disabled={!canManage} className={`${inputClass} mt-1 w-full lg:mt-0`}><option value="">No reason</option>{QUALIFICATION_REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}</select></label>
-                    <label className="text-xs text-muted-foreground"><span className="lg:hidden">Outcome</span><select name="outcome" defaultValue={result?.outcome ?? "pending"} disabled={!canManage} className={`${inputClass} mt-1 w-full lg:mt-0`}><option value="pending">Pending</option><option value="advanced">Advance</option><option value="eliminated">Not advanced</option></select></label>
+                    <label className="text-xs text-muted-foreground"><span className="lg:hidden">Reason</span><Select name="reason" defaultValue={result?.reason ?? ""} disabled={!canManage} className="mt-1 w-full lg:mt-0"><option value="">No reason</option>{QUALIFICATION_REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}</Select></label>
+                    <label className="text-xs text-muted-foreground"><span className="lg:hidden">Outcome</span><Select name="outcome" defaultValue={result?.outcome ?? "pending"} disabled={!canManage} className="mt-1 w-full lg:mt-0"><option value="pending">Pending</option><option value="advanced">Advance</option><option value="eliminated">Not advanced</option></Select></label>
                     <div className="flex items-center gap-2"><OutcomeBadge outcome={result?.outcome} />{canManage ? <SubmitButton size="sm" pendingText="Saving…">Save</SubmitButton> : <ReadOnlyBadge />}</div>
                     <label className="text-xs text-muted-foreground lg:col-span-full">Note<input name="note" defaultValue={result?.note ?? ""} disabled={!canManage} className={`${inputClass} mt-1 w-full`} /></label>
                   </form>
@@ -405,8 +394,8 @@ function GroupsWorkspace({ participants, groups, matches, activeYear, canManage 
               <div className="sm:col-span-2"><SubmitButton size="sm" pendingText="Saving…">Save group</SubmitButton></div>
             </form>
             <form action={assignGroupEntry} className="grid gap-3 border border-foreground/10 bg-background/50 p-4 sm:grid-cols-2">
-              <label className="text-xs text-muted-foreground sm:col-span-2">Qualified school<select name="registration_id" disabled={!waiting.length} className={`${inputClass} mt-1 w-full`}>{waiting.map((participant) => <option key={participant.id} value={participant.id}>{participant.school}</option>)}</select></label>
-              <label className="text-xs text-muted-foreground">Group<select name="group_id" disabled={!groups.length} className={`${inputClass} mt-1 w-full`}>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+              <label className="text-xs text-muted-foreground sm:col-span-2"><span>Qualified school</span><SearchSelect name="registration_id" disabled={!waiting.length} className="mt-1 w-full" options={waiting.map((participant) => ({ value: participant.id, label: participant.school }))} placeholder="Choose a school…" searchPlaceholder="Search qualified schools…" aria-label="Qualified school" /></label>
+              <label className="text-xs text-muted-foreground">Group<Select name="group_id" disabled={!groups.length} className="mt-1 w-full">{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</Select></label>
               <label className="text-xs text-muted-foreground">Starting position<input name="seed" type="number" min="1" placeholder="Optional" className={`${inputClass} mt-1 w-full`} /></label>
               <div className="sm:col-span-2"><SubmitButton size="sm" pendingText="Assigning…" disabled={!waiting.length || !groups.length}>Assign to group</SubmitButton></div>
             </form>
@@ -436,7 +425,7 @@ function GroupsWorkspace({ participants, groups, matches, activeYear, canManage 
                     <div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground">{entry.school}</p><p className="text-[10px] uppercase tracking-wide text-muted-foreground">{entry.advance_override === true ? "Manual advance" : entry.advance_override === false ? "Manual hold" : entry.rank != null && entry.rank <= group.advance_count ? "In advancement places" : "Outside cutoff"}</p></div>
                     <input name="rank" type="number" defaultValue={entry.rank ?? ""} placeholder="Rank" aria-label={`Rank for ${entry.school}`} className={compactInputClass} />
                     <input name="score" type="number" step="any" defaultValue={entry.score ?? ""} placeholder="Score" aria-label={`Score for ${entry.school}`} className={compactInputClass} />
-                    <select name="advance_override" defaultValue={entry.advance_override === true ? "advance" : entry.advance_override === false ? "hold" : ""} className={`${compactInputClass} sm:col-span-2`} aria-label={`Advancement override for ${entry.school}`}><option value="">Use rank</option><option value="advance">Advance</option><option value="hold">Hold</option></select>
+                    <Select size="sm" name="advance_override" defaultValue={entry.advance_override === true ? "advance" : entry.advance_override === false ? "hold" : ""} className="sm:col-span-2" aria-label={`Advancement override for ${entry.school}`}><option value="">Use rank</option><option value="advance">Advance</option><option value="hold">Hold</option></Select>
                     {canManage ? <SubmitButton size="sm" variant="outline" pendingText="Saving…">Save</SubmitButton> : null}
                     <input name="note" defaultValue={entry.note ?? ""} placeholder="Note" className={`${compactInputClass} sm:col-span-full`} aria-label={`Note for ${entry.school}`} />
                   </form>
@@ -463,8 +452,8 @@ function MatchCard({ match, canManage }: { match: PreviewMatch; canManage: boole
         <form action={recordMatchResult.bind(null, match.id)} className="mt-3 grid gap-2 sm:grid-cols-2">
           <label className="text-xs text-muted-foreground">{match.teamAName}<input name="team_a_score" type="number" step="any" defaultValue={match.team_a_score ?? ""} className={`${compactInputClass} mt-1 w-full`} /></label>
           <label className="text-xs text-muted-foreground">{match.teamBName}<input name="team_b_score" type="number" step="any" defaultValue={match.team_b_score ?? ""} className={`${compactInputClass} mt-1 w-full`} /></label>
-          <select name="winner_registration_id" defaultValue={match.winner_registration_id ?? ""} className={compactInputClass} aria-label="Winner"><option value="">No winner</option>{match.team_a_registration_id ? <option value={match.team_a_registration_id}>{match.teamAName}</option> : null}{match.team_b_registration_id ? <option value={match.team_b_registration_id}>{match.teamBName}</option> : null}</select>
-          <select name="status" defaultValue={match.status} className={compactInputClass} aria-label="Match status"><option value="scheduled">Scheduled</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="needs_face_off">Needs face-off</option><option value="cancelled">Cancelled</option></select>
+          <Select size="sm" name="winner_registration_id" defaultValue={match.winner_registration_id ?? ""} aria-label="Winner"><option value="">No winner</option>{match.team_a_registration_id ? <option value={match.team_a_registration_id}>{match.teamAName}</option> : null}{match.team_b_registration_id ? <option value={match.team_b_registration_id}>{match.teamBName}</option> : null}</Select>
+          <Select size="sm" name="status" defaultValue={match.status} aria-label="Match status"><option value="scheduled">Scheduled</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="needs_face_off">Needs face-off</option><option value="cancelled">Cancelled</option></Select>
           <input name="note" defaultValue={match.note ?? ""} placeholder="Note" className={`${compactInputClass} sm:col-span-full`} />
           <div className="sm:col-span-full"><SubmitButton size="sm" pendingText="Saving…">Record result</SubmitButton></div>
         </form>
@@ -500,9 +489,9 @@ function FaceOffSection({ id, matches, participants, stages, activeYear, canMana
         {canManage ? (
           <form action={createTournamentMatch} className="mb-4 grid gap-3 md:grid-cols-[10rem_minmax(10rem,1fr)_minmax(10rem,1fr)_minmax(10rem,1fr)_auto] md:items-end">
             <input type="hidden" name="edition_year" value={activeYear ?? ""} /><input type="hidden" name="kind" value="face_off" />
-            <label className="text-xs text-muted-foreground">Stage<select name="stage" className={`${inputClass} mt-1 w-full`}>{stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label>
-            <label className="text-xs text-muted-foreground">First school<select name="team_a_registration_id" className={`${inputClass} mt-1 w-full`}>{participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.school}</option>)}</select></label>
-            <label className="text-xs text-muted-foreground">Second school<select name="team_b_registration_id" className={`${inputClass} mt-1 w-full`}>{participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.school}</option>)}</select></label>
+            <label className="text-xs text-muted-foreground">Stage<Select name="stage" className="mt-1 w-full">{stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</Select></label>
+            <label className="text-xs text-muted-foreground"><span>First school</span><SearchSelect name="team_a_registration_id" className="mt-1 w-full" options={participants.map((participant) => ({ value: participant.id, label: participant.school }))} placeholder="Choose a school…" searchPlaceholder="Search schools…" aria-label="First school" /></label>
+            <label className="text-xs text-muted-foreground"><span>Second school</span><SearchSelect name="team_b_registration_id" className="mt-1 w-full" options={participants.map((participant) => ({ value: participant.id, label: participant.school }))} placeholder="Choose a school…" searchPlaceholder="Search schools…" aria-label="Second school" /></label>
             <label className="text-xs text-muted-foreground">Reason<input name="note" placeholder="Tie-breaker reason" className={`${inputClass} mt-1 w-full`} /></label>
             <SubmitButton size="sm" pendingText="Creating…">Add face-off</SubmitButton>
           </form>
@@ -534,10 +523,10 @@ function KnockoutsWorkspace({ participants, matches, stages, activeYear, canMana
           <div className="mb-4"><p className="font-bebas text-2xl text-foreground">Add bracket item</p><p className="text-sm text-muted-foreground">Create a match or record a direct advance in the selected round.</p></div>
           <form action={createTournamentMatch} className="grid gap-3 lg:grid-cols-[9rem_10rem_minmax(11rem,1fr)_minmax(11rem,1fr)_6rem_minmax(9rem,1fr)_auto] lg:items-end">
             <input type="hidden" name="edition_year" value={activeYear ?? ""} />
-            <label className="text-xs text-muted-foreground">Round<select name="stage" className={`${inputClass} mt-1 w-full`}>{knockoutStages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label>
-            <label className="text-xs text-muted-foreground">Type<select name="kind" className={`${inputClass} mt-1 w-full`}><option value="knockout">Match</option><option value="bye">Direct advance</option></select></label>
-            <label className="text-xs text-muted-foreground">First school<select name="team_a_registration_id" className={`${inputClass} mt-1 w-full`}>{participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.school}</option>)}</select></label>
-            <label className="text-xs text-muted-foreground">Opponent<select name="team_b_registration_id" className={`${inputClass} mt-1 w-full`}><option value="">No opponent</option>{participants.map((participant) => <option key={participant.id} value={participant.id}>{participant.school}</option>)}</select></label>
+            <label className="text-xs text-muted-foreground">Round<Select name="stage" className="mt-1 w-full">{knockoutStages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</Select></label>
+            <label className="text-xs text-muted-foreground">Type<Select name="kind" className="mt-1 w-full"><option value="knockout">Match</option><option value="bye">Direct advance</option></Select></label>
+            <label className="text-xs text-muted-foreground"><span>First school</span><SearchSelect name="team_a_registration_id" className="mt-1 w-full" options={participants.map((participant) => ({ value: participant.id, label: participant.school }))} placeholder="Choose a school…" searchPlaceholder="Search schools…" aria-label="First school" /></label>
+            <label className="text-xs text-muted-foreground"><span>Opponent</span><SearchSelect name="team_b_registration_id" className="mt-1 w-full" options={[{ value: "", label: "No opponent" }, ...participants.map((participant) => ({ value: participant.id, label: participant.school }))]} placeholder="No opponent" searchPlaceholder="Search schools…" aria-label="Opponent" /></label>
             <label className="text-xs text-muted-foreground">Slot<input name="slot" type="number" min="1" className={`${inputClass} mt-1 w-full`} /></label>
             <label className="text-xs text-muted-foreground">Venue<input name="venue" className={`${inputClass} mt-1 w-full`} /></label>
             <SubmitButton size="sm" pendingText="Creating…">Add</SubmitButton>
@@ -596,8 +585,8 @@ function AwardsWorkspace({ participants, students, awards, stages, activeYear, q
           <div className="mb-4"><p className="font-bebas text-2xl text-foreground">Individual awards</p><p className="text-sm text-muted-foreground">Recognize a Rep independently of the school team&apos;s final standing.</p></div>
           <form action={issueIndividualAward} className="grid gap-3 md:grid-cols-[minmax(12rem,1fr)_10rem_minmax(10rem,1fr)_minmax(10rem,1fr)_auto] md:items-end">
             <input type="hidden" name="edition_year" value={activeYear ?? ""} />
-            <label className="text-xs text-muted-foreground">Rep<select name="student_id" className={`${inputClass} mt-1 w-full`}>{students.map((student) => <option key={student.id} value={student.id}>{student.name} · {student.school}</option>)}</select></label>
-            <label className="text-xs text-muted-foreground">Stage<select name="stage" className={`${inputClass} mt-1 w-full`}><option value="">Whole Edition</option>{stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></label>
+            <label className="text-xs text-muted-foreground"><span>Rep</span><SearchSelect name="student_id" className="mt-1 w-full" options={students.map((student) => ({ value: student.id, label: student.name, hint: student.school }))} placeholder="Choose a rep…" searchPlaceholder="Search reps by name or school…" aria-label="Rep" /></label>
+            <label className="text-xs text-muted-foreground">Stage<Select name="stage" className="mt-1 w-full"><option value="">Whole Edition</option>{stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</Select></label>
             <label className="text-xs text-muted-foreground">Award<input name="title" required placeholder="Top Scorer" className={`${inputClass} mt-1 w-full`} /></label>
             <label className="text-xs text-muted-foreground">Note<input name="note" className={`${inputClass} mt-1 w-full`} /></label>
             <SubmitButton size="sm" pendingText="Saving…">Add award</SubmitButton>
@@ -674,7 +663,6 @@ export function ParticipantsPreview({
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {years.length > 1 ? <div className="flex flex-wrap gap-2">{years.map((year) => <Link key={year} href={makeHref(year, view)} className={`inline-flex min-h-9 items-center rounded-full px-3 text-xs font-bold ${year === activeYear ? "bg-secondary text-secondary-foreground" : "bg-foreground/5 text-muted-foreground hover:text-foreground"}`}>{year}</Link>)}</div> : null}
-              <LegacyHref activeYear={activeYear} q={q} />
             </div>
           </div>
 

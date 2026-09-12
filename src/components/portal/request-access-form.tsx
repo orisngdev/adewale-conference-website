@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 import { LGA_OPTIONS, SCHOOL_CATEGORY_OPTIONS } from "@/lib/forms";
 import {
   requestSchoolAccess,
   type RequestAccessResult,
 } from "@/app/(portal)/portal/claim/actions";
-
-const inputCls =
-  "w-full rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-60";
 
 interface SchoolOption {
   id: string;
@@ -76,23 +75,18 @@ export default function RequestAccessForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <select
+        <SearchSelect
           value={lga}
-          onChange={(e) => setLga(e.target.value)}
-          className={inputCls}
-          required
-        >
-          <option value="">School LGA</option>
-          {LGA_OPTIONS.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
-        <select
+          onValueChange={setLga}
+          options={LGA_OPTIONS.map((option) => ({ value: option, label: option }))}
+          placeholder="School LGA"
+          searchPlaceholder="Search LGAs…"
+          aria-label="School LGA"
+        />
+        <Select
           value={category}
           onChange={(e) => setCategory(e.target.value)}
-          className={inputCls}
+          className="w-full"
           required
         >
           <option value="">Category</option>
@@ -101,28 +95,25 @@ export default function RequestAccessForm() {
               {option}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
-      <select
+      {/* 500+ schools statewide, so this one has to be typed into rather than scrolled. */}
+      <SearchSelect
         value={schoolId}
-        onChange={(e) => setSchoolId(e.target.value)}
-        className={inputCls}
-        required
+        onValueChange={setSchoolId}
+        options={schools.map((school) => ({ value: school.id, label: school.name }))}
         disabled={!schools.length}
-      >
-        <option value="">
-          {isLoading
+        placeholder={
+          isLoading
             ? "Loading schools…"
             : schools.length
               ? "Select your school"
-              : "Pick LGA and category first"}
-        </option>
-        {schools.map((school) => (
-          <option key={school.id} value={school.id}>
-            {school.name}
-          </option>
-        ))}
-      </select>
+              : "Pick LGA and category first"
+        }
+        searchPlaceholder="Search your school by name…"
+        emptyMessage="No school matches that name"
+        aria-label="School"
+      />
 
       {result && "error" in result ? (
         <p className="text-sm text-red-600">{result.error}</p>

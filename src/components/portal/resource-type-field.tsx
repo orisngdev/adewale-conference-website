@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Select } from "@/components/ui/select";
 
 const cls =
   "w-full rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
@@ -22,10 +23,9 @@ export function ResourceTypeField({
 
   return (
     <div className="space-y-2">
-      <select
+      <Select
         value={choice}
         onChange={(e) => setChoice(e.target.value)}
-        className={cls}
         aria-label="Resource type"
       >
         <option value="">Select a type…</option>
@@ -44,7 +44,7 @@ export function ResourceTypeField({
           </optgroup>
         ) : null}
         <option value={OTHER}>Other — add a new type…</option>
-      </select>
+      </Select>
 
       {choice === OTHER ? (
         <input

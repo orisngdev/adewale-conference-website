@@ -12,6 +12,7 @@ import {
   FolderDown,
   Hourglass,
   Megaphone,
+  ScanLine,
   Trophy,
   Users,
   School,
@@ -39,6 +40,7 @@ const USERS: NavLink = { href: "/portal/admin/users", label: "Users", icon: User
 const SCHOOLS: NavLink = { href: "/portal/admin/schools", label: "Schools", icon: School, module: "registrations" };
 const PARTICIPANTS: NavLink = { href: "/portal/admin/participants", label: "Participants", icon: UserRound, short: "People", module: "participants" };
 const REPLACEMENTS: NavLink = { href: "/portal/admin/replacements", label: "Replacements", icon: UserRoundCheck, short: "Swaps", module: "registrations" };
+const PAPER_EXAMS: NavLink = { href: "/portal/admin/paper-exams", label: "Paper exams", icon: ScanLine, short: "Paper", module: "participants" };
 const INFO_CHANGES: NavLink = { href: "/portal/admin/info-changes", label: "Contact corrections", icon: ContactRound, short: "Fixes", module: "registrations" };
 const SPONSORS: NavLink = { href: "/portal/admin/sponsors", label: "Sponsors", icon: HandCoins, module: "team" };
 // Settings is always shown — it also hosts each admin's own account settings. The
@@ -51,11 +53,11 @@ const CONFIG: SidebarConfig = {
   groups: [
     { title: "Insights", links: [ANALYTICS] },
     { title: "Program", links: [EDITIONS, REGISTRATIONS, WAITLIST, ANNOUNCEMENTS, ASSESSMENTS, LABS, CHALLENGES, QUESTION_BANK, RESOURCES] },
-    { title: "People", links: [PARTICIPANTS, REPLACEMENTS, INFO_CHANGES, USERS, SCHOOLS, SPONSORS] },
+    { title: "People", links: [PARTICIPANTS, PAPER_EXAMS, REPLACEMENTS, INFO_CHANGES, USERS, SCHOOLS, SPONSORS] },
     { title: "Site", links: [SETTINGS] },
   ],
   bottom: [OVERVIEW, ANALYTICS, REGISTRATIONS, USERS],
-  more: [ANNOUNCEMENTS, ASSESSMENTS, PARTICIPANTS, REPLACEMENTS, INFO_CHANGES, EDITIONS, WAITLIST, LABS, CHALLENGES, QUESTION_BANK, RESOURCES, SCHOOLS, SPONSORS, SETTINGS],
+  more: [ANNOUNCEMENTS, ASSESSMENTS, PAPER_EXAMS, PARTICIPANTS, REPLACEMENTS, INFO_CHANGES, EDITIONS, WAITLIST, LABS, CHALLENGES, QUESTION_BANK, RESOURCES, SCHOOLS, SPONSORS, SETTINGS],
 };
 
 // A link is shown when it has no module (always-open, e.g. Overview / Sponsors)

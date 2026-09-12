@@ -7,6 +7,7 @@ import {
   SPONSORSHIP_TIER_OPTIONS,
   type SponsorshipFormData,
 } from "@/lib/forms";
+import { Select } from "@/components/ui/select";
 
 const sponsorTiers = [
   {
@@ -210,29 +211,22 @@ export default function SponsorshipSection() {
                 <label className="text-[10px] font-bold tracking-widest uppercase text-white opacity-40">
                   Sponsorship Tier of Interest
                 </label>
-                <div className="relative">
-                  <select
-                    name="tier"
-                    required
-                    value={formData.tier}
-                    onChange={handleChange}
-                    className="w-full bg-white/5 border border-white/10 px-4 py-4 text-white outline-none focus:border-[#E8A020] transition-colors cursor-pointer appearance-none text-sm"
-                  >
-                    <option value="" className="bg-[#0A0F1E]">
-                      Select a tier
+                <Select
+                  variant="onDark"
+                  size="lg"
+                  name="tier"
+                  required
+                  value={formData.tier}
+                  onChange={handleChange}
+                  className="py-4"
+                >
+                  <option value="">Select a tier</option>
+                  {SPONSORSHIP_TIER_OPTIONS.map((tier) => (
+                    <option key={tier} value={tier}>
+                      {tier}
                     </option>
-                    {SPONSORSHIP_TIER_OPTIONS.map((tier) => (
-                      <option key={tier} value={tier} className="bg-[#0A0F1E]">
-                        {tier}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-white opacity-60">
-                    <svg className="w-4 h-4 fill-current" viewBox="0 0 20 20">
-                      <path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" />
-                    </svg>
-                  </div>
-                </div>
+                  ))}
+                </Select>
               </div>
 
               <div className="pt-4">

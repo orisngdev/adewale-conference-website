@@ -8,7 +8,8 @@ import { BmcSnapshot, ChallengeChip, ChallengeTypeBadge } from "@/components/por
 import { ChallengeTypePicker } from "@/components/portal/challenge-type-picker";
 import { Card, EmptyState, PortalBody, PortalHeader, SectionHeading, StatTile } from "@/components/portal/ui";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
-import { FilterBar, Pagination, clampPage, filterSelectCls, pageBounds, parsePage } from "@/components/portal/list-controls";
+import { FilterBar, Pagination, clampPage, pageBounds, parsePage } from "@/components/portal/list-controls";
+import { Select } from "@/components/ui/select";
 import { pageMetadata } from "@/lib/seo";
 import { searchHaystackMatches, searchTokens } from "@/lib/search";
 import { createClient } from "@/supabase/server";
@@ -280,11 +281,11 @@ export default async function AdminChallengeDetail({
           ) : (
             <>
               <FilterBar q={sp.q ?? ""} placeholder="Search by student or school…">
-                <select name="status" defaultValue={statusFilter} className={filterSelectCls}>
+                <Select name="status" defaultValue={statusFilter}>
                   <option value="">All entries</option>
                   <option value="submitted">Awaiting review</option>
                   <option value="reviewed">Reviewed</option>
-                </select>
+                </Select>
               </FilterBar>
 
               {pageRows.length === 0 ? (

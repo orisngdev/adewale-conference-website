@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { LGA_OPTIONS, SCHOOL_CATEGORY_OPTIONS } from "@/lib/forms";
 import { Button } from "../../components/ui/button";
+import { Select } from "@/components/ui/select";
 
 const inputClass =
   "w-full bg-white/5 border border-white/10 px-4 py-3 text-white placeholder-white/30 outline-none focus:border-[#E8A020] transition-colors text-sm";
-const selectClass =
-  "w-full bg-white/5 border border-white/10 px-4 py-3 text-white outline-none focus:border-[#E8A020] transition-colors cursor-pointer appearance-none text-sm";
 const labelClass =
   "block text-[10px] font-bold tracking-widest uppercase text-white/40 mb-2";
 
@@ -131,21 +130,21 @@ export default function WaitlistButton() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className={labelClass}>School LGA</label>
-                      <select value={form.lga} onChange={(e) => set("lga")(e.target.value)} className={selectClass}>
-                        <option value="" className="bg-[#0A0F1E]">Select LGA</option>
+                      <Select size="lg" variant="onDark" value={form.lga} onChange={(e) => set("lga")(e.target.value)}>
+                        <option value="">Select LGA</option>
                         {LGA_OPTIONS.map((lga) => (
-                          <option key={lga} value={lga} className="bg-[#0A0F1E]">{lga}</option>
+                          <option key={lga} value={lga}>{lga}</option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                     <div>
                       <label className={labelClass}>Category</label>
-                      <select value={form.category} onChange={(e) => set("category")(e.target.value)} className={selectClass}>
-                        <option value="" className="bg-[#0A0F1E]">Select category</option>
+                      <Select size="lg" variant="onDark" value={form.category} onChange={(e) => set("category")(e.target.value)}>
+                        <option value="">Select category</option>
                         {SCHOOL_CATEGORY_OPTIONS.map((c) => (
-                          <option key={c} value={c} className="bg-[#0A0F1E]">{c}</option>
+                          <option key={c} value={c}>{c}</option>
                         ))}
-                      </select>
+                      </Select>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

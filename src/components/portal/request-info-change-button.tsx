@@ -6,6 +6,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { requestInfoChange } from "@/app/(portal)/portal/school/actions";
 import type { InfoChangeResult } from "@/supabase/types";
+import { Select } from "@/components/ui/select";
 
 const inputCls =
   "w-full rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
@@ -72,10 +73,10 @@ export default function RequestInfoChangeButton({
                     <span className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
                       Whose details?
                     </span>
-                    <select name="target" defaultValue="teacher" className={inputCls}>
+                    <Select className="w-full" name="target" defaultValue="teacher">
                       <option value="teacher">Educator (coordinating teacher)</option>
                       <option value="principal">Principal</option>
-                    </select>
+                    </Select>
                   </label>
 
                   <label className="block">

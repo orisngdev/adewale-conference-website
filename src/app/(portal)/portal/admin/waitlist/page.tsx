@@ -23,6 +23,7 @@ import { pageMetadata } from "@/lib/seo";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { createClient } from "@/supabase/server";
 import { inviteWaitlist, inviteWaitlistEntry } from "../actions";
+import { Select } from "@/components/ui/select";
 
 export const metadata = pageMetadata("Waitlist", "Schools waiting for registration to open.");
 export const dynamic = "force-dynamic";
@@ -311,18 +312,19 @@ export default async function AdminWaitlist({
                         <label className="sr-only" htmlFor={`expiry-${entry.id}`}>
                           Invite expires after
                         </label>
-                        <select
+                        <Select
+                          size="sm"
                           id={`expiry-${entry.id}`}
                           name="expiresInDays"
                           defaultValue={INVITE_TOKEN_DAYS}
-                          className="cursor-pointer rounded border border-foreground/10 bg-transparent px-2 py-1 text-xs text-muted-foreground"
+                          className="cursor-pointer bg-transparent text-muted-foreground"
                         >
                           {INVITE_TOKEN_DAY_OPTIONS.map((days) => (
                             <option key={days} value={days}>
                               {days} days
                             </option>
                           ))}
-                        </select>
+                        </Select>
                         <ConfirmSubmitButton
                           size="sm"
                           variant="outline"
