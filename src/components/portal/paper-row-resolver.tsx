@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import ActionForm from "@/components/portal/action-form";
 import { resolvePaperRow } from "@/app/(portal)/portal/admin/paper-exams/actions";
+import { Select } from "@/components/ui/select";
 
 // Attach one captured paper to a student, or discard it with a reason. No third
 // option: commit is gated on nothing being left undecided.
@@ -71,7 +72,7 @@ export default function PaperRowResolver({
             placeholder="Search the roster by name or school"
             className={`min-w-[16rem] flex-1 ${inputCls}`}
           />
-          <select name="student_id" required className={inputCls} defaultValue="">
+          <Select name="student_id" required defaultValue="">
             <option value="" disabled>
               Choose a student…
             </option>
@@ -81,7 +82,7 @@ export default function PaperRowResolver({
                 {s.school ? ` — ${s.school}` : ""}
               </option>
             ))}
-          </select>
+          </Select>
           <input name="note" placeholder="Note (optional)" className={inputCls} />
           <Button type="submit" variant="outline">
             Attach

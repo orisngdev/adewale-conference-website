@@ -10,11 +10,11 @@ import {
   FilterBar,
   Pagination,
   clampPage,
-  filterSelectCls,
   listQuery,
   pageBounds,
   parsePage,
 } from "@/components/portal/list-controls";
+import { Select } from "@/components/ui/select";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
 import { LGA_OPTIONS, SCHOOL_CATEGORY_OPTIONS } from "@/lib/forms";
@@ -184,22 +184,22 @@ export default async function AdminSchools({
             </Link>
           </div>
           <FilterBar q={q} placeholder="Search school name…">
-            <select name="lga" defaultValue={lga ?? ""} className={filterSelectCls}>
+            <Select name="lga" defaultValue={lga ?? ""}>
               <option value="">Any LGA</option>
               {LGA_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
               ))}
-            </select>
-            <select name="category" defaultValue={category ?? ""} className={filterSelectCls}>
+            </Select>
+            <Select name="category" defaultValue={category ?? ""}>
               <option value="">Any category</option>
               {SCHOOL_CATEGORY_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
               ))}
-            </select>
+            </Select>
           </FilterBar>
           {schools.length === 0 ? (
             <EmptyState title={filtering ? "No matches" : "No schools yet"}>
@@ -244,25 +244,25 @@ export default async function AdminSchools({
                         </label>
                         <label>
                           <span className={labelCls}>LGA</span>
-                          <select name="lga" defaultValue={s.lga ?? ""} className={fieldCls}>
+                          <Select name="lga" defaultValue={s.lga ?? ""} className="w-full">
                             <option value="">—</option>
                             {LGA_OPTIONS.map((option) => (
                               <option key={option} value={option}>
                                 {option}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </label>
                         <label>
                           <span className={labelCls}>Category</span>
-                          <select name="category" defaultValue={s.category ?? ""} className={fieldCls}>
+                          <Select name="category" defaultValue={s.category ?? ""} className="w-full">
                             <option value="">—</option>
                             {SCHOOL_CATEGORY_OPTIONS.map((option) => (
                               <option key={option} value={option}>
                                 {option}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                         </label>
                         <label className="sm:col-span-2">
                           <span className={labelCls}>School email</span>

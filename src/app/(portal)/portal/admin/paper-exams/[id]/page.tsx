@@ -24,6 +24,7 @@ import {
   setReviewReleased,
   updatePaperExam,
 } from "../actions";
+import { Select } from "@/components/ui/select";
 
 export const metadata = pageMetadata("Paper exam", "Key, sheets, imports and ranking.");
 export const dynamic = "force-dynamic";
@@ -228,10 +229,10 @@ export default async function PaperExamDetail({
                           />
                           <label className="text-sm text-muted-foreground">
                             School score
-                            <select
+                            <Select
                               name="school_score_rule"
                               defaultValue={exam.school_score_rule}
-                              className={`ml-2 ${inputCls}`}
+                              className="ml-2"
                             >
                               {(
                                 Object.entries(SCHOOL_SCORE_RULE_LABELS) as [
@@ -243,7 +244,7 @@ export default async function PaperExamDetail({
                                   {label}
                                 </option>
                               ))}
-                            </select>
+                            </Select>
                           </label>
                           <label className="text-sm text-muted-foreground">
                             Top N
@@ -591,10 +592,10 @@ export default async function PaperExamDetail({
                         <input type="hidden" name="tab" value="results" />
                         <label className="text-sm text-muted-foreground">
                           Rule
-                          <select name="cut_kind" defaultValue={cutKind} className={`ml-2 ${inputCls}`}>
+                          <Select name="cut_kind" defaultValue={cutKind} className="ml-2">
                             <option value="top_n">Top N schools</option>
                             <option value="min_score">Minimum score</option>
-                          </select>
+                          </Select>
                         </label>
                         <label className="text-sm text-muted-foreground">
                           N
@@ -687,14 +688,14 @@ export default async function PaperExamDetail({
                               <input type="hidden" name="cut_min" value={cutMin} />
                               <label className="text-sm text-muted-foreground">
                                 Reason
-                                <select name="reason" defaultValue="" className={`ml-2 ${inputCls}`}>
+                                <Select name="reason" defaultValue="" className="ml-2">
                                   <option value="">—</option>
                                   {QUALIFICATION_REASONS.map((r) => (
                                     <option key={r} value={r}>
                                       {r}
                                     </option>
                                   ))}
-                                </select>
+                                </Select>
                               </label>
                               <ConfirmSubmitButton
                                 disabled={preview.tied.length > 0}

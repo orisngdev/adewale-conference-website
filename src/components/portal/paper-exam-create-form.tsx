@@ -6,6 +6,7 @@ import {
   createPaperExam,
   type ActionResult,
 } from "@/app/(portal)/portal/admin/paper-exams/actions";
+import { Select } from "@/components/ui/select";
 
 // Controlled, so a rejected create keeps the title and the subject list. React
 // resets an uncontrolled form once a form action completes, which is what made
@@ -71,10 +72,10 @@ export default function PaperExamCreateForm({ currentYear }: { currentYear: numb
         </label>
         <label className="text-sm text-muted-foreground">
           Options per question
-          <select name="option_count" defaultValue={4} className={`ml-2 ${inputCls}`}>
+          <Select name="option_count" defaultValue={4} className="ml-2">
             <option value={4}>4 — A to D</option>
             <option value={5}>5 — A to E</option>
-          </select>
+          </Select>
         </label>
         <label className="flex items-center gap-2 text-sm text-muted-foreground sm:col-span-2">
           <input type="checkbox" name="is_backfill" value="1" className="size-4" />

@@ -29,7 +29,7 @@ import {
 import { permissionsFromForm } from "@/lib/admin-permissions";
 import { ZONAL_FINALS_OPTIONS } from "@/lib/forms";
 // Type only, so the "use server" boundary is untouched at runtime.
-import type { CentreSaveState } from "@/components/portal/centre-allocation-form";
+import type { CentreSaveState } from "@/components/portal/centre-save-state";
 import { describeSyncSummary, syncAirtableToPortal } from "@/lib/airtable-sync";
 
 const STATUSES: RegistrationStatus[] = ["submitted", "verified", "declined"];

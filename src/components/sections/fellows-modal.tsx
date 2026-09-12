@@ -25,9 +25,9 @@ import {
   inputClass,
   ResultDialog,
   SectionHeader,
-  selectClass,
   type SubmitResult,
 } from "./form-modal-parts";
+import { Select } from "@/components/ui/select";
 
 /**
  * The Adéwálé Fellows application.
@@ -373,20 +373,19 @@ export default function FellowsModal({
                   required
                   hint="Where you are based. This is what we use to post you to the nearest centre."
                 >
-                  <select
-                    className={selectClass}
+                  <Select
+                    size="lg"
+                    variant="onDark"
                     value={formData.ppaLga}
                     onChange={(e) => set("ppaLga", e.target.value)}
                   >
-                    <option value="" className="bg-[#0A0F1E]">
-                      Select an LGA
-                    </option>
+                    <option value="">Select an LGA</option>
                     {PPA_LGA_OPTIONS.map((lga) => (
-                      <option key={lga} value={lga} className="bg-[#0A0F1E]">
+                      <option key={lga} value={lga}>
                         {lga}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Question>
 
                 <Question label="Course of study" required>
@@ -465,20 +464,19 @@ export default function FellowsModal({
                 </Question>
 
                 <Question label="Which centre would you prefer?" required>
-                  <select
-                    className={selectClass}
+                  <Select
+                    size="lg"
+                    variant="onDark"
                     value={formData.preferredCentre}
                     onChange={(e) => set("preferredCentre", e.target.value)}
                   >
-                    <option value="" className="bg-[#0A0F1E]">
-                      Select a centre
-                    </option>
+                    <option value="">Select a centre</option>
                     {FELLOW_CENTRE_OPTIONS.map((centre) => (
-                      <option key={centre} value={centre} className="bg-[#0A0F1E]">
+                      <option key={centre} value={centre}>
                         {centre}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 </Question>
 
                 <Question

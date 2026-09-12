@@ -13,8 +13,9 @@ import { Card } from "@/components/portal/ui";
 import { Button } from "@/components/ui/button";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { ZONAL_FINALS_OPTIONS } from "@/lib/forms";
-import type { CentreSaveState } from "@/components/portal/centre-allocation-form";
+import type { CentreSaveState } from "@/components/portal/centre-save-state";
 import type { PreviewParticipant } from "@/components/portal/participants-preview-types";
+import { Select } from "@/components/ui/select";
 
 const UNASSIGNED = "Unassigned";
 const fieldClass =
@@ -474,7 +475,7 @@ export function ParticipantCentresPreview({
                           </p>
                         </div>
                         <div className="flex flex-wrap justify-start gap-2 md:justify-end">
-                          <select
+                          <Select
                             name={`zone:${participant.id}`}
                             value={choice.selected}
                             disabled={!canManage}
@@ -488,7 +489,6 @@ export function ParticipantCentresPreview({
                               }))
                             }
                             aria-label={`Centre for ${participant.school}`}
-                            className={fieldClass}
                           >
                             <option value="">Not allocated / other…</option>
                             {ZONAL_FINALS_OPTIONS.map((option) => (
@@ -496,7 +496,7 @@ export function ParticipantCentresPreview({
                                 {option}
                               </option>
                             ))}
-                          </select>
+                          </Select>
                           {choice.selected === "" ? (
                             <input
                               name={`zoneOther:${participant.id}`}

@@ -10,9 +10,9 @@ import {
   FilterBar,
   Pagination,
   clampPage,
-  filterSelectCls,
   parsePage,
 } from "@/components/portal/list-controls";
+import { Select } from "@/components/ui/select";
 import { pageMetadata } from "@/lib/seo";
 import {
   getSponsorshipTableId,
@@ -139,14 +139,14 @@ export default async function AdminSponsors({
           <SectionHeading>Enquiries</SectionHeading>
 
           <FilterBar q={q} placeholder="Search organisation, contact, email…">
-            <select name="tier" defaultValue={tier ?? ""} className={filterSelectCls}>
+            <Select name="tier" defaultValue={tier ?? ""}>
               <option value="">Any tier</option>
               {SPONSORSHIP_TIER_OPTIONS.map((t) => (
                 <option key={t} value={t}>
                   {t}
                 </option>
               ))}
-            </select>
+            </Select>
           </FilterBar>
 
           {rows.length === 0 ? (

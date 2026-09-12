@@ -26,6 +26,7 @@ import {
   type AnnouncementRow,
 } from "@/lib/announcements";
 import { createAnnouncementDraft } from "./actions";
+import { Select } from "@/components/ui/select";
 
 export const metadata = pageMetadata(
   "Announcements",
@@ -124,36 +125,36 @@ export default async function AdminAnnouncements() {
                     <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                       Send by
                     </span>
-                    <select name="channels" defaultValue="both" className={`w-full ${inputCls}`}>
+                    <Select name="channels" defaultValue="both" className="w-full">
                       {ANNOUNCEMENT_CHANNEL_OPTIONS.map((c) => (
                         <option key={c.value} value={c.value}>
                           {c.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
 
                   <label className="space-y-1">
                     <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                       Send to
                     </span>
-                    <select name="target_role" defaultValue="all" className={`w-full ${inputCls}`}>
+                    <Select name="target_role" defaultValue="all" className="w-full">
                       {ANNOUNCEMENT_TARGET_OPTIONS.map((t) => (
                         <option key={t.value} value={t.value}>
                           {t.label}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
 
                   <label className="space-y-1">
                     <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                       Edition
                     </span>
-                    <select
+                    <Select
                       name="edition_year"
                       defaultValue={currentEdition ?? ""}
-                      className={`w-full ${inputCls}`}
+                      className="w-full"
                     >
                       {editionYears.map((year) => (
                         <option key={year} value={year}>
@@ -162,7 +163,7 @@ export default async function AdminAnnouncements() {
                         </option>
                       ))}
                       <option value="">All editions</option>
-                    </select>
+                    </Select>
                   </label>
                 </div>
 

@@ -8,9 +8,6 @@ export { filterFormQuery } from "@/components/portal/list-filter-query";
 // component re-exported above so filtering can soft-navigate instead of doing a
 // browser-level GET form refresh.
 
-export const filterSelectCls =
-  "rounded-md border border-foreground/15 bg-card px-2 py-2 text-sm outline-none focus:border-primary";
-
 export type ListParams = Record<string, string | undefined>;
 
 /** Query string from params, dropping empties — page is reset unless kept explicitly. */

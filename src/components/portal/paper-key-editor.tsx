@@ -8,6 +8,7 @@ import {
   saveKeyItems,
   type KeySaveState,
 } from "@/app/(portal)/portal/admin/paper-exams/actions";
+import { Select } from "@/components/ui/select";
 
 // Two fields, so the common cases are one paste each rather than 100 typed rows.
 // Both are controlled: React resets an uncontrolled form after a form action
@@ -205,15 +206,15 @@ export default function PaperKeyEditor({
         <div className="border-t border-foreground/10 pt-3">
           <label className="block text-sm text-muted-foreground">
             Each question has
-            <select
+            <Select
               name="option_count"
               value={options}
               onChange={(e) => setOptions(e.target.value)}
-              className={`mx-2 ${inputCls}`}
+              className="mx-2"
             >
               <option value="4">4 options — A to D</option>
               <option value="5">5 options — A to E</option>
-            </select>
+            </Select>
           </label>
           <p className="mt-1 text-xs text-muted-foreground">
             Match the printed sheet. On a 4-option paper an E read off a sheet is treated as an
@@ -235,14 +236,14 @@ export default function PaperKeyEditor({
             </p>
             <label className="block text-sm text-muted-foreground">
               These answers are for
-              <select name="version" defaultValue="A" className={`ml-2 ${inputCls}`}>
+              <Select name="version" defaultValue="A" className="ml-2">
                 {["A", "B", "C", "D"].map((v) => (
                   <option key={v} value={v}>
                     Copy {v}
                     {existingVersions.includes(v) ? " — already set" : ""}
                   </option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
         </details>

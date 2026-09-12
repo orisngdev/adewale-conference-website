@@ -9,6 +9,7 @@ import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
 import { SUBJECTS, LEVELS } from "@/lib/assessments";
 import { createPlan } from "./actions";
+import { Select } from "@/components/ui/select";
 
 export const metadata = pageMetadata("Learning plans", "Build and assign study plans.");
 export const dynamic = "force-dynamic";
@@ -60,14 +61,14 @@ export default async function SchoolPlans() {
         <Card className="p-5 md:p-6">
           <form action={createPlan} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <input name="title" required placeholder="Plan title" className={`sm:col-span-2 ${inputCls}`} />
-            <select name="subject" defaultValue="" className={inputCls}>
+            <Select name="subject" defaultValue="">
               <option value="">Subject (optional)</option>
               {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select name="level" defaultValue="" className={inputCls}>
+            </Select>
+            <Select name="level" defaultValue="">
               <option value="">Level (optional)</option>
               {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
+            </Select>
             <SubmitButton size="sm" className="lg:w-40" pendingText="Creating…">Create &amp; build</SubmitButton>
           </form>
         </Card>

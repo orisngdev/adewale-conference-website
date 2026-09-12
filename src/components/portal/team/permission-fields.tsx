@@ -18,6 +18,7 @@ import {
   VIEW_ONLY_MODULES,
   matchPreset,
 } from "@/lib/admin-permissions";
+import { Select } from "@/components/ui/select";
 
 const LEVELS_FULL: AccessLevel[] = ["none", "view", "manage"];
 const LEVELS_VIEW_ONLY: AccessLevel[] = ["none", "view"];
@@ -62,17 +63,17 @@ export function TeamPermissionFields({
         <span className="text-xs font-bold uppercase tracking-[0.15em] text-muted-foreground">
           Role preset
         </span>
-        <select
+        <Select
           value={preset}
           onChange={(e) => applyPreset(e.target.value as AdminRolePreset)}
-          className="mt-1 w-full rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary"
+          className="mt-1 w-full"
         >
           {PRESET_ORDER.map((p) => (
             <option key={p} value={p}>
               {PRESET_LABELS[p]}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       <div className="space-y-2">

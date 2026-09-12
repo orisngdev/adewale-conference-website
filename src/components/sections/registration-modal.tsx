@@ -14,9 +14,10 @@ import {
   inputClass,
   ResultDialog,
   SectionHeader,
-  selectClass,
   type SubmitResult,
 } from "./form-modal-parts";
+import { Select } from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 
 const NEW_SCHOOL_VALUE = "__new_school__";
 
@@ -68,7 +69,9 @@ function StudentRepSection({
           />
         </Field>
         <Field label="Gender">
-          <select
+          <Select
+            size="lg"
+            variant="onDark"
             required
             value={formData[`${prefix}Gender` as keyof RegistrationFormData]}
             onChange={(e) =>
@@ -77,21 +80,16 @@ function StudentRepSection({
                 e.target.value,
               )
             }
-            className={selectClass}
           >
-            <option value="" className="bg-[#0A0F1E]">
-              Select gender
-            </option>
-            <option value="Male" className="bg-[#0A0F1E]">
-              Male
-            </option>
-            <option value="Female" className="bg-[#0A0F1E]">
-              Female
-            </option>
-          </select>
+            <option value="">Select gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+          </Select>
         </Field>
         <Field label="Class">
-          <select
+          <Select
+            size="lg"
+            variant="onDark"
             required
             value={formData[`${prefix}Class` as keyof RegistrationFormData]}
             onChange={(e) =>
@@ -100,18 +98,11 @@ function StudentRepSection({
                 e.target.value,
               )
             }
-            className={selectClass}
           >
-            <option value="" className="bg-[#0A0F1E]">
-              Select class
-            </option>
-            <option value="SS 1" className="bg-[#0A0F1E]">
-              SS 1
-            </option>
-            <option value="SS 2" className="bg-[#0A0F1E]">
-              SS 2
-            </option>
-          </select>
+            <option value="">Select class</option>
+            <option value="SS 1">SS 1</option>
+            <option value="SS 2">SS 2</option>
+          </Select>
         </Field>
         <Field label="Guardian Name">
           <input
@@ -297,6 +288,20 @@ export default function RegistrationModal({
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    // The school picker is a combobox rather than a <select>, so the browser
+    // cannot enforce `required` on it — a hidden input is not focusable and is
+    // skipped by constraint validation. Every other field is still native.
+    if (formData.schoolLGA && formData.schoolCategory && !schoolSelection) {
+      setResult({
+        kind: "error",
+        title: "Choose your school",
+        message:
+          "Pick your school from the list, or choose “My school isn't listed here” to enter it yourself.",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setResult(null);
 
@@ -420,70 +425,67 @@ export default function RegistrationModal({
             <SectionHeader title="School Information" />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="School LGA">
-                <select
+                <Select
+                  size="lg"
+                  variant="onDark"
                   required
                   value={formData.schoolLGA}
                   onChange={(e) => handleLGAChange(e.target.value)}
-                  className={selectClass}
                 >
-                  <option value="" className="bg-[#0A0F1E]">
-                    Select LGA
-                  </option>
+                  <option value="">Select LGA</option>
                   {LGA_OPTIONS.map((lga) => (
-                    <option key={lga} value={lga} className="bg-[#0A0F1E]">
+                    <option key={lga} value={lga}>
                       {lga}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
               <Field label="School Category">
-                <select
+                <Select
+                  size="lg"
+                  variant="onDark"
                   required
                   value={formData.schoolCategory}
                   onChange={(e) => handleCategoryChange(e.target.value)}
-                  className={selectClass}
                 >
-                  <option value="" className="bg-[#0A0F1E]">
-                    Select category
-                  </option>
+                  <option value="">Select category</option>
                   {SCHOOL_CATEGORY_OPTIONS.map((category) => (
-                    <option key={category} value={category} className="bg-[#0A0F1E]">
+                    <option key={category} value={category}>
                       {category}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
 
               {showSchoolSelect ? (
                 <div className="sm:col-span-2">
                   <Field label="Select Your School">
-                    <select
-                      required
+                    {/* Hundreds of schools statewide — this one has to be typed
+                        into rather than scrolled. */}
+                    <SearchSelect
+                      variant="onDark"
+                      size="lg"
                       value={schoolSelection}
-                      onChange={(e) => handleSchoolSelection(e.target.value)}
-                      className={selectClass}
+                      onValueChange={handleSchoolSelection}
                       disabled={isLoadingSchools}
-                    >
-                      <option value="" className="bg-[#0A0F1E]">
-                        {isLoadingSchools
+                      aria-label="Select your school"
+                      placeholder={
+                        isLoadingSchools
                           ? "Loading schools..."
                           : schoolOptions.length > 0
                             ? "Choose your school"
-                            : "No registered schools match - pick the option below"}
-                      </option>
-                      {schoolOptions.map((school) => (
-                        <option
-                          key={school.name}
-                          value={school.name}
-                          className="bg-[#0A0F1E]"
-                        >
-                          {school.name}
-                        </option>
-                      ))}
-                      <option value={NEW_SCHOOL_VALUE} className="bg-[#0A0F1E]">
-                        My school isn&apos;t listed here
-                      </option>
-                    </select>
+                            : "No registered schools match - pick the option below"
+                      }
+                      searchPlaceholder="Search your school by name…"
+                      emptyMessage="No school matches that name"
+                      options={[
+                        ...schoolOptions.map((school) => ({
+                          value: school.name,
+                          label: school.name,
+                        })),
+                        { value: NEW_SCHOOL_VALUE, label: "My school isn't listed here" },
+                      ]}
+                    />
                   </Field>
                   {schoolLookupError ? (
                     <p className="mt-3 border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
@@ -561,23 +563,22 @@ export default function RegistrationModal({
             <SectionHeader title="Zonal Finals" />
             <div className="grid grid-cols-1 gap-4">
               <Field label="Select Location For Zonal Finals">
-                <select
+                <Select
+                  size="lg"
+                  variant="onDark"
                   required
                   value={formData.zonalFinalsLocation}
                   onChange={(e) =>
                     handleChange("zonalFinalsLocation", e.target.value)
                   }
-                  className={selectClass}
                 >
-                  <option value="" className="bg-[#0A0F1E]">
-                    Select a location
-                  </option>
+                  <option value="">Select a location</option>
                   {ZONAL_FINALS_OPTIONS.map((location) => (
-                    <option key={location} value={location} className="bg-[#0A0F1E]">
+                    <option key={location} value={location}>
                       {location}
                     </option>
                   ))}
-                </select>
+                </Select>
               </Field>
             </div>
           </div>
@@ -615,22 +616,17 @@ export default function RegistrationModal({
                 />
               </Field>
               <Field label="Principal Gender">
-                <select
+                <Select
+                  size="lg"
+                  variant="onDark"
                   required
                   value={formData.principalGender}
                   onChange={(e) => handleChange("principalGender", e.target.value)}
-                  className={selectClass}
                 >
-                  <option value="" className="bg-[#0A0F1E]">
-                    Select gender
-                  </option>
-                  <option value="Male" className="bg-[#0A0F1E]">
-                    Male
-                  </option>
-                  <option value="Female" className="bg-[#0A0F1E]">
-                    Female
-                  </option>
-                </select>
+                  <option value="">Select gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </Select>
               </Field>
               <Field label="Principal Number">
                 <input
@@ -669,22 +665,17 @@ export default function RegistrationModal({
                 />
               </Field>
               <Field label="Teacher Gender">
-                <select
+                <Select
+                  size="lg"
+                  variant="onDark"
                   required
                   value={formData.teacherGender}
                   onChange={(e) => handleChange("teacherGender", e.target.value)}
-                  className={selectClass}
                 >
-                  <option value="" className="bg-[#0A0F1E]">
-                    Select gender
-                  </option>
-                  <option value="Male" className="bg-[#0A0F1E]">
-                    Male
-                  </option>
-                  <option value="Female" className="bg-[#0A0F1E]">
-                    Female
-                  </option>
-                </select>
+                  <option value="">Select gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </Select>
               </Field>
               <Field label="Teacher Number">
                 <input
@@ -713,24 +704,19 @@ export default function RegistrationModal({
             <SectionHeader title="Past Edition" />
             <div className="grid grid-cols-1 gap-4">
               <Field label="Did Your School Participate In The Last Edition?">
-                <select
+                <Select
+                  size="lg"
+                  variant="onDark"
                   required
                   value={formData.participatedLastEdition}
                   onChange={(e) =>
                     handleChange("participatedLastEdition", e.target.value)
                   }
-                  className={selectClass}
                 >
-                  <option value="" className="bg-[#0A0F1E]">
-                    Select an option
-                  </option>
-                  <option value="Yes" className="bg-[#0A0F1E]">
-                    Yes
-                  </option>
-                  <option value="No" className="bg-[#0A0F1E]">
-                    No
-                  </option>
-                </select>
+                  <option value="">Select an option</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                </Select>
               </Field>
               <Field label="What Did You Like About The Last Edition?">
                 <input

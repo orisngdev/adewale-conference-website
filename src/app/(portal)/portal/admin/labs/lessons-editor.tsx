@@ -13,6 +13,7 @@ import {
   type QuizAssessmentOption,
 } from "@/lib/labs";
 import { addStep, updateStep, deleteStep, moveStep } from "./actions";
+import { Select } from "@/components/ui/select";
 
 const inputCls =
   "rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary w-full";
@@ -134,7 +135,7 @@ function LessonFields({
       {kind === "quiz" && (
         <label className="text-sm block">
           <span className="text-muted-foreground">Linked assessment</span>
-          <select name="assessment_id" defaultValue={initial.assessment_id ?? ""} className={inputCls}>
+          <Select className="w-full" name="assessment_id" defaultValue={initial.assessment_id ?? ""}>
             <option value="">Select a published assessment…</option>
             {assessments.map((a) => (
               <option key={a.id} value={a.id}>
@@ -143,7 +144,7 @@ function LessonFields({
                 {[a.subject, a.level].filter(Boolean).length ? ` · ${[a.subject, a.level].filter(Boolean).join(" ")}` : ""}
               </option>
             ))}
-          </select>
+          </Select>
           {assessments.length === 0 ? (
             <span className="mt-1 block text-xs text-muted-foreground">
               No published assessments yet — create one under Assessments first.

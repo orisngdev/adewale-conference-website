@@ -14,9 +14,6 @@ import { Button } from "../ui/button";
 export const inputClass =
   "w-full bg-white/5 border border-white/10 px-4 py-3 text-white placeholder-white/30 outline-none focus:border-[#E8A020] transition-colors text-sm";
 
-export const selectClass =
-  "w-full bg-white/5 border border-white/10 px-4 py-3 text-white outline-none focus:border-[#E8A020] transition-colors cursor-pointer appearance-none text-sm disabled:cursor-not-allowed disabled:opacity-70";
-
 export const labelClass =
   "block text-[10px] font-bold tracking-widest uppercase text-white/40 mb-2";
 

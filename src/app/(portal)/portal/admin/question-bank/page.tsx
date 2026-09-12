@@ -5,10 +5,10 @@ import {
   FilterBar,
   Pagination,
   clampPage,
-  filterSelectCls,
   pageBounds,
   parsePage,
 } from "@/components/portal/list-controls";
+import { Select } from "@/components/ui/select";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
@@ -88,19 +88,19 @@ export default async function QuestionBank({
         <div>
           <SectionHeading>{total} question{total === 1 ? "" : "s"}</SectionHeading>
           <FilterBar q={sp.q} placeholder="Search prompt or topic…">
-            <select name="mode" defaultValue={sp.mode ?? ""} className={filterSelectCls}>
+            <Select name="mode" defaultValue={sp.mode ?? ""}>
               <option value="">Any pool</option>
               <option value="practice">Practice</option>
               <option value="exam">Exam</option>
-            </select>
-            <select name="subject" defaultValue={sp.subject ?? ""} className={filterSelectCls}>
+            </Select>
+            <Select name="subject" defaultValue={sp.subject ?? ""}>
               <option value="">Any subject</option>
               {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select name="level" defaultValue={sp.level ?? ""} className={filterSelectCls}>
+            </Select>
+            <Select name="level" defaultValue={sp.level ?? ""}>
               <option value="">Any level</option>
               {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
+            </Select>
           </FilterBar>
           {questions.length === 0 ? (
             <p className="serif-display italic text-muted-foreground">No questions match — import some above.</p>

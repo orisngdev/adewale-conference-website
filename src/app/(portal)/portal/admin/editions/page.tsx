@@ -25,6 +25,7 @@ import {
   setEditionStage,
   toggleRegistration,
 } from "./actions";
+import { Select } from "@/components/ui/select";
 
 export const metadata = pageMetadata("Editions", "Run the conference year by year.");
 export const dynamic = "force-dynamic";
@@ -241,11 +242,11 @@ export default async function AdminEditions() {
                           Jump to a stage…
                         </summary>
                         <form action={setEditionStage.bind(null, current.year)} className="flex gap-2 mt-2">
-                          <select name="stage" defaultValue={current.current_stage} className={inputCls}>
+                          <Select name="stage" defaultValue={current.current_stage}>
                             {current.stages.map((s) => (
                               <option key={s} value={s}>{s}</option>
                             ))}
-                          </select>
+                          </Select>
                           <ConfirmSubmitButton
                             size="sm"
                             variant="outline"

@@ -9,10 +9,10 @@ import {
   FilterBar,
   Pagination,
   clampPage,
-  filterSelectCls,
   pageBounds,
   parsePage,
 } from "@/components/portal/list-controls";
+import { Select } from "@/components/ui/select";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
@@ -179,19 +179,19 @@ export default async function AdminChallenges({
             {!canManage ? <ReadOnlyBadge /> : null}
           </div>
           <FilterBar q={q} placeholder="Search by title…">
-            <select name="type" defaultValue={typeFilter} className={filterSelectCls}>
+            <Select name="type" defaultValue={typeFilter}>
               <option value="">All types</option>
               {CHALLENGE_TYPES.map((t) => (
                 <option key={t} value={t}>
                   {CHALLENGE_TYPE_LABEL[t]}
                 </option>
               ))}
-            </select>
-            <select name="published" defaultValue={publishedFilter} className={filterSelectCls}>
+            </Select>
+            <Select name="published" defaultValue={publishedFilter}>
               <option value="">Any status</option>
               <option value="yes">Published</option>
               <option value="no">Draft</option>
-            </select>
+            </Select>
           </FilterBar>
 
           {rows.length === 0 ? (

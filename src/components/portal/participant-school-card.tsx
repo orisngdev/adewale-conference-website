@@ -10,6 +10,7 @@ import {
   sendSchoolBack,
   syncRoster,
 } from "@/app/(portal)/portal/admin/actions";
+import { Select } from "@/components/ui/select";
 
 export interface RosterStudent {
   id: string;
@@ -210,16 +211,15 @@ export function StageSchoolCard({
                     {st.level ? <span className="text-muted-foreground"> · {st.level}</span> : null}
                   </span>
                   <OutcomeBadge outcome={at?.outcome} />
-                  <select
+                  <Select
                     name="outcome"
                     defaultValue={at?.outcome ?? "advanced"}
-                    className={inputCls}
                     aria-label="Outcome"
                   >
                     <option value="advanced">Advanced</option>
                     <option value="eliminated">Not advanced</option>
                     <option value="pending">Pending</option>
-                  </select>
+                  </Select>
                   <input
                     name="score"
                     type="number"

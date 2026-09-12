@@ -15,6 +15,7 @@ import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { SUBJECTS, LEVELS } from "@/lib/assessments";
 import type { Assessment } from "@/supabase/types";
 import { createAssessment, toggleAssessmentPublished } from "./actions";
+import { Select } from "@/components/ui/select";
 
 export const metadata = pageMetadata("Assessments", "Author practice drills and exams.");
 export const dynamic = "force-dynamic";
@@ -55,22 +56,22 @@ export default async function AdminAssessments() {
             <Card className="p-5 md:p-6">
               <form action={createAssessment} className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 <input name="title" required placeholder="Title" className={`sm:col-span-2 ${inputCls}`} />
-                <select name="mode" defaultValue="practice" className={inputCls}>
+                <Select name="mode" defaultValue="practice">
                   <option value="practice">Practice drill</option>
                   <option value="exam">Exam (graded)</option>
-                </select>
-                <select name="subject" defaultValue="" className={inputCls}>
+                </Select>
+                <Select name="subject" defaultValue="">
                   <option value="">Subject…</option>
                   {SUBJECTS.map((s) => (
                     <option key={s} value={s}>{s}</option>
                   ))}
-                </select>
-                <select name="level" defaultValue="" className={inputCls}>
+                </Select>
+                <Select name="level" defaultValue="">
                   <option value="">Level…</option>
                   {LEVELS.map((l) => (
                     <option key={l} value={l}>{l}</option>
                   ))}
-                </select>
+                </Select>
                 <SubmitButton size="sm" pendingText="Creating…" className="sm:col-span-2 lg:col-span-5 lg:w-40">
                   Create
                 </SubmitButton>

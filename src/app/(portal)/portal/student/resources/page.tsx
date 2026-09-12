@@ -17,6 +17,7 @@ import {
   mapResource,
   type ResourceRow,
 } from "@/lib/resources";
+import { Select } from "@/components/ui/select";
 
 export const metadata = pageMetadata("Resources", "Study packs, past questions, and tools.");
 export const dynamic = "force-dynamic";
@@ -88,20 +89,20 @@ export default async function StudentResources({
         <SectionHeading>Filter</SectionHeading>
         <Card className="p-4">
           <form method="get" className="flex flex-wrap items-center gap-2">
-            <select name="subject" defaultValue={sp.subject ?? ""} className={selCls}>
+            <Select name="subject" defaultValue={sp.subject ?? ""}>
               <option value="">Any subject</option>
               {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <select name="level" defaultValue={sp.level ?? ""} className={selCls}>
+            </Select>
+            <Select name="level" defaultValue={sp.level ?? ""}>
               <option value="">Any level</option>
               {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
-            </select>
-            <select name="type" defaultValue={sp.type ?? ""} className={selCls}>
+            </Select>
+            <Select name="type" defaultValue={sp.type ?? ""}>
               <option value="">Any type</option>
               {RESOURCE_TYPES.filter((t) => t.value !== "external-link").map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
-            </select>
+            </Select>
             <Button type="submit" size="sm" variant="outline">Apply</Button>
           </form>
         </Card>

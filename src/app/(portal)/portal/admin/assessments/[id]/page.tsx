@@ -21,6 +21,7 @@ import {
   toggleAssessmentPublished,
   updateAssessmentSettings,
 } from "../actions";
+import { Select } from "@/components/ui/select";
 
 export const dynamic = "force-dynamic";
 
@@ -322,16 +323,12 @@ export default async function AssessmentEditor({
               <div className="flex flex-wrap items-center gap-3">
                 <label className="text-sm text-muted-foreground">
                   Correct option
-                  <select
-                    name="correct"
-                    defaultValue="1"
-                    className="ml-2 rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary"
-                  >
+                  <Select name="correct" defaultValue="1" className="ml-2 w-auto">
                     <option value="1">A</option>
                     <option value="2">B</option>
                     <option value="3">C</option>
                     <option value="4">D</option>
-                  </select>
+                  </Select>
                 </label>
                 <SubmitButton size="sm" pendingText="Adding…">Add question</SubmitButton>
               </div>
