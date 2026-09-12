@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/supabase/server";
 import { requireManage } from "@/supabase/auth";
+import { parseCsvGrid } from "@/lib/csv";
 
 export interface ImportError {
   row: number;
@@ -31,27 +32,6 @@ interface ParsedRow {
   explanation: string | null;
   tags: string[];
   edition_year: number | null;
-}
-
-// Minimal quoted-CSV parser (handles embedded commas/quotes/newlines) — no dep.
-function parseCSV(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = "";
-  let inQ = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQ) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; } else inQ = false;
-      } else field += c;
-    } else if (c === '"') inQ = true;
-    else if (c === ",") { row.push(field); field = ""; }
-    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
-    else if (c !== "\r") field += c;
-  }
-  if (field.length || row.length) { row.push(field); rows.push(row); }
-  return rows.filter((r) => r.some((c) => c.trim() !== ""));
 }
 
 function coerceRow(
@@ -138,7 +118,7 @@ function parsePayload(payload: string, defaultMode: string): { rows: ParsedRow[]
   }
 
   // CSV
-  const grid = parseCSV(trimmed);
+  const grid = parseCsvGrid(trimmed);
   if (grid.length < 2) { errors.push({ row: 0, field: "csv", message: "no data rows" }); return { rows, errors }; }
   const header = grid[0].map((h) => h.trim().toLowerCase());
   for (let i = 1; i < grid.length; i++) {
