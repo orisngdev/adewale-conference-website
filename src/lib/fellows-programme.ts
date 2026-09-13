@@ -10,6 +10,10 @@
  * the recruitment drive should not be publicised until they are real.
  */
 
+/** Closed for 2026. Read by the page *and* by `POST /api/fellows`, so a tab
+ *  left open before the close cannot still submit. */
+export const FELLOWS_APPLICATIONS_OPEN: boolean = false;
+
 /** Examination day. Confirmed. */
 export const FELLOWS_EVENT_DATE = "Wednesday, 23 September 2026";
 export const FELLOWS_EVENT_HOURS = "6:30am – 4:00pm";
