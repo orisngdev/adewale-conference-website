@@ -204,6 +204,11 @@ Accepts sponsorship enquiry data, validates it, and writes a sponsorship record 
 
 Additional documentation lives in:
 
+- [AGENTS.md](/AGENTS.md) — how to work in this repo (`CLAUDE.md` points here)
+- [docs/review-checklist.md](/docs/review-checklist.md) — what to check before
+  declaring a change done
+- [docs/adr/](/docs/adr/) — architectural decisions and their rejected
+  alternatives
 - [docs/codebase-documentation.md](/docs/codebase-documentation.md)
 - [docs/register-school-airtable-prd.md](/docs/register-school-airtable-prd.md)
 
