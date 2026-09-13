@@ -323,11 +323,8 @@ export function percent(total: number, outOf: number): number {
 }
 
 // ── where an exam has got to ────────────────────────────────────────────────
-// Derived from what exists, never read off a label. `paper_exams.status` moves
-// exactly once — to 'published', when a cutoff is committed — so showing it raw
-// reported "draft" on an exam whose key was authored, whose papers were imported
-// and graded, and whose answers had been released to students. A phase computed
-// from facts cannot drift from them.
+// Derived, never stored: `paper_exams.status` moves once, to 'published' when a
+// cutoff is committed, so rendering it raw said "draft" on a fully graded exam.
 
 export type PaperExamPhaseKey =
   | "draft"
@@ -338,14 +335,13 @@ export type PaperExamPhaseKey =
   | "published";
 
 export interface PaperExamFacts {
-  /** Every item of copy A has an answer and a subject. */
   keyComplete: boolean;
-  /** Candidate numbers allocated — or a past sitting, where the students
-   *  already carry the numbers that were on their sheets. */
+  /** Numbers allocated — or a past sitting, where the students already carry
+   *  the numbers that were on their sheets. */
   sheetsReady: boolean;
   hasStagedImport: boolean;
-  hasCommittedImport: boolean;
-  /** A cutoff has been committed, so the schools carry outcomes. */
+  /** At least one paper's score has reached the record — not "import finished". */
+  hasPublishedPapers: boolean;
   published: boolean;
   isBackfill?: boolean;
 }
@@ -353,7 +349,7 @@ export interface PaperExamFacts {
 export interface PaperExamPhase {
   key: PaperExamPhaseKey;
   label: string;
-  /** What has to be true to leave this phase. */
+  /** What has to happen to leave this phase. */
   hint: string;
   tone: "neutral" | "progress" | "done";
 }
@@ -366,11 +362,11 @@ export function paperExamPhase(f: PaperExamFacts): PaperExamPhase {
       hint: "Outcomes are committed and students can see their results.",
       tone: "done",
     };
-  if (f.hasCommittedImport)
+  if (f.hasPublishedPapers)
     return {
       key: "scored",
       label: "Scored",
-      hint: "Every rep has a score. Rank the schools and commit a cutoff to publish.",
+      hint: "Scores are published. Settle any undecided papers, then rank and cut.",
       tone: "progress",
     };
   if (f.hasStagedImport)
