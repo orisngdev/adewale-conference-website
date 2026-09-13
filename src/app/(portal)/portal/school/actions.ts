@@ -261,7 +261,14 @@ export async function registerForEdition(
     p_category: category || null,
     p_reps: reps,
   });
-  if (error) return "Could not register — registration may have closed. Try again.";
+  // ASC01/ASC02 mean the school is already registered for this edition. That is
+  // actionable in a way "try again" is not, so pass the message and hint through.
+  if (error) {
+    if (error.code === "ASC01" || error.code === "ASC02") {
+      return [error.message, error.hint].filter(Boolean).join(" ");
+    }
+    return "Could not register — registration may have closed. Try again.";
+  }
 
   // Auto-provision each representative into a student login + access code, so the
   // coordinator sees the codes to hand out immediately — no separate step. Best-effort:
