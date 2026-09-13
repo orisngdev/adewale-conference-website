@@ -4,6 +4,7 @@ import FellowsApplyButton from "@/components/sections/fellows-apply-button";
 import { ZONAL_CENTRES_2026 } from "@/lib/forms";
 import {
   FELLOWS_APPLICATIONS_CLOSE,
+  FELLOWS_APPLICATIONS_OPEN,
   FELLOWS_CENTRE_COUNT,
   FELLOWS_EVENT_DATE,
   FELLOWS_EVENT_HOURS,
@@ -15,6 +16,22 @@ export const metadata = pageMetadata(
   "Adéwálé Fellows Programme",
   "Paid one-day Fellowships for graduates and serving corps members in Ogun State — administer the ASC 2026 Zonal Finals across 10 centres on Wednesday, 23 September 2026.",
 );
+
+const THE_DAY = `the 2026 Zonal Finals across ${FELLOWS_CENTRE_COUNT} centres in Ogun State on ${FELLOWS_EVENT_DATE} — invigilating, marking on site, and getting the results out the same day`;
+
+const HERO_SUBTITLE = FELLOWS_APPLICATIONS_OPEN
+  ? `We are recruiting ${
+      FELLOWS_HEADCOUNT ? `about ${FELLOWS_HEADCOUNT} ` : ""
+    }graduates or serving corps members to administer ${THE_DAY}.`
+  : `Applications for 2026 are closed. ${
+      FELLOWS_HEADCOUNT ? `About ${FELLOWS_HEADCOUNT} Fellows` : "Fellows"
+    } will administer ${THE_DAY}.`;
+
+const CLOSING_BLURB = FELLOWS_APPLICATIONS_OPEN
+  ? FELLOWS_APPLICATIONS_CLOSE
+    ? `Applications close on ${FELLOWS_APPLICATIONS_CLOSE}. It takes about four minutes.`
+    : "Applications close once every centre is staffed, so send yours early. It takes about four minutes."
+  : "Thank you to everyone who applied. Shortlisted Fellows are contacted on WhatsApp with their centre, their role for the day and the training times.";
 
 // Day-of facts. The programme constants live in lib/fellows-programme.ts because
 // the application modal and both emails quote the same dates — one module means
@@ -158,9 +175,7 @@ export default function FellowsPage() {
       <PageHeader
         kicker="Paid · Ogun State · One day"
         title="Adéwálé Fellows Programme"
-        subtitle={`We are recruiting ${
-          FELLOWS_HEADCOUNT ? `about ${FELLOWS_HEADCOUNT} ` : ""
-        }graduates or serving corps members to administer the 2026 Zonal Finals across ${FELLOWS_CENTRE_COUNT} centres in Ogun State on ${FELLOWS_EVENT_DATE} — invigilating, marking on site, and getting the results out the same day.`}
+        subtitle={HERO_SUBTITLE}
       />
 
       {/* Quick facts — the four things an applicant needs before reading further. */}
@@ -193,9 +208,10 @@ export default function FellowsPage() {
             centre completes its round in a single day. Every centre is staffed by
             a team of Fellows working alongside a Centre Lead, so the invigilating,
             marking and score-checking are shared out — you take one role, with
-            people beside you doing the rest. If you are a graduate or serving
-            corps member in Ogun State who can reach one of the centres, we would
-            love to have you on a centre team.
+            people beside you doing the rest.{" "}
+            {FELLOWS_APPLICATIONS_OPEN
+              ? "If you are a graduate or serving corps member in Ogun State who can reach one of the centres, we would love to have you on a centre team."
+              : "Applications for 2026 have closed and the centre teams are being confirmed now — shortlisted applicants are contacted on WhatsApp."}
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             <FellowsApplyButton />
@@ -409,7 +425,7 @@ export default function FellowsPage() {
       <section className="px-6 md:px-12 py-16 md:py-24">
         <div className="max-w-3xl mx-auto">
           <h2 className="font-bebas text-3xl md:text-4xl leading-tight text-foreground mb-10">
-            Before You Apply
+            {FELLOWS_APPLICATIONS_OPEN ? "Before You Apply" : "Common Questions"}
           </h2>
           <div className="grid gap-px bg-[rgba(10,15,30,0.1)] border border-[rgba(10,15,30,0.1)]">
             {FAQS.map((faq) => (
@@ -428,15 +444,17 @@ export default function FellowsPage() {
       <section className="bg-[#0A0F1E] px-6 md:px-12 py-16 md:py-24">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="font-bebas text-4xl md:text-5xl lg:text-6xl leading-[0.95] text-white">
-            Join A Centre Team.<br />Get Paid For It.
+            {FELLOWS_APPLICATIONS_OPEN ? (
+              <>Join A Centre Team.<br />Get Paid For It.</>
+            ) : (
+              <>Applications<br />Are Closed.</>
+            )}
           </h2>
           <p className="serif-display italic text-base md:text-lg text-[rgba(250,247,240,0.7)] mt-6 leading-relaxed">
-            {FELLOWS_APPLICATIONS_CLOSE
-              ? `Applications close on ${FELLOWS_APPLICATIONS_CLOSE}. It takes about four minutes.`
-              : "Applications close once every centre is staffed, so send yours early. It takes about four minutes."}
+            {CLOSING_BLURB}
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
-            <FellowsApplyButton />
+            {FELLOWS_APPLICATIONS_OPEN ? <FellowsApplyButton /> : null}
             <a
               href="mailto:hello@asc2026.ng"
               className="inline-block border border-[rgba(250,247,240,0.25)] text-[#F0EAD8] text-xs font-bold tracking-[0.2em] uppercase px-8 py-4 hover:border-[#E8A020] hover:text-primary transition-colors"

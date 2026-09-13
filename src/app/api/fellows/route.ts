@@ -22,7 +22,7 @@ import {
   getNotifyRecipients,
   sendEmailSafely,
 } from "@/lib/email";
-import { FELLOWS_EVENT_DATE } from "@/lib/fellows-programme";
+import { FELLOWS_APPLICATIONS_OPEN, FELLOWS_EVENT_DATE } from "@/lib/fellows-programme";
 import { rateLimit, requestIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -180,6 +180,15 @@ function sanitizeFellowPayload(payload: unknown): FellowFormData {
 
 export async function POST(request: Request) {
   try {
+    // The page no longer renders the form, but a tab opened before the close
+    // still holds a working copy of it.
+    if (!FELLOWS_APPLICATIONS_OPEN) {
+      return NextResponse.json(
+        { error: "Applications for the 2026 Fellows Programme are closed." },
+        { status: 403 },
+      );
+    }
+
     if (!rateLimit(`fellows:${requestIp(request.headers)}`, { limit: 5, windowMs: 60_000 })) {
       return NextResponse.json(
         { error: "Too many applications from this device. Please wait a minute and try again." },

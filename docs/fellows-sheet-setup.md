@@ -134,6 +134,14 @@ FELLOWS_SHEET_SECRET=<the same string you set as the SECRET script property>
 If either is missing, `/api/fellows` returns 503 and tells the applicant
 applications are not open — it never accepts an application it cannot store.
 
+## Opening and closing a round
+
+`FELLOWS_APPLICATIONS_OPEN` in `src/lib/fellows-programme.ts` is the switch.
+Flip it and redeploy: the page swaps every "Apply" CTA for a closed notice, and
+`/api/fellows` rejects with 403 so a tab opened before the close cannot still
+submit. Leave the webhook configured either way — the sheet is the record of
+who applied.
+
 ## Editing the script later
 
 **Editing the code does not change what the live URL runs.** After any edit:
