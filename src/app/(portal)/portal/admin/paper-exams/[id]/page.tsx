@@ -6,13 +6,19 @@ import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import SettingsTabs from "@/components/portal/settings-tabs";
 import PaperExamImport from "@/components/portal/paper-exam-import";
 import PaperKeyEditor from "@/components/portal/paper-key-editor";
+import { PaperExamPhaseBadge } from "@/components/portal/paper-exam-phase-badge";
 import { Card, PortalBody, PortalHeader, SectionHeading } from "@/components/portal/ui";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
 import ActionForm from "@/components/portal/action-form";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
-import { SCHOOL_SCORE_RULE_LABELS, percent, type SchoolScoreRule } from "@/lib/paper-exam";
+import {
+  SCHOOL_SCORE_RULE_LABELS,
+  paperExamPhase,
+  percent,
+  type SchoolScoreRule,
+} from "@/lib/paper-exam";
 import { QUALIFICATION_REASONS, type PaperExam, type PaperExamImport as ImportRow } from "@/supabase/types";
 import {
   allocateNumbers,
@@ -86,7 +92,7 @@ export default async function PaperExamDetail({
         )
         .eq("exam_id", id)
         .order("created_at", { ascending: false }),
-      supabase.from("paper_exam_papers").select("status").eq("exam_id", id),
+      supabase.from("paper_exam_papers").select("status, published_at").eq("exam_id", id),
     ]);
 
   type ItemRow = { version: string; position: number; subject: string; correct: string };
@@ -98,7 +104,7 @@ export default async function PaperExamDetail({
     class_name: string | null;
     exported_at: string | null;
   }[];
-  const paperStatuses = (papers ?? []) as { status: string }[];
+  const paperStatuses = (papers ?? []) as { status: string; published_at: string | null }[];
 
   // Where this exam has got to. The tabs alone do not say what comes next, and
   // the order is not guessable — a key has to exist before results can be read
@@ -106,11 +112,21 @@ export default async function PaperExamDetail({
   const keyDone = keyRows.filter((r) => r.version === "A").length === exam.item_count;
   const sheetsDone = exam.is_backfill || candidateRows.length > 0;
   const stagedImport = importRows.find((i) => i.status === "staged");
-  const importDone = importRows.some((i) => i.status === "committed");
+  const publishedPapers = paperStatuses.filter((p) => p.published_at != null).length;
+  const importDone = publishedPapers > 0;
   const undecidedNow = paperStatuses.filter((p) =>
     ["unmatched", "ambiguous", "duplicate"].includes(p.status),
   ).length;
   const publishedDone = exam.status === "published";
+
+  const phase = paperExamPhase({
+    keyComplete: keyDone,
+    sheetsReady: sheetsDone,
+    hasStagedImport: Boolean(stagedImport),
+    hasPublishedPapers: importDone,
+    published: publishedDone,
+    isBackfill: exam.is_backfill,
+  });
 
   const steps = [
     {
@@ -173,7 +189,7 @@ export default async function PaperExamDetail({
         title={exam.title}
         subtitle={`${exam.edition_year} · ${exam.stage} · ${exam.item_count} items · A-${
           "ABCDE"[Number(exam.option_count ?? 4) - 1]
-        } · ${exam.status}`}
+        } · ${phase.label}`}
       />
       <PortalBody>
         {!canManage ? (
@@ -182,22 +198,25 @@ export default async function PaperExamDetail({
           </div>
         ) : null}
 
-        {nextStep ? (
-          <p className="text-sm text-muted-foreground">
-            <span className="text-foreground">Next:</span> {nextStep.todo}.{" "}
-            <Link
-              href={`?tab=${nextStep.slug}`}
-              scroll={false}
-              className="text-primary hover:underline"
-            >
-              Go to {nextStep.name} →
-            </Link>
-          </p>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Every step is done — results are published to students and coordinators.
-          </p>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <PaperExamPhaseBadge phase={phase} />
+          {nextStep ? (
+            <p className="text-sm text-muted-foreground">
+              <span className="text-foreground">Next:</span> {nextStep.todo}.{" "}
+              <Link
+                href={`?tab=${nextStep.slug}`}
+                scroll={false}
+                className="text-primary hover:underline"
+              >
+                Go to {nextStep.name} →
+              </Link>
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Every step is done — results are published to students and coordinators.
+            </p>
+          )}
+        </div>
 
         <SettingsTabs
           paramKey="tab"
@@ -366,26 +385,27 @@ export default async function PaperExamDetail({
                     </div>
                   ) : null}
 
-                  {canManage && exam.status === "draft" ? (
+                  {canManage && !publishedDone && !importDone ? (
                     <div>
-                      <SectionHeading>Delete this draft</SectionHeading>
+                      <SectionHeading>Delete this exam</SectionHeading>
                       <Card className="p-5 md:p-6 space-y-3">
                         <p className="text-xs text-muted-foreground">
                           A title can only be used once per edition and stage, so an exam set up
                           wrongly has to be deleted before it can be created again the same way.
                           This removes the answer key, any allocated candidate numbers and any
-                          staged imports. It is only offered while the exam is a draft and has
-                          published nothing.
+                          staged imports. It disappears once an import is committed — from then on
+                          the scores are on students&apos; records and deleting would leave them
+                          behind.
                         </p>
                         <ActionForm action={deletePaperExam.bind(null, id)}>
                           <ConfirmSubmitButton
                             variant="outline"
                             destructive
-                            title="Delete this draft?"
+                            title="Delete this exam?"
                             description={`“${exam.title}” and everything staged under it will be removed. Scores already published to students are never touched — an exam that has published any is refused instead.`}
                             confirmLabel="Delete"
                           >
-                            Delete draft
+                            Delete this exam
                           </ConfirmSubmitButton>
                         </ActionForm>
                       </Card>

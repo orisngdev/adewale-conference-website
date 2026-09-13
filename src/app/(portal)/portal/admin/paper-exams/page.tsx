@@ -7,6 +7,8 @@ import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
 import { COMPETITION_STAGES, type PaperExam } from "@/supabase/types";
+import { KEY_VERSIONS, paperExamPhase } from "@/lib/paper-exam";
+import { PaperExamPhaseBadge } from "@/components/portal/paper-exam-phase-badge";
 import { Trash2 } from "lucide-react";
 import ActionForm from "@/components/portal/action-form";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
@@ -19,19 +21,33 @@ export const metadata = pageMetadata(
 );
 export const dynamic = "force-dynamic";
 
-type Row = PaperExam & { paper_exam_papers: { count: number }[] };
+type Row = PaperExam & {
+  paper_exam_papers: { count: number }[];
+  published_papers: { count: number }[];
+  paper_exam_items: { count: number }[];
+  paper_exam_candidates: { count: number }[];
+  paper_exam_imports: { status: string }[];
+};
 
 export default async function AdminPaperExams() {
   await requireModuleView("participants");
   const canManage = await canManageModule("participants");
   const supabase = await createClient();
 
-  const [{ data: exams }, { data: editions }] = await Promise.all([
+  const [{ data: exams, error: examsError }, { data: editions }] = await Promise.all([
     supabase
       .from("paper_exams")
+      // The embedded counts are what paperExamPhase derives the badge from.
       .select(
-        "id, title, edition_year, stage, item_count, option_count, subjects, status, review_released, paper_exam_papers(count)",
+        "id, title, edition_year, stage, item_count, option_count, is_backfill, subjects, status, review_released," +
+          " paper_exam_papers(count), paper_exam_items(count), paper_exam_candidates(count), paper_exam_imports(status)," +
+          " published_papers:paper_exam_papers(count)",
       )
+      // Copy A only, so "the key is complete" means the same here as on the
+      // exam page — a count across every copy would call an exam ready on the
+      // strength of a second version.
+      .eq("paper_exam_items.version", KEY_VERSIONS[0])
+      .not("published_papers.published_at", "is", null)
       .order("edition_year", { ascending: false })
       .order("created_at", { ascending: false }),
     supabase.from("editions").select("year").order("year", { ascending: false }).limit(1),
@@ -64,7 +80,13 @@ export default async function AdminPaperExams() {
 
         <div>
           <SectionHeading>All paper exams ({rows.length})</SectionHeading>
-          {rows.length === 0 ? (
+          {examsError ? (
+            <Card className="border-destructive/30 bg-destructive/5 p-5">
+              <p className="text-sm text-foreground">
+                The list could not be read: {examsError.message}
+              </p>
+            </Card>
+          ) : rows.length === 0 ? (
             <EmptyState title="No paper exams yet">
               <span className="text-sm text-muted-foreground">
                 {canManage
@@ -74,7 +96,18 @@ export default async function AdminPaperExams() {
             </EmptyState>
           ) : (
             <Card className="divide-y divide-foreground/5">
-              {rows.map((e) => (
+              {rows.map((e) => {
+                const imports = e.paper_exam_imports ?? [];
+                const phase = paperExamPhase({
+                  keyComplete: (e.paper_exam_items?.[0]?.count ?? 0) === e.item_count,
+                  sheetsReady:
+                    e.is_backfill || (e.paper_exam_candidates?.[0]?.count ?? 0) > 0,
+                  hasStagedImport: imports.some((i) => i.status === "staged"),
+                  hasPublishedPapers: (e.published_papers?.[0]?.count ?? 0) > 0,
+                  published: e.status === "published",
+                  isBackfill: e.is_backfill,
+                });
+                return (
                 <div
                   key={e.id}
                   className="flex items-center justify-between gap-3 p-4 transition-colors hover:bg-primary/5"
@@ -101,27 +134,16 @@ export default async function AdminPaperExams() {
                         Review released
                       </span>
                     ) : null}
-                    <span
-                      className={`rounded-full px-2 py-0.5 ${
-                        e.status === "draft"
-                          ? "bg-foreground/5 text-muted-foreground"
-                          : e.status === "published"
-                            ? "bg-primary/10 text-primary"
-                            : "bg-amber-500/10 text-amber-600 dark:text-amber-500"
-                      }`}
-                    >
-                      {e.status}
-                    </span>
-                    {/* Only a draft, matching what deletePaperExam will allow —
-                        offering it on anything else would be a button that only
-                        ever explains why it did nothing. */}
-                    {canManage && e.status === "draft" ? (
+                    <PaperExamPhaseBadge phase={phase} />
+                    {/* Matches what deletePaperExam allows, so the button is
+                        never one that only explains why it did nothing. */}
+                    {canManage && phase.key !== "published" && !imports.some((i) => i.status === "committed") ? (
                       <ActionForm action={deletePaperExam.bind(null, e.id)}>
                         <ConfirmSubmitButton
                           size="sm"
                           variant="ghost"
                           destructive
-                          title="Delete this draft?"
+                          title="Delete this exam?"
                           description={`“${e.title}” and everything staged under it will be removed, including its answer key and any allocated candidate numbers. Published scores are never touched.`}
                           confirmLabel="Delete"
                           aria-label={`Delete ${e.title}`}
@@ -133,11 +155,17 @@ export default async function AdminPaperExams() {
                     ) : null}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </Card>
           )}
         </div>
 
+        <p className="text-xs text-muted-foreground">
+          An exam moves Draft → Key set → Ready → Grading → Scored → Published on its own, from
+          what has actually been done to it — there is nothing to switch on. “Published” means a
+          cutoff has been committed. Releasing the answers is separate, and shown separately.
+        </p>
         <p className="text-xs text-muted-foreground">
           Stages available on an edition: {COMPETITION_STAGES.join(" · ")}
         </p>

@@ -288,13 +288,13 @@ export async function setBackfill(
   };
 }
 
-/** Delete a draft outright, so it can be created again with the same title —
+/** Delete an exam outright, so it can be created again with the same title —
  *  `unique (edition_year, stage, title)` otherwise blocks a second attempt.
  *
- *  Only a draft, and only one that has published nothing: a committed import has
- *  already written scores to student_stage_results, and those rows do not belong
- *  to this table and would not come back. Items, candidates, staged imports and
- *  staged papers go with it by cascade. */
+ *  Only one that has published nothing: a committed import has already written
+ *  scores to student_stage_results, and a committed cutoff has written outcomes
+ *  to the schools; neither belongs to this table and neither would come back.
+ *  Items, candidates, staged imports and staged papers go with it by cascade. */
 export async function deletePaperExam(
   examId: string,
   _prev: ActionResult | null,
@@ -315,10 +315,11 @@ export async function deletePaperExam(
     return { ok: false, error: "That paper exam no longer exists, or this account cannot read it." };
   }
 
-  if (exam.status !== "draft") {
+  if (exam.status === "published") {
     return {
       ok: false,
-      error: `Only a draft can be deleted, and this exam is “${exam.status}”. Discard its imports first if it has not published anything.`,
+      error:
+        "This exam's cutoff has been committed, so its schools and reps carry the outcomes it decided. Deleting it would leave those behind. Nothing was deleted.",
     };
   }
 
@@ -986,6 +987,20 @@ export async function discardImport(
   if (!imp) return { ok: false, error: "That import no longer exists." };
   if (imp.status === "committed") {
     return { ok: false, error: "This import is already published — it is history now." };
+  }
+  // A partly-published import is still 'staged', so status alone no longer says
+  // whether discarding would retract scores students can see.
+  const { count, error: countError } = await supabase
+    .from("paper_exam_papers")
+    .select("id", { count: "exact", head: true })
+    .eq("import_id", importId)
+    .not("published_at", "is", null);
+  if (countError) return { ok: false, error: describe(countError, "check this import") };
+  if (count) {
+    return {
+      ok: false,
+      error: `${count} paper${count === 1 ? " from this import has" : "s from this import have"} already been published to students. Discarding would leave those scores behind with nothing explaining them.`,
+    };
   }
   const editable = await loadEditableExam(supabase, imp.exam_id as string);
   if (!editable.ok) return notEditable(editable.reason);
