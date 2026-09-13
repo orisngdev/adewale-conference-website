@@ -20,9 +20,6 @@ import { Select } from "@/components/ui/select";
 export const metadata = pageMetadata("Resources", "Study packs and guides for your students.");
 export const dynamic = "force-dynamic";
 
-const selCls =
-  "rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary";
-
 // The same library students see (now managed in-portal by the conference team),
 // so educators know exactly what their students are working with.
 export default async function SchoolResources({

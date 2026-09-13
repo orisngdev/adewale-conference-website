@@ -23,9 +23,6 @@ export default function BulkImport({ assessmentId }: { assessmentId?: string }) 
     if (f) setPayload(await f.text());
   }
 
-  const inputCls =
-    "rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary";
-
   return (
     <Card className="p-5 md:p-6 space-y-3">
       <form action={action} className="space-y-3">

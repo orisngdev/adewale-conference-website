@@ -16,8 +16,6 @@ import { Select } from "@/components/ui/select";
 
 const initial: KeySaveState = { stage: "idle" };
 
-const inputCls =
-  "rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
 const areaBase =
   "w-full rounded-md border bg-card px-3 py-2 font-mono text-xs outline-none transition-colors";
 const areaOk = "border-foreground/15 focus:border-primary";

@@ -322,6 +322,90 @@ export function percent(total: number, outOf: number): number {
   return Math.round((total / outOf) * 1000) / 10;
 }
 
+// ── where an exam has got to ────────────────────────────────────────────────
+// Derived from what exists, never read off a label. `paper_exams.status` moves
+// exactly once — to 'published', when a cutoff is committed — so showing it raw
+// reported "draft" on an exam whose key was authored, whose papers were imported
+// and graded, and whose answers had been released to students. A phase computed
+// from facts cannot drift from them.
+
+export type PaperExamPhaseKey =
+  | "draft"
+  | "key"
+  | "ready"
+  | "grading"
+  | "scored"
+  | "published";
+
+export interface PaperExamFacts {
+  /** Every item of copy A has an answer and a subject. */
+  keyComplete: boolean;
+  /** Candidate numbers allocated — or a past sitting, where the students
+   *  already carry the numbers that were on their sheets. */
+  sheetsReady: boolean;
+  hasStagedImport: boolean;
+  hasCommittedImport: boolean;
+  /** A cutoff has been committed, so the schools carry outcomes. */
+  published: boolean;
+  isBackfill?: boolean;
+}
+
+export interface PaperExamPhase {
+  key: PaperExamPhaseKey;
+  label: string;
+  /** What has to be true to leave this phase. */
+  hint: string;
+  tone: "neutral" | "progress" | "done";
+}
+
+export function paperExamPhase(f: PaperExamFacts): PaperExamPhase {
+  if (f.published)
+    return {
+      key: "published",
+      label: "Published",
+      hint: "Outcomes are committed and students can see their results.",
+      tone: "done",
+    };
+  if (f.hasCommittedImport)
+    return {
+      key: "scored",
+      label: "Scored",
+      hint: "Every rep has a score. Rank the schools and commit a cutoff to publish.",
+      tone: "progress",
+    };
+  if (f.hasStagedImport)
+    return {
+      key: "grading",
+      label: "Grading",
+      hint: "Papers are staged. Resolve the ones needing a decision, then commit them.",
+      tone: "progress",
+    };
+  if (f.keyComplete && f.sheetsReady)
+    return {
+      key: "ready",
+      label: f.isBackfill ? "Ready to import" : "Ready to sit",
+      hint: f.isBackfill
+        ? "Import the capture file from the sitting."
+        : "Print the sheets, sit the paper, then import the capture file.",
+      tone: "progress",
+    };
+  if (f.keyComplete)
+    return {
+      key: "key",
+      label: "Key set",
+      hint: f.isBackfill
+        ? "The students already carry their candidate numbers."
+        : "Allocate candidate numbers and download the roster.",
+      tone: "progress",
+    };
+  return {
+    key: "draft",
+    label: "Draft",
+    hint: "Set the answer key and each item's subject.",
+    tone: "neutral",
+  };
+}
+
 // ── school aggregation ──────────────────────────────────────────────────────
 
 export const SCHOOL_SCORE_RULES = ["sum_all", "sum_top_n", "mean_present", "best"] as const;

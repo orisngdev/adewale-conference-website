@@ -4,8 +4,6 @@ import { useState } from "react";
 import { RESOURCE_AUDIENCE_OPTIONS } from "@/lib/resources";
 import { Select } from "@/components/ui/select";
 
-const cls =
-  "w-full rounded-md border border-foreground/15 bg-card px-3 py-2 text-sm outline-none focus:border-primary";
 const labelCls = "text-xs font-bold uppercase tracking-wide text-muted-foreground";
 
 // Audience + Subject + Level for the admin resource form. Subject/Level are
