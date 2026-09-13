@@ -71,10 +71,3 @@ export const resultsBySchoolQuery = defineQuery(`
   } | order(year desc, category asc)
 `);
 
-// Results for any of several schools (a coordinator/student's own schools).
-export const resultsBySchoolsQuery = defineQuery(`
-  *[_type == "result" && schoolName in $schools] {
-    _id, category, position, schoolName, studentNames, zone, score,
-    "year": edition->year, "theme": edition->theme
-  } | order(year desc, category asc)
-`);
