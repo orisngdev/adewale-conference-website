@@ -3,7 +3,12 @@
 // nearest candidates, so the operator has something to choose from.
 
 import { normalizeSchoolName } from "@/lib/school-identity";
+import { normalizePersonName, personNameKey } from "@/lib/person-identity";
 import type { RawPaper } from "@/lib/zipgrade";
+
+// Moved to person-identity.ts once provisioning needed them too; re-exported
+// for callers that already reach for them here.
+export { normalizePersonName, personNameKey };
 
 export type MatchMethod = "external_id" | "exam_no" | "name_class" | "manual";
 export type MatchConfidence = "exact" | "probable" | "ambiguous" | "none";
@@ -37,24 +42,6 @@ export interface MatchResult {
    *  bubbled number is the identity — but it must never be a silent one. */
   nameMismatch?: boolean;
   suggestions: Suggestion[];
-}
-
-/** Diacritics folded, case and punctuation dropped, whitespace collapsed. A
- *  third normalizer deliberately: normalizeSchoolName is index-locked to a SQL
- *  function and normalizeSearchText keeps spaces for `ilike`. */
-export function normalizePersonName(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-/** Order-insensitive, so "BRIGHT, ADA" and "Ada Bright" agree. */
-export function personNameKey(value: string): string {
-  return normalizePersonName(value).split(" ").filter(Boolean).sort().join(" ");
 }
 
 function paperName(paper: Pick<RawPaper, "firstName" | "lastName">): string {
