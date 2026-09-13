@@ -5,7 +5,7 @@
 -- the partial unique index on (school_id, lower(name)) — is walked past by any
 -- change of spelling or word order, so a near-miss INSERTs beside the student
 -- instead of resolving to them. Four 2026 schools drifted past three that way;
--- the rows were cleaned up in scripts/cleanup-2026-roster-duplicates.ts.
+-- the rows were retired by a one-off repair before this cap went on.
 --
 -- Name matching itself lives in src/lib/person-identity.ts — nothing indexes on
 -- a normalized person name, so there is no SQL copy to hold in lockstep.
