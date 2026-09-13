@@ -5,12 +5,15 @@ import type {
   PreviewGroup,
   PreviewMatch,
   PreviewParticipant,
+  PreviewRepResult,
   PreviewStudent,
   PreviewView,
   QualificationFilter,
 } from "@/components/portal/participants-preview-types";
 import { parsePage } from "@/components/portal/list-controls";
+import { chunk } from "@/lib/batch";
 import { pageMetadata } from "@/lib/seo";
+import { paperLinksForStudents } from "@/lib/paper-results";
 import { ZONAL_FINALS_OPTIONS } from "@/lib/forms";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
@@ -19,6 +22,7 @@ import {
   type IndividualAward,
   type Rep,
   type StageResult,
+  type StudentStageResult,
   type TournamentGroup,
   type TournamentGroupEntry,
   type TournamentMatch,
@@ -244,6 +248,33 @@ export default async function AdminParticipants({
     studentsBySchool.set(key, list);
   }
   const students = (studentRows ?? []) as RosterStudentRow[];
+
+  // Each rep's own score at each stage — what the paper exam import writes.
+  const studentIds = students.map((s) => s.id);
+  const repResultsById: Record<string, PreviewRepResult[]> = {};
+  if (studentIds.length) {
+    const [pages, paperLinks] = await Promise.all([
+      // Chunked so neither the URL nor the row cap truncates an edition's roster.
+      Promise.all(
+        chunk(studentIds, 100).map((batch) =>
+          supabase
+            .from("student_stage_results")
+            .select("id, student_id, stage, edition_year, outcome, score, score_max, note, breakdown")
+            .in("student_id", batch),
+        ),
+      ),
+      paperLinksForStudents(supabase, studentIds),
+    ]);
+    for (const r of pages.flatMap((p) => (p.data ?? []) as StudentStageResult[])) {
+      const link = paperLinks.get(r.student_id)?.get(r.stage);
+      (repResultsById[r.student_id] ??= []).push({
+        ...r,
+        detailHref: link?.href ?? null,
+        subjectOrder: link?.subjects ?? null,
+      });
+    }
+  }
+
   const schoolCertsByReg: Record<string, { id: string; type: string | null }[]> = {};
   const studentCertsById: Record<string, { id: string; type: string | null }[]> = {};
   for (const c of (certRows ?? []) as CertRow[]) {
@@ -303,6 +334,9 @@ export default async function AdminParticipants({
       schoolCerts: schoolCertsByReg[registration.id] ?? [],
       studentCertsById: Object.fromEntries(
         rosterOf(registration).map((student) => [student.id, studentCertsById[student.id] ?? []]),
+      ),
+      repResultsById: Object.fromEntries(
+        rosterOf(registration).map((student) => [student.id, repResultsById[student.id] ?? []]),
       ),
     };
   });
