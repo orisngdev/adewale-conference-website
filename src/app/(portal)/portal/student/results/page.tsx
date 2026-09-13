@@ -1,14 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Card, EmptyState, SectionHeading } from "@/components/portal/ui";
-import { PortalResults } from "@/components/portal/portal-results";
+import { StudentCompetitionResults } from "@/components/portal/student-competition-results";
+import {
+  SchoolCompetitionResults,
+  type SchoolCompetitionRow,
+} from "@/components/portal/school-competition-results";
+import { type StageResultRow } from "@/components/portal/stage-results";
+import { PAPER_BASE, paperLinksForStudents, withPaperLinks } from "@/lib/paper-results";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
-import { sanityFetch } from "@/sanity/lib/live";
-import { resultsBySchoolsQuery } from "@/sanity/lib/queries";
-import type { ResultRow } from "@/sanity/types";
+import type { Edition } from "@/supabase/types";
 
 export const metadata = pageMetadata("Results", "Your results.");
 export const dynamic = "force-dynamic";
@@ -19,41 +23,52 @@ export default async function StudentResults() {
   const user = await getSessionUser();
   if (!user) redirect("/portal/login");
 
-  // Independent — fetch concurrently. Only the Sanity results query below depends
-  // on the derived school names, so it stays sequential after these.
-  const [{ data: profile }, { data: studentRecord }, { data: regData }, { data: attemptData }] =
-    await Promise.all([
-      supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-      supabase.from("students").select("schools(name)").eq("auth_user_id", user.id).maybeSingle(),
-      supabase.from("registrations").select("schools(name)").eq("owner_id", user.id),
-      supabase
-        .from("assessment_attempts")
-        .select("id, score, total, mode, created_at, assessments(title)")
-        .eq("student_user_id", user.id)
-        .eq("status", "submitted")
-        .order("created_at", { ascending: false }),
-    ]);
-  const studentSchool = (
-    studentRecord?.schools as unknown as { name: string | null } | null
-  )?.name;
-  const schoolNames = [
-    ...new Set(
-      [
-        ...((regData ?? []) as unknown as {
-          schools: { name: string | null } | null;
-        }[]).map((r) => r.schools?.name),
-        studentSchool,
-      ].filter(Boolean) as string[],
-    ),
-  ];
+  const [
+    { data: studentRecord },
+    { data: attemptData },
+    { data: editionData },
+    { data: schoolResultData },
+  ] = await Promise.all([
+    supabase
+      .from("students")
+      .select("id, edition_year, schools(name)")
+      .eq("auth_user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("assessment_attempts")
+      .select("id, score, total, mode, created_at, assessments(title)")
+      .eq("student_user_id", user.id)
+      .eq("status", "submitted")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("editions")
+      .select("year, title, registration_open, stages, current_stage")
+      .order("year", { ascending: false }),
+    // The school's own competition record. An RPC because a code-login student
+    // is not a school member, so the registration tables are closed to them.
+    supabase.rpc("get_my_school_results"),
+  ]);
 
-  const { data: resultData } = schoolNames.length
-    ? await sanityFetch({
-        query: resultsBySchoolsQuery,
-        params: { schools: schoolNames },
-      })
-    : { data: [] };
-  const results = (resultData ?? []) as ResultRow[];
+  // The competition record: the qualifying paper's score, its subject breakdown
+  // and the link to the item-by-item review.
+  const student = studentRecord as unknown as { id: string; edition_year: number | null } | null;
+  const editions = (editionData ?? []) as Edition[];
+  const studentEdition = editions.find((e) => e.year === student?.edition_year) ?? editions[0];
+  let stageResults: StageResultRow[] = [];
+  if (student) {
+    const [{ data: ssr }, links] = await Promise.all([
+      supabase
+        .from("student_stage_results")
+        .select("id, student_id, stage, edition_year, outcome, score, score_max, note, breakdown")
+        .eq("student_id", student.id),
+      paperLinksForStudents(supabase, [student.id], PAPER_BASE.student),
+    ]);
+    stageResults = withPaperLinks(
+      (ssr ?? []) as unknown as StageResultRow[],
+      links.get(student.id),
+    );
+  }
+  const schoolResults = (schoolResultData ?? []) as unknown as SchoolCompetitionRow[];
 
   const attempts = (attemptData ?? []) as unknown as {
     id: string;
@@ -66,6 +81,17 @@ export default async function StudentResults() {
 
   return (
     <div className="space-y-6">
+      {student ? (
+        <div>
+          <SectionHeading>Your competition result</SectionHeading>
+          <StudentCompetitionResults
+            editions={editions}
+            fallbackYear={student.edition_year}
+            results={stageResults}
+          />
+        </div>
+      ) : null}
+
       <div>
         <SectionHeading>Your practice &amp; exam scores</SectionHeading>
         {attempts.length === 0 ? (
@@ -102,8 +128,12 @@ export default async function StudentResults() {
       </div>
 
       <div>
-        <SectionHeading>Conference results</SectionHeading>
-        <PortalResults results={results} highlightName={profile?.full_name} />
+        <SectionHeading>How your school did</SectionHeading>
+        <SchoolCompetitionResults
+          rows={schoolResults}
+          stageOrder={studentEdition?.stages ?? []}
+          detailBase="/portal/student/results"
+        />
       </div>
     </div>
   );

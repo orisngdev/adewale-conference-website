@@ -6,6 +6,7 @@ import { EditionStages, nextStage } from "@/components/portal/edition-stages";
 import { resubmitRegistration } from "./actions";
 import { StageResults, type StageResultRow } from "@/components/portal/stage-results";
 import {
+  PAPER_BASE,
   paperLinksForStudents,
   withPaperLinks,
   type PaperLinkIndex,
@@ -161,7 +162,7 @@ export default async function SchoolOverview() {
           .select("id, student_id, stage, edition_year, outcome, score, score_max, note, breakdown")
           .in("student_id", ids),
         supabase.from("certificates").select("id, student_id, type, asset_url").in("student_id", ids),
-        paperLinksForStudents(supabase, ids),
+        paperLinksForStudents(supabase, ids, PAPER_BASE.school),
       ]);
       paperLinks = links;
       for (const r of (ssr ?? []) as StudentStageResult[]) (repResultsById[r.student_id] ??= []).push(r);
