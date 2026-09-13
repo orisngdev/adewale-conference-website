@@ -22,9 +22,6 @@ import { Select } from "@/components/ui/select";
 export const metadata = pageMetadata("Resources", "Study packs, past questions, and tools.");
 export const dynamic = "force-dynamic";
 
-const selCls =
-  "rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary";
-
 // Official state systems — always shown; admins add more as external-link resources.
 const OFFICIAL_LINKS = [
   { title: "OgunLEARN", url: "https://learn.ogunstate.gov.ng/", note: "State lesson-notes platform" },

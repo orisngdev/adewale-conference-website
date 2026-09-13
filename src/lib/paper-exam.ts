@@ -322,6 +322,86 @@ export function percent(total: number, outOf: number): number {
   return Math.round((total / outOf) * 1000) / 10;
 }
 
+// ── where an exam has got to ────────────────────────────────────────────────
+// Derived, never stored: `paper_exams.status` moves once, to 'published' when a
+// cutoff is committed, so rendering it raw said "draft" on a fully graded exam.
+
+export type PaperExamPhaseKey =
+  | "draft"
+  | "key"
+  | "ready"
+  | "grading"
+  | "scored"
+  | "published";
+
+export interface PaperExamFacts {
+  keyComplete: boolean;
+  /** Numbers allocated — or a past sitting, where the students already carry
+   *  the numbers that were on their sheets. */
+  sheetsReady: boolean;
+  hasStagedImport: boolean;
+  /** At least one paper's score has reached the record — not "import finished". */
+  hasPublishedPapers: boolean;
+  published: boolean;
+  isBackfill?: boolean;
+}
+
+export interface PaperExamPhase {
+  key: PaperExamPhaseKey;
+  label: string;
+  /** What has to happen to leave this phase. */
+  hint: string;
+  tone: "neutral" | "progress" | "done";
+}
+
+export function paperExamPhase(f: PaperExamFacts): PaperExamPhase {
+  if (f.published)
+    return {
+      key: "published",
+      label: "Published",
+      hint: "Outcomes are committed and students can see their results.",
+      tone: "done",
+    };
+  if (f.hasPublishedPapers)
+    return {
+      key: "scored",
+      label: "Scored",
+      hint: "Scores are published. Settle any undecided papers, then rank and cut.",
+      tone: "progress",
+    };
+  if (f.hasStagedImport)
+    return {
+      key: "grading",
+      label: "Grading",
+      hint: "Papers are staged. Resolve the ones needing a decision, then commit them.",
+      tone: "progress",
+    };
+  if (f.keyComplete && f.sheetsReady)
+    return {
+      key: "ready",
+      label: f.isBackfill ? "Ready to import" : "Ready to sit",
+      hint: f.isBackfill
+        ? "Import the capture file from the sitting."
+        : "Print the sheets, sit the paper, then import the capture file.",
+      tone: "progress",
+    };
+  if (f.keyComplete)
+    return {
+      key: "key",
+      label: "Key set",
+      hint: f.isBackfill
+        ? "The students already carry their candidate numbers."
+        : "Allocate candidate numbers and download the roster.",
+      tone: "progress",
+    };
+  return {
+    key: "draft",
+    label: "Draft",
+    hint: "Set the answer key and each item's subject.",
+    tone: "neutral",
+  };
+}
+
 // ── school aggregation ──────────────────────────────────────────────────────
 
 export const SCHOOL_SCORE_RULES = ["sum_all", "sum_top_n", "mean_present", "best"] as const;

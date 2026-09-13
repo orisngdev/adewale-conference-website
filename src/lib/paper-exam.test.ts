@@ -5,9 +5,11 @@ import {
   applyCutoff,
   compareKeys,
   gradePaper,
+  paperExamPhase,
   parseAnswerKey,
   percent,
   rankBy,
+  type PaperExamFacts,
   type PaperItem,
   type Ranked,
   type Response,
@@ -317,6 +319,53 @@ describe("percent", () => {
 
   it("returns 0 rather than NaN for an empty paper", () => {
     assert.equal(percent(0, 0), 0);
+  });
+});
+
+describe("paperExamPhase", () => {
+  const nothing: PaperExamFacts = {
+    keyComplete: false,
+    sheetsReady: false,
+    hasStagedImport: false,
+    hasPublishedPapers: false,
+    published: false,
+  };
+
+  it("starts at draft", () => {
+    assert.equal(paperExamPhase(nothing).key, "draft");
+  });
+
+  it("advances on the key alone, then on the numbers", () => {
+    assert.equal(paperExamPhase({ ...nothing, keyComplete: true }).key, "key");
+    assert.equal(
+      paperExamPhase({ ...nothing, keyComplete: true, sheetsReady: true }).key,
+      "ready",
+    );
+  });
+
+  it("says import, not sit, for a past sitting", () => {
+    const f = { ...nothing, keyComplete: true, sheetsReady: true, isBackfill: true };
+    assert.equal(paperExamPhase(f).label, "Ready to import");
+  });
+
+  it("reports grading while papers are staged, and scored once committed", () => {
+    const graded = { ...nothing, keyComplete: true, sheetsReady: true, hasStagedImport: true };
+    assert.equal(paperExamPhase(graded).key, "grading");
+    assert.equal(paperExamPhase({ ...graded, hasPublishedPapers: true }).key, "scored");
+  });
+
+  // The bug this exists to prevent: every step done, the stored label still
+  // reading "draft" because nothing but a committed cutoff ever moves it.
+  it("never reports draft once anything has happened", () => {
+    const done: PaperExamFacts = {
+      keyComplete: true,
+      sheetsReady: true,
+      hasStagedImport: true,
+      hasPublishedPapers: true,
+      published: false,
+    };
+    assert.equal(paperExamPhase(done).key, "scored");
+    assert.equal(paperExamPhase({ ...done, published: true }).key, "published");
   });
 });
 

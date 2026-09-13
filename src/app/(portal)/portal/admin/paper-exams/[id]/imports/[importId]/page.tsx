@@ -41,7 +41,7 @@ export default async function ImportReview({
     supabase
       .from("paper_exam_papers")
       .select(
-        "id, external_id, exam_no, first_name, last_name, class_name, version, version_assumed, total, attempted, invalid_marks, subscores, capture_num_correct, key_mismatches, name_mismatch, student_id, match_method, status, resolution_note",
+        "id, external_id, exam_no, first_name, last_name, class_name, version, version_assumed, total, attempted, invalid_marks, subscores, capture_num_correct, key_mismatches, name_mismatch, student_id, match_method, status, resolution_note, published_at",
       )
       .eq("import_id", importId)
       .order("exam_no"),
@@ -52,6 +52,7 @@ export default async function ImportReview({
   const undecided = rows.filter((r) => UNDECIDED.includes(r.status));
   const matched = rows.filter((r) => r.status === "matched");
   const discarded = rows.filter((r) => r.status === "discarded");
+  const published = rows.filter((r) => r.published_at != null);
   const flagged = matched.filter(
     (r) =>
       r.name_mismatch ||
@@ -99,38 +100,51 @@ export default async function ImportReview({
           </Link>
         </div>
 
-        {/* Commit is gated on there being nothing left to decide. That is the
-            whole "never a silent drop" rule, expressed as a disabled button. */}
+        {/* Undecided rows no longer hold this up; the cut carries that rule. */}
         <div>
           <SectionHeading>Publish</SectionHeading>
           <Card className="p-5 md:p-6 space-y-3">
+            <p className="text-sm text-foreground">
+              {matched.length} matched · {undecided.length} still need a decision ·{" "}
+              {discarded.length} discarded
+              {published.length ? ` · ${published.length} already published` : ""}
+            </p>
             {committed ? (
               <p className="text-sm text-foreground">
-                Committed {imp.committed_at ? new Date(imp.committed_at).toLocaleString() : ""}.
-                Scores and subject breakdowns are published to the {matched.length} matched reps.
+                Finished {imp.committed_at ? new Date(imp.committed_at).toLocaleString() : ""} —
+                every paper in this file is decided and published.
               </p>
             ) : (
               <>
-                <p className="text-sm text-foreground">
-                  {matched.length} matched · {undecided.length} still need a decision ·{" "}
-                  {discarded.length} discarded
-                </p>
                 <p className="text-xs text-muted-foreground">
-                  Committing re-grades every paper from its captured marks — not from the numbers
-                  staged earlier — so a key correction made since the import is picked up. Outcomes
-                  are left at pending: a score is a fact, advancement is a separate decision.
+                  Publishing re-grades every matched paper from its captured marks — not from the
+                  numbers staged earlier — so a key correction made since the import is picked up.
+                  Outcomes are left at pending: a score is a fact, advancement is a separate
+                  decision.
                 </p>
+                {undecided.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    The {undecided.length} undecided stay outstanding and publish nothing. Settle
+                    them whenever you can and publish again — it fills in the rest without
+                    disturbing anyone already published. Ranking is what needs them all: the cut
+                    refuses while any are left.
+                  </p>
+                ) : null}
                 {canManage ? (
                   <ActionForm action={commitImport.bind(null, importId)}>
                     <ConfirmSubmitButton
-                      disabled={undecided.length > 0 || matched.length === 0}
+                      disabled={matched.length === 0}
                       title="Publish these scores?"
-                      description={`${matched.length} reps will see their total and subject breakdown. You can re-import a corrected file later; it updates the score without un-deciding anyone.`}
+                      description={`${matched.length} reps will see their total and subject breakdown.${
+                        undecided.length > 0
+                          ? ` The ${undecided.length} still needing a decision publish nothing and stay on this page.`
+                          : ""
+                      } Publishing again later updates a score without un-deciding anyone.`}
                       confirmLabel="Publish"
                     >
                       {undecided.length > 0
-                        ? `Commit ${matched.length} papers — ${undecided.length} still need a decision`
-                        : `Commit ${matched.length} papers`}
+                        ? `Publish ${matched.length} now — ${undecided.length} still need a decision`
+                        : `Publish ${matched.length} papers`}
                     </ConfirmSubmitButton>
                   </ActionForm>
                 ) : null}

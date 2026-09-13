@@ -37,10 +37,15 @@ import type {
   PreviewGroup,
   PreviewMatch,
   PreviewParticipant,
+  PreviewRepResult,
   PreviewStudent,
   PreviewView,
   QualificationFilter,
 } from "@/components/portal/participants-preview-types";
+import type { RosterStudent } from "@/components/portal/participant-school-card";
+import { PaperScoreBreakdown } from "@/components/portal/paper-score-breakdown";
+import { percent } from "@/lib/paper-exam";
+import { resultForStage } from "@/lib/paper-results";
 import { Select } from "@/components/ui/select";
 import { SearchSelect } from "@/components/ui/search-select";
 
@@ -260,6 +265,91 @@ function FilterPill({ href, active, children }: { href: string; active: boolean;
   return <Link href={href} className={`inline-flex min-h-9 items-center rounded-full px-3 text-xs font-bold ${active ? "bg-secondary text-secondary-foreground" : "border border-foreground/10 bg-card text-muted-foreground hover:text-foreground"}`}>{children}</Link>;
 }
 
+/** The reps behind a school's row, with the score each one actually got. Read
+ *  only: a paper score comes from the import, which re-grades against the key —
+ *  editing it here would leave it disagreeing with the paper it came from. */
+function RepScores({
+  roster,
+  resultsById,
+  stage,
+  editionYear,
+}: {
+  roster: RosterStudent[];
+  resultsById: Record<string, PreviewRepResult[]>;
+  stage: string;
+  /** Matched on as well as the stage. A student row is retagged into the next
+   *  edition rather than duplicated, so it keeps every previous year's results
+   *  — matching on stage alone shows last year's score as this year's. */
+  editionYear: number | null;
+}) {
+  if (roster.length === 0) {
+    return <p className="text-xs text-muted-foreground">No reps on the roster yet.</p>;
+  }
+
+  const rows = roster.map((rep) => ({
+    rep,
+    result: resultForStage(resultsById[rep.id] ?? [], stage, editionYear),
+  }));
+  const scored = rows.filter((r) => r.result?.score != null);
+  const total = scored.reduce((sum, r) => sum + Number(r.result?.score ?? 0), 0);
+  const outOf = scored.reduce((sum, r) => sum + Number(r.result?.score_max ?? 0), 0);
+
+  // Before any paper is graded every line would read "Not scored", so the reps
+  // are named on one line instead of three rows of nothing.
+  if (scored.length === 0) {
+    return (
+      <p className="border-t border-foreground/5 pt-3 text-xs text-muted-foreground">
+        <span className="font-bold uppercase tracking-[0.16em]">Reps ({rows.length})</span>{" "}
+        {rows.map(({ rep }) => rep.name).join(", ")} — no papers scored yet
+      </p>
+    );
+  }
+
+  return (
+    <div className="border-t border-foreground/5 pt-3">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+        Reps · {scored.length} of {rows.length} scored · {total}
+        {outOf ? `/${outOf}` : ""} between them
+      </p>
+      <ul className="mt-2 space-y-1.5">
+        {rows.map(({ rep, result }) => (
+          <li key={rep.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="text-sm font-medium text-foreground">{rep.name}</span>
+            {rep.level ? <span className="text-xs text-muted-foreground">{rep.level}</span> : null}
+            {result?.score != null ? (
+              <span className="text-sm tabular-nums text-foreground">
+                {result.score}
+                {result.score_max != null ? (
+                  <span className="text-muted-foreground">/{result.score_max}</span>
+                ) : null}
+                {result.score_max ? (
+                  <span className="ml-1 text-xs text-muted-foreground">
+                    {percent(Number(result.score), Number(result.score_max))}%
+                  </span>
+                ) : null}
+              </span>
+            ) : (
+              <span className="text-xs text-muted-foreground">Not scored</span>
+            )}
+            {result?.breakdown && Object.keys(result.breakdown).length ? (
+              <PaperScoreBreakdown
+                breakdown={result.breakdown}
+                order={result.subjectOrder}
+                compact
+              />
+            ) : null}
+            {result?.detailHref ? (
+              <Link href={result.detailHref} className="text-xs text-primary hover:underline">
+                Paper →
+              </Link>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function QualificationsWorkspace({
   participants,
   matches,
@@ -336,7 +426,7 @@ function QualificationsWorkspace({
               all six tracks fixed except the first. */}
           <div role="table" aria-label="Qualification results">
             <div role="row" className="hidden grid-cols-[minmax(13rem,1.4fr)_10rem_6rem_10rem_11rem_11rem] gap-3 border-b border-foreground/10 bg-foreground/[0.025] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground lg:grid">
-              <span>School</span><span>Centre</span><span>Score</span><span>Reason</span><span>Outcome</span><span>Action</span>
+              <span>School</span><span>Centre</span><span>Team score</span><span>Reason</span><span>Outcome</span><span>Action</span>
             </div>
             <div className="divide-y divide-foreground/5">
               {paged.map((participant) => {
@@ -349,10 +439,13 @@ function QualificationsWorkspace({
                         {participant.centre.allocated ?? "Confirm centre"}
                       </Link>
                     </div>
-                    <label className="text-xs text-muted-foreground"><span className="lg:hidden">Score</span><input name="score" type="number" step="any" defaultValue={result?.score ?? ""} disabled={!canManage} className={`${inputClass} mt-1 w-full lg:mt-0`} /></label>
+                    <label className="text-xs text-muted-foreground"><span className="lg:hidden">Team score</span><input name="score" type="number" step="any" defaultValue={result?.score ?? ""} disabled={!canManage} className={`${inputClass} mt-1 w-full lg:mt-0`} /></label>
                     <label className="text-xs text-muted-foreground"><span className="lg:hidden">Reason</span><Select name="reason" defaultValue={result?.reason ?? ""} disabled={!canManage} className="mt-1 w-full lg:mt-0"><option value="">No reason</option>{QUALIFICATION_REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}</Select></label>
                     <label className="text-xs text-muted-foreground"><span className="lg:hidden">Outcome</span><Select name="outcome" defaultValue={result?.outcome ?? "pending"} disabled={!canManage} className="mt-1 w-full lg:mt-0"><option value="pending">Pending</option><option value="advanced">Advance</option><option value="eliminated">Not advanced</option></Select></label>
                     <div className="flex items-center gap-2"><OutcomeBadge outcome={result?.outcome} />{canManage ? <SubmitButton size="sm" pendingText="Saving…">Save</SubmitButton> : <ReadOnlyBadge />}</div>
+                    <div className="lg:col-span-full">
+                      <RepScores roster={participant.roster} resultsById={participant.repResultsById} stage="Qualifications" editionYear={activeYear} />
+                    </div>
                     <label className="text-xs text-muted-foreground lg:col-span-full">Note<input name="note" defaultValue={result?.note ?? ""} disabled={!canManage} className={`${inputClass} mt-1 w-full`} /></label>
                   </form>
                 );

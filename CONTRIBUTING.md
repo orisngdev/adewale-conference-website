@@ -140,10 +140,16 @@ At minimum, consider whether you need to update:
 
 ## Testing And Verification
 
+Work through [docs/review-checklist.md](/docs/review-checklist.md) before
+opening a PR — it covers RLS scope, migrations, the Supabase gotchas, and how to
+establish a test baseline so you can tell your own failures from pre-existing
+ones. [AGENTS.md](/AGENTS.md) is the short version.
+
 Minimum checks before opening a PR:
 
 ```bash
 npx tsc --noEmit
+npm test
 ```
 
 If your change affects runtime behavior, also test it manually in the browser.

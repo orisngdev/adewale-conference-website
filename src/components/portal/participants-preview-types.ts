@@ -2,12 +2,19 @@ import type { RosterStudent } from "@/components/portal/participant-school-card"
 import type {
   IndividualAward,
   StageResult,
+  StudentStageResult,
   TournamentGroup,
   TournamentGroupEntry,
   TournamentMatch,
 } from "@/supabase/types";
 
 export type PreviewZoneSource = "allocated" | "requested" | "lga" | "none";
+
+/** A rep's own result, plus where its paper can be read. */
+export type PreviewRepResult = StudentStageResult & {
+  detailHref?: string | null;
+  subjectOrder?: string[] | null;
+};
 
 export interface PreviewParticipant {
   id: string;
@@ -34,6 +41,8 @@ export interface PreviewParticipant {
   };
   schoolCerts: { id: string; type: string | null }[];
   studentCertsById: Record<string, { id: string; type: string | null }[]>;
+  /** Per-rep stage results, keyed by student id. */
+  repResultsById: Record<string, PreviewRepResult[]>;
 }
 
 export interface PreviewGroup extends TournamentGroup {

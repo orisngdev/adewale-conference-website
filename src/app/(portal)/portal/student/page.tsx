@@ -3,8 +3,11 @@ import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, SectionHeading, StatTile, StatusBadge } from "@/components/portal/ui";
 import { EditionStages, nextStage } from "@/components/portal/edition-stages";
-import { StageResults, type StageResultRow } from "@/components/portal/stage-results";
+import { type StageResultRow } from "@/components/portal/stage-results";
+import { StudentCompetitionResults } from "@/components/portal/student-competition-results";
+import { EditionMembershipNotice } from "@/components/portal/edition-membership-notice";
 import {
+  PAPER_BASE,
   paperLinksForStudents,
   withPaperLinks,
   type PaperLinkIndex,
@@ -42,7 +45,11 @@ export default async function StudentOverview() {
       .select("year, title, registration_open, stages, current_stage")
       .order("year", { ascending: false }),
     // Is this account already a provisioned student? If so, no need to link.
-    supabase.from("students").select("id, school_id").eq("auth_user_id", user.id).maybeSingle(),
+    supabase
+      .from("students")
+      .select("id, school_id, edition_year, schools(name)")
+      .eq("auth_user_id", user.id)
+      .maybeSingle(),
     // Recent practice + exam results for this student.
     supabase
       .from("assessment_attempts")
@@ -53,9 +60,21 @@ export default async function StudentOverview() {
       .limit(6),
   ]);
   const registrations = (regData ?? []) as unknown as RegistrationWithRelations[];
-  const latest = ((editionData ?? []) as Edition[])[0] ?? null;
-  const linked = (linkedStudent as { id: string; school_id: string } | null) ?? null;
+  const editions = (editionData ?? []) as Edition[];
+  const latest = editions[0] ?? null;
+  const linked =
+    (linkedStudent as unknown as {
+      id: string;
+      school_id: string;
+      edition_year: number | null;
+      schools: { name: string | null } | null;
+    } | null) ?? null;
   const isLinked = !!linked;
+  // The current edition's ladder and stage are not a past rep's to be shown.
+  const isPastEdition =
+    linked?.edition_year != null &&
+    latest?.year != null &&
+    linked.edition_year !== latest.year;
 
   // This student's own competition progress + personally-issued certificates
   // (provisioned students aren't registration owners, so their certs come from
@@ -75,7 +94,7 @@ export default async function StudentOverview() {
         .select("id, student_id, stage, edition_year, outcome, score, score_max, note, breakdown")
         .eq("student_id", linked.id),
       supabase.from("certificates").select("id, type, asset_url").eq("student_id", linked.id),
-      paperLinksForStudents(supabase, [linked.id]),
+      paperLinksForStudents(supabase, [linked.id], PAPER_BASE.student),
     ]);
     stageResults = (ssr ?? []) as StudentStageResult[];
     personalCerts = (pc ?? []) as { id: string; type: string | null; asset_url: string | null }[];
@@ -97,6 +116,12 @@ export default async function StudentOverview() {
 
   return (
     <>
+      <EditionMembershipNotice
+        editionYear={linked?.edition_year ?? null}
+        currentYear={latest?.year ?? null}
+        schoolName={linked?.schools?.name ?? null}
+      />
+
       <Link href="/portal/student/resources" className="block group">
         <Card interactive className="p-5 flex items-center justify-between gap-4 border-l-4 border-l-primary">
           <div>
@@ -109,8 +134,14 @@ export default async function StudentOverview() {
       </Link>
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatTile label="Current edition" value={latest?.year ?? "—"} />
-        <StatTile label="Current stage" value={latest?.current_stage ?? "—"} />
+        {isPastEdition ? (
+          <StatTile label="Your edition" value={linked?.edition_year ?? "—"} />
+        ) : (
+          <>
+            <StatTile label="Current edition" value={latest?.year ?? "—"} />
+            <StatTile label="Current stage" value={latest?.current_stage ?? "—"} />
+          </>
+        )}
         <StatTile label="Certificates" value={certificates.length} />
       </div>
 
@@ -161,7 +192,25 @@ export default async function StudentOverview() {
 
       {!isLinked ? <LinkAccountForm /> : null}
 
-      {latest ? (
+      {/* A student's own record leads — the edition tracker below is about the
+          competition, which is not always the one they were in. */}
+      {isLinked ? (
+        <div>
+          <SectionHeading action={{ href: "/portal/student/results", label: "All results →" }}>
+            Your competition result
+          </SectionHeading>
+          <StudentCompetitionResults
+            editions={editions}
+            fallbackYear={linked?.edition_year ?? null}
+            results={withPaperLinks(
+              stageResults as unknown as StageResultRow[],
+              paperLinks.get(linkedStudentId ?? ""),
+            )}
+          />
+        </div>
+      ) : null}
+
+      {latest && !isPastEdition ? (
         <div>
           <SectionHeading>{latest.year} edition</SectionHeading>
           <Card className="p-5 md:p-6 space-y-3">
@@ -175,21 +224,6 @@ export default async function StudentOverview() {
                 <> · Next: {nextStage(latest.stages, latest.current_stage)}</>
               ) : null}
             </p>
-            {stageResults.length > 0 ? (
-              <div className="border-t border-foreground/5 pt-3">
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">
-                  Your stage results
-                </p>
-                <StageResults
-                  edition={latest.year}
-                  stages={latest.stages}
-                  results={withPaperLinks(
-                    stageResults as unknown as StageResultRow[],
-                    paperLinks.get(linkedStudentId ?? ""),
-                  )}
-                />
-              </div>
-            ) : null}
           </Card>
         </div>
       ) : null}

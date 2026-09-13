@@ -386,6 +386,9 @@ export interface PaperExamPaper {
   match_method: string | null;
   status: PaperStatus;
   resolution_note: string | null;
+  /** When this paper's score reached student_stage_results. An import publishes
+   *  in more than one pass, so it is per-paper rather than per-import. */
+  published_at?: string | null;
 }
 
 export interface PaperExamImport {
