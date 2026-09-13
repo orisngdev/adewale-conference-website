@@ -8,6 +8,7 @@ import {
   provisionStudent,
   deactivateStudent,
 } from "@/lib/provision-student";
+import { personNameKey } from "@/lib/person-identity";
 import {
   getParticipantsTableId,
   isAirtableConfigured,
@@ -46,14 +47,18 @@ export async function approveReplacement(id: string) {
   //    after the request was filed).
   let oldStudentId = r.old_student_id;
   if (!oldStudentId) {
+    // By person key, not `ilike`: a miss here leaves the outgoing student active
+    // and the incoming one is provisioned beside them, which is a fourth rep.
     const { data: found } = await admin
       .from("students")
-      .select("id")
+      .select("id, name")
       .eq("school_id", schoolId)
-      .ilike("name", r.old_name)
-      .is("deactivated_at", null)
-      .limit(1);
-    oldStudentId = (found?.[0]?.id as string | undefined) ?? null;
+      .is("deactivated_at", null);
+    const key = personNameKey(r.old_name);
+    oldStudentId =
+      ((found ?? []) as { id: string; name: string }[]).find(
+        (s) => personNameKey(s.name) === key,
+      )?.id ?? null;
   }
   if (oldStudentId) {
     const res = await deactivateStudent(admin, oldStudentId);
@@ -77,9 +82,8 @@ export async function approveReplacement(id: string) {
 
   // 3. Swap the rep in registrations.reps (match by name, fall back to slot).
   const reps = Array.isArray(reg.reps) ? [...(reg.reps as Rep[])] : [];
-  let idx = reps.findIndex(
-    (rep) => rep.name.trim().toLowerCase() === r.old_name.toLowerCase(),
-  );
+  const oldKey = personNameKey(r.old_name);
+  let idx = reps.findIndex((rep) => personNameKey(rep.name) === oldKey);
   if (idx < 0 && r.rep_slot) idx = r.rep_slot - 1;
   const newRep: Rep = r.new_level
     ? { name: r.new_name, level: r.new_level }

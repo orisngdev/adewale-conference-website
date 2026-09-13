@@ -3,6 +3,7 @@ import { Card, SectionHeading } from "@/components/portal/ui";
 import ProvisionRepButton from "@/components/portal/provision-rep-button";
 import ReplaceRepButton from "@/components/portal/replace-rep-button";
 import { pageMetadata } from "@/lib/seo";
+import { personNameKey } from "@/lib/person-identity";
 import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { isSupabaseConfigured } from "@/supabase/env";
@@ -37,13 +38,16 @@ export default async function SchoolStudents() {
     level: string | null;
     access_code: string;
   }[];
-  const studentByName = new Map(students.map((s) => [s.name.toLowerCase(), s]));
+  // Keyed the same way provisionStudent matches, so a rep whose row is spelled
+  // differently shows its existing code instead of offering to provision a
+  // second one.
+  const studentByName = new Map(students.map((s) => [personNameKey(s.name), s]));
   const pending = (pendingData ?? []) as {
     registration_id: string;
     old_name: string;
   }[];
   const pendingKeys = new Set(
-    pending.map((p) => `${p.registration_id}|${p.old_name.toLowerCase()}`),
+    pending.map((p) => `${p.registration_id}|${personNameKey(p.old_name)}`),
   );
 
   return (
@@ -99,9 +103,9 @@ export default async function SchoolStudents() {
                 ) : (
                   <div className="divide-y divide-foreground/5 border border-foreground/10">
                     {reps.map((rep, i) => {
-                      const student = studentByName.get(rep.name.toLowerCase());
+                      const student = studentByName.get(personNameKey(rep.name));
                       const isPending = pendingKeys.has(
-                        `${r.id}|${rep.name.toLowerCase()}`,
+                        `${r.id}|${personNameKey(rep.name)}`,
                       );
                       return (
                         <div

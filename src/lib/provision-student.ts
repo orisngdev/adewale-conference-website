@@ -4,6 +4,7 @@
 import { randomBytes } from "crypto";
 import { createAdminClient } from "@/supabase/admin";
 import { studentAuthEmail } from "@/lib/student-accounts";
+import { personNameKey } from "@/lib/person-identity";
 
 // Core student-provisioning shared by the coordinator's Students page and the
 // public-registration onboarding: a Supabase auth user with a synthetic email +
@@ -36,25 +37,47 @@ export async function provisionStudent(
   const trimmed = name.trim();
   if (!trimmed) return { error: "Enter the student's name." };
 
-  // Returning student (same name, same school): keep the code, re-tag to the
-  // current edition so this edition's plans/exams reach them. Deactivated rows
-  // are skipped — a swapped-out student neither gets re-tagged nor blocks a
-  // genuinely new rep who happens to share the name.
-  const { data: existingRows } = await admin
+  // Returning student (same person, same school): keep the code, re-tag to the
+  // current edition. Matched on personNameKey, not `ilike` — that only caught
+  // case, so a re-ordered name provisioned a second row for the same child.
+  // The whole roster is read (a few rows) since the key has no SQL counterpart.
+  const key = personNameKey(trimmed);
+  const { data: rosterRows } = await admin
     .from("students")
-    .select("id, access_code, auth_user_id")
-    .eq("school_id", schoolId)
-    .ilike("name", trimmed)
-    .is("deactivated_at", null)
-    .limit(1);
-  const existing = existingRows?.[0];
+    .select("id, name, access_code, auth_user_id, edition_year, deactivated_at")
+    .eq("school_id", schoolId);
+  const roster = (rosterRows ?? []) as {
+    id: string;
+    name: string;
+    access_code: string | null;
+    auth_user_id: string | null;
+    edition_year: number | null;
+    deactivated_at: string | null;
+  }[];
+  const sameName = roster.filter((s) => personNameKey(s.name) === key);
+  const existing = sameName.find((s) => !s.deactivated_at);
+
+  // A rep retired in THIS edition was replaced; re-provisioning the name used
+  // to mint a parallel active row beside them. Retired in an earlier edition is
+  // a returning student, and falls through to normal provisioning.
+  if (!existing) {
+    const replaced = sameName.find(
+      (s) => s.deactivated_at && s.edition_year === editionYear,
+    );
+    if (replaced) {
+      return {
+        error: `${replaced.name} was replaced and retired for ${editionYear}. Use the replacement flow to bring them back.`,
+      };
+    }
+  }
   // Only a row that can actually sign in counts as a returning student. A
   // history-only row (imported for the record, no auth user) matches by name
   // too, and handing back its code would mint a login that never works.
   if (existing?.access_code && existing.auth_user_id) {
+    // Carry the current spelling onto the row: a re-ordered name is a rename.
     await admin
       .from("students")
-      .update({ edition_year: editionYear, level: level || null })
+      .update({ name: trimmed, edition_year: editionYear, level: level || null })
       .eq("id", existing.id);
     return { code: existing.access_code as string, created: false };
   }
@@ -79,6 +102,7 @@ export async function provisionStudent(
     const { error: adoptErr } = await admin
       .from("students")
       .update({
+        name: trimmed,
         access_code: code,
         auth_email: authEmail,
         auth_user_id: created.user.id,
@@ -104,24 +128,25 @@ export async function provisionStudent(
     edition_year: editionYear,
   });
   if (sErr) {
+    // The row never landed, so clean up the auth user on EVERY failure, not
+    // just the race below — students_roster_cap (20260913090400) rejects a
+    // fourth rep, and an orphaned login with a live code is the worst residue.
+    await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
+
     // Lost a race to another provisioning path (teacher + principal onboarding
-    // provision the same roster) — the (school, lower(name)) unique index fired.
-    // Reuse the winning row's code and clean up this orphan auth user, so the
-    // outcome is identical to reuse-by-name instead of a duplicate.
+    // provision the same roster). Reuse the winning row's code.
     if (sErr.code === "23505") {
-      await admin.auth.admin.deleteUser(created.user.id).catch(() => {});
       const { data: winnerRows } = await admin
         .from("students")
-        .select("id, access_code")
-        .eq("school_id", schoolId)
-        .ilike("name", trimmed)
-        .is("deactivated_at", null)
-        .limit(1);
-      const winner = winnerRows?.[0];
+        .select("id, name, access_code, deactivated_at")
+        .eq("school_id", schoolId);
+      const winner = ((winnerRows ?? []) as typeof roster).find(
+        (s) => !s.deactivated_at && personNameKey(s.name) === key,
+      );
       if (winner?.access_code) {
         await admin
           .from("students")
-          .update({ edition_year: editionYear, level: level || null })
+          .update({ name: trimmed, edition_year: editionYear, level: level || null })
           .eq("id", winner.id);
         return { code: winner.access_code as string, created: false };
       }
