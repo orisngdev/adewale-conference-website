@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { Card, SectionHeading } from "@/components/portal/ui";
 import { PaperScoreBreakdown } from "@/components/portal/paper-score-breakdown";
-import { formatCandidateNumber, percent } from "@/lib/paper-exam";
+import {
+  formatCandidateNumber,
+  groupItemsBySubject,
+  paperItemState,
+  percent,
+  type PaperItemState,
+} from "@/lib/paper-exam";
 import type { SubjectBreakdown } from "@/supabase/types";
 
 // One captured paper, item by item, as returned by get_paper_result. No page
@@ -37,6 +43,50 @@ export interface PaperResult {
   items: PaperItemResult[];
 }
 
+// Colour carries the border and fill only. The letter and number stay on the
+// theme's own foreground tokens — a coloured text shade light enough to sit on
+// the tint is too light to read on it.
+const TONE: Record<PaperItemState, string> = {
+  correct: "border-green-600/50 bg-green-500/15",
+  wrong: "border-red-600/50 bg-red-500/15",
+  blank: "border-dashed border-foreground/30",
+  unreadable: "border-amber-600/50 bg-amber-500/15",
+  ungraded: "border-foreground/15",
+};
+
+const MARK: Partial<Record<PaperItemState, { glyph: string; className: string }>> = {
+  correct: { glyph: "✓", className: "text-green-700" },
+  wrong: { glyph: "✗", className: "text-red-700" },
+  unreadable: { glyph: "!", className: "text-amber-700" },
+};
+
+/** The chip shows the letter bubbled; these states have none to show. */
+const GLYPH: Partial<Record<PaperItemState, string>> = {
+  blank: "–",
+  unreadable: "?",
+};
+
+const LEGEND: [PaperItemState, string][] = [
+  ["correct", "Correct"],
+  ["wrong", "Wrong"],
+  ["blank", "Left blank"],
+  ["unreadable", "Mark unreadable"],
+];
+
+function describeItem(
+  item: PaperItemResult,
+  state: PaperItemState,
+  released: boolean,
+): string {
+  if (state === "blank") return "left blank";
+  if (state === "unreadable") return "the mark could not be read";
+  if (state === "ungraded") return `chose ${item.choice}, not yet marked`;
+  if (state === "correct") return `chose ${item.choice}, correct`;
+  return released && item.correct
+    ? `chose ${item.choice}, wrong — the answer is ${item.correct}`
+    : `chose ${item.choice}, wrong`;
+}
+
 export function PaperResultView({
   result,
   backHref,
@@ -48,6 +98,7 @@ export function PaperResultView({
   const total = result.total ?? 0;
   const pct = percent(total, result.out_of);
   const unanswered = result.out_of - (result.attempted ?? 0);
+  const groups = groupItemsBySubject(result.items, result.subjects);
 
   return (
     <>
@@ -103,43 +154,57 @@ export function PaperResultView({
             published after every centre has sat the paper.
           </p>
         ) : null}
+
+        <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5">
+          {LEGEND.map(([state, label]) => (
+            <span key={state} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className={`size-3 rounded border ${TONE[state]}`} />
+              {label}
+            </span>
+          ))}
+        </div>
+
         <Card className="divide-y divide-foreground/5">
-          {result.items.map((item) => (
-            <div
-              key={item.position}
-              className="flex flex-wrap items-center justify-between gap-2 p-3"
-            >
-              <span className="flex items-center gap-3">
-                <span className="w-8 text-right text-xs tabular-nums text-muted-foreground">
-                  {item.position}
+          {groups.map((group) => (
+            <section key={group.subject} className="p-4 md:p-5">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 className="text-sm font-semibold text-foreground">{group.subject}</h3>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {group.correct}/{group.outOf} · {percent(group.correct, group.outOf)}%
                 </span>
-                <span className="text-sm text-foreground">{item.subject}</span>
-              </span>
-              <span className="flex items-center gap-3 text-sm">
-                <span className="text-muted-foreground">
-                  {item.choice === null ? (
-                    <em className="not-italic">blank</em>
-                  ) : item.choice === "?" ? (
-                    <em className="not-italic">unreadable</em>
-                  ) : (
-                    <>
-                      chose: <span className="font-mono text-foreground">{item.choice}</span>
-                    </>
-                  )}
-                </span>
-                {result.review_released && item.correct ? (
-                  <span className="text-muted-foreground">
-                    answer: <span className="font-mono text-foreground">{item.correct}</span>
-                  </span>
-                ) : null}
-                <span
-                  aria-label={item.is_correct ? "correct" : "incorrect"}
-                  className={item.is_correct ? "text-green-700" : "text-red-700"}
-                >
-                  {item.is_correct ? "✓" : "✗"}
-                </span>
-              </span>
-            </div>
+              </div>
+              <ul className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-1.5">
+                {group.items.map((item) => {
+                  const state = paperItemState(item);
+                  const mark = MARK[state];
+                  const showCorrect = result.review_released && state === "wrong" && item.correct;
+                  return (
+                    <li
+                      key={item.position}
+                      aria-label={`Question ${item.position}: ${describeItem(item, state, result.review_released)}`}
+                      className={`flex items-center gap-1.5 rounded-md border px-2 py-1.5 ${TONE[state]}`}
+                    >
+                      <span className="w-5 shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
+                        {item.position}
+                      </span>
+                      <span className="font-mono text-sm font-bold text-foreground">
+                        {GLYPH[state] ?? item.choice}
+                      </span>
+                      {showCorrect ? (
+                        <span className="font-mono text-xs text-muted-foreground">
+                          &rarr;{item.correct}
+                        </span>
+                      ) : null}
+                      {mark ? (
+                        <span className={`ml-auto text-xs font-bold ${mark.className}`}>
+                          {mark.glyph}
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
           ))}
         </Card>
       </div>

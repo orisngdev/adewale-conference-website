@@ -6,6 +6,8 @@ import {
   compareKeys,
   formatCandidateNumber,
   gradePaper,
+  groupItemsBySubject,
+  paperItemState,
   paperExamPhase,
   parseAnswerKey,
   percent,
@@ -320,6 +322,60 @@ describe("percent", () => {
 
   it("returns 0 rather than NaN for an empty paper", () => {
     assert.equal(percent(0, 0), 0);
+  });
+});
+
+describe("paperItemState", () => {
+  // The distinction this exists to make: the old view rendered all three of
+  // these as a red ✗, so an unmarked paper looked like 100 wrong answers.
+  it("separates blank, unreadable and ungraded from a wrong answer", () => {
+    assert.equal(paperItemState({ choice: null, is_correct: false }), "blank");
+    assert.equal(paperItemState({ choice: "?", is_correct: false }), "unreadable");
+    assert.equal(paperItemState({ choice: "B", is_correct: null }), "ungraded");
+    assert.equal(paperItemState({ choice: "B", is_correct: false }), "wrong");
+    assert.equal(paperItemState({ choice: "B", is_correct: true }), "correct");
+  });
+
+  it("calls a blank blank even where the grader marked it", () => {
+    assert.equal(paperItemState({ choice: null, is_correct: true }), "blank");
+  });
+});
+
+describe("groupItemsBySubject", () => {
+  const items = [
+    { position: 3, subject: "Physics", is_correct: true },
+    { position: 1, subject: "Biology", is_correct: true },
+    { position: 4, subject: "Physics", is_correct: false },
+    { position: 2, subject: "Biology", is_correct: null },
+  ];
+
+  it("follows the exam's subject order, not first appearance", () => {
+    const groups = groupItemsBySubject(items, ["Biology", "Physics"]);
+    assert.deepEqual(groups.map((g) => g.subject), ["Biology", "Physics"]);
+  });
+
+  it("orders items by position inside each subject", () => {
+    const [biology] = groupItemsBySubject(items, ["Biology", "Physics"]);
+    assert.deepEqual(biology.items.map((i) => i.position), [1, 2]);
+  });
+
+  it("counts only a true verdict as correct, so ungraded is not a mark", () => {
+    const [biology, physics] = groupItemsBySubject(items, ["Biology", "Physics"]);
+    assert.deepEqual([biology.correct, biology.outOf], [1, 2]);
+    assert.deepEqual([physics.correct, physics.outOf], [1, 2]);
+  });
+
+  it("keeps a subject the exam never listed, at the tail", () => {
+    const withExtra = [...items, { position: 5, subject: "Latin", is_correct: true }];
+    const groups = groupItemsBySubject(withExtra, ["Biology", "Physics"]);
+    assert.deepEqual(groups.map((g) => g.subject), ["Biology", "Physics", "Latin"]);
+  });
+
+  it("falls back to a stable order with no exam subject list", () => {
+    assert.deepEqual(
+      groupItemsBySubject(items).map((g) => g.subject),
+      ["Biology", "Physics"],
+    );
   });
 });
 

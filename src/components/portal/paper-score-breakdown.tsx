@@ -1,5 +1,5 @@
 import type { SubjectBreakdown } from "@/supabase/types";
-import { percent } from "@/lib/paper-exam";
+import { percent, subjectRank } from "@/lib/paper-exam";
 
 // `compact` is the inline strip on a stage chip; the full form is a labelled bar
 // per subject. Subject keys are the exam's own vocabulary, rendered verbatim.
@@ -7,10 +7,8 @@ import { percent } from "@/lib/paper-exam";
 function orderedEntries(breakdown: SubjectBreakdown, order?: string[] | null) {
   const entries = Object.entries(breakdown);
   if (!order?.length) return entries;
-  const rank = new Map(order.map((s, i) => [s, i]));
-  return entries.sort(
-    (a, b) => (rank.get(a[0]) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b[0]) ?? Number.MAX_SAFE_INTEGER),
-  );
+  const rankOf = subjectRank(order);
+  return entries.sort((a, b) => rankOf(a[0]) - rankOf(b[0]));
 }
 
 export function PaperScoreBreakdown({
