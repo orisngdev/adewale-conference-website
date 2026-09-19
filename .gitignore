@@ -68,5 +68,10 @@ supabase/.branches/
 # prod/dev/staging project refs, orgs, and backup buckets).
 docs/environments-and-deploy.md
 scripts/db-push-prod.sh
+
+# One-off prod data repairs. Each hard-codes the real student and school names
+# and row ids it corrects — that is what makes it auditable, and what keeps it
+# out of a public repo. Kept locally as the record of what was changed.
+scripts/repairs/
 data/**
 data/

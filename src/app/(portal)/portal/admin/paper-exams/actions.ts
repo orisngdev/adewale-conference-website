@@ -7,6 +7,8 @@ import { createClient } from "@/supabase/server";
 import { requireManage } from "@/supabase/auth";
 import { parseCsvGrid } from "@/lib/csv";
 import { chunk } from "@/lib/batch";
+import { ensureRoster } from "@/lib/ensure-roster";
+import { personNameKey } from "@/lib/person-identity";
 import {
   aggregateSchoolScore,
   applyCutoff,
@@ -520,6 +522,66 @@ export async function saveKeyItems(
 
 // ── candidate numbers + roster ──────────────────────────────────────────────
 
+/** Reps become student rows when a registration is APPROVED, so a school still
+ *  waiting on a decision has nobody to number and would silently miss the
+ *  sitting. Every registered rep sits, whatever their school's status, so fill
+ *  the gaps first. A name already on the roster is left alone — including one
+ *  the replacement flow retired, which is why deactivated rows count as known.
+ *
+ *  Declined is the exception: declining is how a bogus or duplicate entry is
+ *  withdrawn, so re-provisioning its reps would undo the withdrawal. */
+async function provisionEveryRegisteredRep(
+  supabase: SupabaseClient,
+  editionYear: number,
+): Promise<{ added: number; failed: number } | { error: string }> {
+  const [{ data: regs, error: regErr }, { data: students, error: stErr }] = await Promise.all([
+    supabase
+      .from("registrations")
+      .select("school_id, reps")
+      .eq("edition_year", editionYear)
+      .neq("status", "declined"),
+    supabase.from("students").select("school_id, name").eq("edition_year", editionYear),
+  ]);
+  if (regErr) return { error: describe(regErr, "read the registrations") };
+  if (stErr) return { error: describe(stErr, "read the roster") };
+
+  const known = new Set(
+    ((students ?? []) as { school_id: string | null; name: string }[]).map(
+      (s) => `${s.school_id}|${personNameKey(s.name)}`,
+    ),
+  );
+
+  let added = 0;
+  let failed = 0;
+  for (const reg of (regs ?? []) as { school_id: string | null; reps: unknown }[]) {
+    if (!reg.school_id) continue;
+    const reps = (Array.isArray(reg.reps) ? reg.reps : []) as {
+      name?: string;
+      level?: string | null;
+    }[];
+    const missing = reps.filter((rep) => {
+      const name = (rep?.name ?? "").trim();
+      if (!name) return false;
+      const key = `${reg.school_id}|${personNameKey(name)}`;
+      // Adding as we go: a school with two registrations lists the same reps
+      // twice, and one registration can list the same name three times.
+      if (known.has(key)) return false;
+      known.add(key);
+      return true;
+    });
+    if (!missing.length) continue;
+
+    const res = await ensureRoster({
+      school_id: reg.school_id,
+      edition_year: editionYear,
+      reps: missing,
+    });
+    added += res.provisioned;
+    failed += res.errors;
+  }
+  return { added, failed };
+}
+
 export async function allocateNumbers(
   examId: string,
   _prev: ActionResult | null,
@@ -537,6 +599,12 @@ export async function allocateNumbers(
     };
   }
 
+  const filled = await provisionEveryRegisteredRep(
+    supabase,
+    Number(editable.exam.edition_year),
+  );
+  if ("error" in filled) return { ok: false, error: filled.error };
+
   const { data, error } = await supabase.rpc("allocate_candidate_numbers", { p_exam_id: examId });
   if (error) return { ok: false, error: describe(error, "allocate candidate numbers") };
 
@@ -549,12 +617,16 @@ export async function allocateNumbers(
     };
   }
   revalidatePath(`${BASE}/${examId}`);
-  return {
-    ok: true,
-    message: result.allocated
+  const notes = [
+    result.allocated
       ? `Allocated ${result.allocated} candidate number${result.allocated === 1 ? "" : "s"}.`
       : "Every rep already has a number — nothing renumbered.",
-  };
+    filled.added ? `Added ${filled.added} rep${filled.added === 1 ? "" : "s"} who had no record yet.` : null,
+    filled.failed
+      ? `${filled.failed} rep${filled.failed === 1 ? "" : "s"} could not be added — check the school's roster.`
+      : null,
+  ].filter(Boolean);
+  return { ok: true, message: notes.join(" ") };
 }
 
 // ── import ──────────────────────────────────────────────────────────────────

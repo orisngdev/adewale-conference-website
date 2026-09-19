@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { PortalBody, PortalHeader } from "@/components/portal/ui";
 import { PaperResultView, type PaperResult } from "@/components/portal/paper-result-view";
+import { formatCandidateNumber } from "@/lib/paper-exam";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { requireModuleView } from "@/supabase/auth";
@@ -28,7 +29,7 @@ export default async function AdminPaperResult({
         title={result.student_name ?? "Paper"}
         subtitle={[
           result.school_name,
-          result.exam_no ? `candidate ${result.exam_no}` : null,
+          result.exam_no ? `candidate ${formatCandidateNumber(result.exam_no)}` : null,
           result.title,
         ]
           .filter(Boolean)

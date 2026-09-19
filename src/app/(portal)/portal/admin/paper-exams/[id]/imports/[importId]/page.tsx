@@ -8,7 +8,7 @@ import { pageMetadata } from "@/lib/seo";
 import ActionForm from "@/components/portal/action-form";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
-import { percent } from "@/lib/paper-exam";
+import { formatCandidateNumber, percent } from "@/lib/paper-exam";
 import type { PaperExamPaper, SubjectBreakdown } from "@/supabase/types";
 import { commitImport } from "../../../actions";
 
@@ -165,7 +165,7 @@ export default async function ImportReview({
                     </span>
                     <span className="text-xs text-muted-foreground">
                       {[
-                        row.exam_no ? `candidate ${row.exam_no}` : "no candidate number",
+                        row.exam_no ? `candidate ${formatCandidateNumber(row.exam_no)}` : "no candidate number",
                         row.class_name,
                         row.external_id ? "has an External ID" : "no External ID",
                         `scored ${row.total ?? 0}/${exam.item_count}`,
@@ -266,7 +266,7 @@ export default async function ImportReview({
                 <div key={row.id} className="flex flex-wrap items-baseline justify-between gap-2 p-3">
                   <span className="text-sm text-foreground">
                     {[row.first_name, row.last_name].filter(Boolean).join(" ") || "No name on sheet"}
-                    {row.exam_no ? ` · candidate ${row.exam_no}` : ""}
+                    {row.exam_no ? ` · candidate ${formatCandidateNumber(row.exam_no)}` : ""}
                   </span>
                   <span className="text-xs text-muted-foreground">{row.resolution_note}</span>
                 </div>

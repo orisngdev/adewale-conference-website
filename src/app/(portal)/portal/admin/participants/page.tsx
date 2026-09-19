@@ -13,7 +13,7 @@ import type {
 import { parsePage } from "@/components/portal/list-controls";
 import { chunk } from "@/lib/batch";
 import { pageMetadata } from "@/lib/seo";
-import { paperLinksForStudents } from "@/lib/paper-results";
+import { paperKey, paperLinksForStudents } from "@/lib/paper-results";
 import { ZONAL_FINALS_OPTIONS } from "@/lib/forms";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
@@ -266,7 +266,9 @@ export default async function AdminParticipants({
       paperLinksForStudents(supabase, studentIds),
     ]);
     for (const r of pages.flatMap((p) => (p.data ?? []) as StudentStageResult[])) {
-      const link = paperLinks.get(r.student_id)?.get(r.stage);
+      // paperKey, not the bare stage: the index is keyed by edition too, so a
+      // stage-only lookup matched nothing and every paper link came back null.
+      const link = paperLinks.get(r.student_id)?.get(paperKey(r.stage, r.edition_year));
       (repResultsById[r.student_id] ??= []).push({
         ...r,
         detailHref: link?.href ?? null,

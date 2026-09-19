@@ -7,7 +7,7 @@ import { zipgradeRosterMatrix, type RosterRow } from "@/lib/zipgrade";
 // The roster in the capture tool's student-import shape, so it can print Answer
 // Sheet Packs with each rep's name and candidate number already filled in.
 //
-// Columns: First Name, Last Name, Student ID, Class, Custom ID, Principal.
+// Columns: First Name, Last Name, Student ID, Class, Custom ID, Teacher.
 // Identity is the candidate number alone; there is no External ID column, so
 // nothing identifying a student beyond that number leaves for a third party.
 // The school rides in Custom ID because that is the field the tool round-trips.
@@ -32,20 +32,22 @@ export async function GET(
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: exam } = await supabase
+  const { data: exam, error: examErr } = await supabase
     .from("paper_exams")
     .select("id, title, edition_year, item_count")
     .eq("id", id)
     .maybeSingle();
+  if (examErr) return new NextResponse(examErr.message, { status: 500 });
   if (!exam) return new NextResponse("Not found", { status: 404 });
 
   const scope = (request.nextUrl.searchParams.get("scope") ?? "all").trim();
 
-  const { data: candidates } = await supabase
+  const { data: candidates, error: candErr } = await supabase
     .from("paper_exam_candidates")
     .select("student_id, exam_no, class_name, students(name, level, school_id, schools(name))")
     .eq("exam_id", id)
     .order("exam_no");
+  if (candErr) return new NextResponse(candErr.message, { status: 500 });
 
   type CandidateRow = {
     student_id: string;
@@ -70,25 +72,26 @@ export async function GET(
     rows = rows.filter((r) => r.students?.school_id === schoolId);
   }
 
-  // The principal's name lives in the registration's details blob, keyed per
-  // school for this edition — the same source the registration detail page and
-  // the announcement targeting read.
+  // The teacher is who actually brings the reps to the centre, so they are who
+  // the pack is handed to. Their name lives in the registration's details blob,
+  // keyed per school for this edition.
   const schoolIds = [
     ...new Set(rows.map((r) => r.students?.school_id).filter(Boolean) as string[]),
   ];
-  const principalBySchool = new Map<string, string>();
+  const teacherBySchool = new Map<string, string>();
   if (schoolIds.length) {
-    const { data: regs } = await supabase
+    const { data: regs, error: regErr } = await supabase
       .from("registrations")
       .select("school_id, details")
       .eq("edition_year", exam.edition_year)
       .in("school_id", schoolIds);
+    if (regErr) return new NextResponse(regErr.message, { status: 500 });
     for (const reg of (regs ?? []) as {
       school_id: string | null;
       details: Record<string, string> | null;
     }[]) {
-      const name = (reg.details?.["Principal Full Name"] ?? "").trim();
-      if (reg.school_id && name) principalBySchool.set(reg.school_id, name);
+      const name = (reg.details?.["Teacher Full Name"] ?? "").trim();
+      if (reg.school_id && name) teacherBySchool.set(reg.school_id, name);
     }
   }
 
@@ -108,8 +111,8 @@ export async function GET(
     // case a candidate predates that meaning.
     className: r.class_name ?? r.students?.level ?? null,
     schoolName: r.students?.schools?.name ?? null,
-    principalName: r.students?.school_id
-      ? principalBySchool.get(r.students.school_id) ?? null
+    teacherName: r.students?.school_id
+      ? teacherBySchool.get(r.students.school_id) ?? null
       : null,
   }));
 

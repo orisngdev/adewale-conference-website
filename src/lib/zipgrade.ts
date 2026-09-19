@@ -8,6 +8,7 @@ import type { CsvCell } from "@/lib/csv";
 import { stripBom } from "@/lib/csv";
 import {
   DEFAULT_OPTION_COUNT,
+  formatCandidateNumber,
   isAnswerInRange,
   KEY_VERSIONS,
   PAPER_ANSWERS,
@@ -430,7 +431,8 @@ export interface RosterRow {
   /** SS1 / SS2. */
   className: string | null;
   schoolName: string | null;
-  principalName: string | null;
+  /** The teacher bringing the reps to the centre, not the principal. */
+  teacherName: string | null;
 }
 
 /** The roster in the capture tool's student-import shape.
@@ -442,21 +444,21 @@ export interface RosterRow {
  *
  *  The school rides in `Custom ID` because that is the one free field the tool
  *  round-trips — the 2025 export has no School column but every row carries
- *  the school in `CustomID`. Principal is last, for the humans handing out
+ *  the school in `CustomID`. Teacher is last, for the humans handing out
  *  the packs; if the importer ever refuses the file, delete that column. */
 export function zipgradeRosterMatrix(rows: readonly RosterRow[]): CsvCell[][] {
   const matrix: CsvCell[][] = [
-    ["First Name", "Last Name", "Student ID", "Class", "Custom ID", "Principal"],
+    ["First Name", "Last Name", "Student ID", "Class", "Custom ID", "Teacher"],
   ];
   for (const row of rows) {
     const { first, last } = splitName(row.name);
     matrix.push([
       first,
       last,
-      row.examNo,
+      formatCandidateNumber(row.examNo),
       row.className ?? "",
       row.schoolName ?? "",
-      row.principalName ?? "",
+      row.teacherName ?? "",
     ]);
   }
   return matrix;

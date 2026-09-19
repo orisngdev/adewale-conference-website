@@ -322,6 +322,69 @@ export function percent(total: number, outOf: number): number {
   return Math.round((total / outOf) * 1000) / 10;
 }
 
+// ── reading one captured paper ──────────────────────────────────────────────
+
+/** Ranks a subject by the exam's own `subjects` order; unknown ones keep the
+ *  tail. Shared so the score bars and the item grid never disagree. */
+export function subjectRank(order?: readonly string[] | null) {
+  const rank = new Map((order ?? []).map((s, i) => [s, i]));
+  return (subject: string) => rank.get(subject) ?? Number.MAX_SAFE_INTEGER;
+}
+
+export type PaperItemState = "correct" | "wrong" | "blank" | "unreadable" | "ungraded";
+
+/** Blank and unreadable are not wrong answers — the sheet never carried one,
+ *  and an ungraded paper has no verdict at all. Collapsing the three into
+ *  `is_correct ? ✓ : ✗` marked every unmarked paper wrong in red. */
+export function paperItemState(item: {
+  choice: string | null;
+  is_correct: boolean | null;
+}): PaperItemState {
+  if (item.choice === null) return "blank";
+  if (item.choice === "?") return "unreadable";
+  if (item.is_correct === null) return "ungraded";
+  return item.is_correct ? "correct" : "wrong";
+}
+
+export interface PaperSubjectGroup<T> {
+  subject: string;
+  items: T[];
+  correct: number;
+  outOf: number;
+}
+
+/** The paper's items split by subject, in the exam's subject order and by
+ *  position within each. 100 undifferentiated rows hid which subject went
+ *  wrong — the one thing the reader is looking for. */
+export function groupItemsBySubject<
+  T extends { subject: string; position: number; is_correct: boolean | null },
+>(items: readonly T[], order?: readonly string[] | null): PaperSubjectGroup<T>[] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const list = groups.get(item.subject) ?? [];
+    list.push(item);
+    groups.set(item.subject, list);
+  }
+  const rankOf = subjectRank(order);
+  return [...groups.entries()]
+    .sort(([a], [b]) => rankOf(a) - rankOf(b) || a.localeCompare(b))
+    .map(([subject, group]) => ({
+      subject,
+      items: [...group].sort((a, b) => a.position - b.position),
+      correct: group.filter((i) => i.is_correct === true).length,
+      outOf: group.length,
+    }));
+}
+
+/** Candidate numbers are bubbled into a 3-digit box, so 7 is written 007.
+ *  Matching compares them numerically; only display and export need this. Past
+ *  sittings carry unpadded numbers on students.exam_id, and the capture tool
+ *  hands its own IDs back as plain integers — both read as 7 without it. */
+export function formatCandidateNumber(value: string | number | null | undefined): string {
+  const s = String(value ?? "").trim();
+  return /^\d{1,3}$/.test(s) ? s.padStart(3, "0") : s;
+}
+
 // ── where an exam has got to ────────────────────────────────────────────────
 // Derived, never stored: `paper_exams.status` moves once, to 'published' when a
 // cutoff is committed, so rendering it raw said "draft" on a fully graded exam.
