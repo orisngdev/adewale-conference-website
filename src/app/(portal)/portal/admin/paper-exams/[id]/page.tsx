@@ -457,9 +457,9 @@ export default async function PaperExamDetail({
                       <p className="text-xs text-muted-foreground">
                         Import this into the capture tool, then print its pre-filled answer sheet
                         packs — each rep&apos;s name and candidate number already on the sheet.
-                        Columns: First Name, Last Name, Student ID, Class, School, Principal.
+                        Columns: First Name, Last Name, Student ID, Class, School, Teacher.
                         Identity is the candidate number alone, so nothing else about a student
-                        leaves for the capture tool; School and Principal are there for whoever
+                        leaves for the capture tool; School and Teacher are there for whoever
                         hands the sheets out. Packs are printed per Class, so download by class
                         if you want them pre-split.
                       </p>

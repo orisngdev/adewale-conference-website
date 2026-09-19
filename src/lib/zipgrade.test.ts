@@ -308,9 +308,9 @@ describe("zipgradeRosterMatrix", () => {
       name: "Ada Bright",
       className: "SS1",
       schoolName: "Bright Academy",
-      principalName: "Mrs Okoro",
+      teacherName: "Mrs Okoro",
     },
-    { examNo: "002", name: "Musa", className: null, schoolName: null, principalName: null },
+    { examNo: "2", name: "Musa", className: null, schoolName: null, teacherName: null },
   ];
 
   it("puts the school in Custom ID, the one field the tool round-trips", () => {
@@ -320,7 +320,7 @@ describe("zipgradeRosterMatrix", () => {
       "Student ID",
       "Class",
       "Custom ID",
-      "Principal",
+      "Teacher",
     ]);
   });
 
@@ -333,11 +333,12 @@ describe("zipgradeRosterMatrix", () => {
     assert.ok(!flat.includes("AAA"), "no access code in the roster");
   });
 
-  it("keeps the 3-digit candidate number as printed", () => {
+  it("pads the candidate number to the 3 digits the bubble box holds", () => {
     assert.equal(zipgradeRosterMatrix(rows)[1][2], "001");
+    assert.equal(zipgradeRosterMatrix(rows)[2][2], "002");
   });
 
-  it("carries the student's class, school and principal", () => {
+  it("carries the student's class, school and teacher", () => {
     assert.deepEqual(zipgradeRosterMatrix(rows)[1], [
       "Ada",
       "Bright",
