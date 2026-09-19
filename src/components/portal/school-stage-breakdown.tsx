@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card, SectionHeading } from "@/components/portal/ui";
 import { PaperScoreBreakdown } from "@/components/portal/paper-score-breakdown";
-import { percent } from "@/lib/paper-exam";
+import { formatCandidateNumber, percent } from "@/lib/paper-exam";
 import type { StageOutcome, SubjectBreakdown } from "@/supabase/types";
 
 // One school, one stage, broken down into the reps who produced the number.
@@ -152,7 +152,7 @@ export function SchoolStageBreakdown({
                   ) : null}
                   {rep.exam_no ? (
                     <span className="text-xs text-muted-foreground">
-                      Candidate <span className="tabular-nums text-foreground">{rep.exam_no}</span>
+                      Candidate <span className="tabular-nums text-foreground">{formatCandidateNumber(rep.exam_no)}</span>
                     </span>
                   ) : null}
                   <span className="flex-1" />

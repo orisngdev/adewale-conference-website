@@ -322,6 +322,15 @@ export function percent(total: number, outOf: number): number {
   return Math.round((total / outOf) * 1000) / 10;
 }
 
+/** Candidate numbers are bubbled into a 3-digit box, so 7 is written 007.
+ *  Matching compares them numerically; only display and export need this. Past
+ *  sittings carry unpadded numbers on students.exam_id, and the capture tool
+ *  hands its own IDs back as plain integers — both read as 7 without it. */
+export function formatCandidateNumber(value: string | number | null | undefined): string {
+  const s = String(value ?? "").trim();
+  return /^\d{1,3}$/.test(s) ? s.padStart(3, "0") : s;
+}
+
 // ── where an exam has got to ────────────────────────────────────────────────
 // Derived, never stored: `paper_exams.status` moves once, to 'published' when a
 // cutoff is committed, so rendering it raw said "draft" on a fully graded exam.

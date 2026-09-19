@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card, SectionHeading } from "@/components/portal/ui";
 import { PaperScoreBreakdown } from "@/components/portal/paper-score-breakdown";
-import { percent } from "@/lib/paper-exam";
+import { formatCandidateNumber, percent } from "@/lib/paper-exam";
 import type { SubjectBreakdown } from "@/supabase/types";
 
 // One captured paper, item by item, as returned by get_paper_result. No page
@@ -66,7 +66,7 @@ export function PaperResultView({
             {[
               result.student_name,
               result.school_name,
-              result.exam_no ? `candidate ${result.exam_no}` : null,
+              result.exam_no ? `candidate ${formatCandidateNumber(result.exam_no)}` : null,
             ]
               .filter(Boolean)
               .join(" · ")}

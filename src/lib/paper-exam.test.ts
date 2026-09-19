@@ -4,6 +4,7 @@ import {
   aggregateSchoolScore,
   applyCutoff,
   compareKeys,
+  formatCandidateNumber,
   gradePaper,
   paperExamPhase,
   parseAnswerKey,
@@ -319,6 +320,26 @@ describe("percent", () => {
 
   it("returns 0 rather than NaN for an empty paper", () => {
     assert.equal(percent(0, 0), 0);
+  });
+});
+
+describe("formatCandidateNumber", () => {
+  it("pads to the 3 digits the bubble box holds", () => {
+    assert.equal(formatCandidateNumber("7"), "007");
+    assert.equal(formatCandidateNumber("42"), "042");
+    assert.equal(formatCandidateNumber(7), "007");
+  });
+
+  it("leaves a number that is already 3 digits alone", () => {
+    assert.equal(formatCandidateNumber("007"), "007");
+    assert.equal(formatCandidateNumber("547"), "547");
+  });
+
+  it("passes anything that isn't a plain number through untouched", () => {
+    assert.equal(formatCandidateNumber(null), "");
+    assert.equal(formatCandidateNumber(""), "");
+    assert.equal(formatCandidateNumber("1042"), "1042");
+    assert.equal(formatCandidateNumber("12A"), "12A");
   });
 });
 
