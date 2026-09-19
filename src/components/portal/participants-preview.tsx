@@ -5,6 +5,7 @@ import {
   Award,
   CheckCircle2,
   ChevronRight,
+  FileText,
   LayoutDashboard,
   MapPinned,
   Medal,
@@ -90,6 +91,21 @@ function isUnresolved(match: PreviewMatch) {
 
 function resultAt(participant: PreviewParticipant, stage: string) {
   return participant.results.find((result) => result.stage === stage) ?? null;
+}
+
+/** Leaderboard order for a stage: highest score first, unscored teams last so
+ *  the work still to do stays together at the end. */
+function byScoreAt(stage: string) {
+  return (a: PreviewParticipant, b: PreviewParticipant) => {
+    const as = resultAt(a, stage)?.score ?? null;
+    const bs = resultAt(b, stage)?.score ?? null;
+    if (as === null || bs === null) {
+      if (as !== bs) return as === null ? 1 : -1;
+    } else if (as !== bs) {
+      return bs - as;
+    }
+    return a.school.localeCompare(b.school);
+  };
 }
 
 function makeHref(
@@ -339,8 +355,12 @@ function RepScores({
               />
             ) : null}
             {result?.detailHref ? (
-              <Link href={result.detailHref} className="text-xs text-primary hover:underline">
-                Paper →
+              <Link
+                href={result.detailHref}
+                className="ml-auto inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/30 px-2 py-0.5 text-xs font-semibold text-primary hover:bg-primary/5"
+              >
+                <FileText className="size-3" />
+                View exam paper
               </Link>
             ) : null}
           </li>
@@ -373,14 +393,17 @@ function QualificationsWorkspace({
     return [participant.school, participant.lga, participant.email, participant.centre.value, ...participant.roster.map((student) => student.name)]
       .filter(Boolean).some((value) => String(value).toLowerCase().includes(needle));
   });
-  const filtered = searched.filter((participant) => {
-    const outcome = resultAt(participant, "Qualifications")?.outcome;
-    if (status === "pending") return !outcome || outcome === "pending";
-    if (status === "advanced") return outcome === "advanced";
-    if (status === "eliminated") return outcome === "eliminated";
-    if (status === "missing-centre") return !participant.centre.allocated;
-    return true;
-  });
+  // Sorted, not in registration order: this table is read as the leaderboard.
+  const filtered = searched
+    .filter((participant) => {
+      const outcome = resultAt(participant, "Qualifications")?.outcome;
+      if (status === "pending") return !outcome || outcome === "pending";
+      if (status === "advanced") return outcome === "advanced";
+      if (status === "eliminated") return outcome === "eliminated";
+      if (status === "missing-centre") return !participant.centre.allocated;
+      return true;
+    })
+    .sort(byScoreAt("Qualifications"));
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const safePage = Math.min(Math.max(page, 1), pageCount);
   const paged = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
