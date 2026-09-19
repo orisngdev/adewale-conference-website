@@ -95,6 +95,22 @@ export default async function PaperExamDetail({
       supabase.from("paper_exam_papers").select("status, published_at").eq("exam_id", id),
     ]);
 
+  // What the roster SHOULD hold, so a short count is visible rather than
+  // discovered at the centre. Reps, not rep slots: a registration that lists
+  // one name three times is one candidate.
+  const [{ count: repCount }, { count: regCount }] = await Promise.all([
+    supabase
+      .from("students")
+      .select("id", { count: "exact", head: true })
+      .eq("edition_year", exam.edition_year)
+      .is("deactivated_at", null),
+    supabase
+      .from("registrations")
+      .select("id", { count: "exact", head: true })
+      .eq("edition_year", exam.edition_year)
+      .neq("status", "declined"),
+  ]);
+
   type ItemRow = { version: string; position: number; subject: string; correct: string };
   const keyRows = (items ?? []) as ItemRow[];
   const versions = [...new Set(keyRows.map((r) => r.version))].sort();
@@ -426,14 +442,24 @@ export default async function PaperExamDetail({
                     <SectionHeading>Candidate numbers</SectionHeading>
                     <Card className="p-5 md:p-6 space-y-3">
                       <p className="text-sm text-foreground">
-                        {candidateRows.length} of 999 numbers allocated.
+                        {candidateRows.length} of 999 numbers allocated
+                        {repCount != null
+                          ? `, for ${repCount} rep${repCount === 1 ? "" : "s"} on ${regCount ?? 0} registration${regCount === 1 ? "" : "s"}`
+                          : ""}
+                        .
+                        {repCount != null && repCount > candidateRows.length
+                          ? ` ${repCount - candidateRows.length} still need one.`
+                          : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         One list for the whole exam: 001 upward, never reused, so a bubbled number
                         identifies exactly one candidate and a single import can span every centre.
-                        Re-running this after a late school joins continues the list — it never
-                        renumbers a rep whose sheet is already printed. The ceiling is 999, which
-                        is what the 3-digit box on the sheet holds.
+                        Every registered rep gets one whether or not their school has been
+                        approved yet — declined entries are left out — and a registration that
+                        lists the same name more than once is one rep, not two. Re-running this
+                        after a late school joins continues the list — it
+                        never renumbers a rep whose sheet is already printed. The ceiling is 999,
+                        which is what the 3-digit box on the sheet holds.
                       </p>
                       {exam.is_backfill ? (
                         <p className="text-sm text-amber-600 dark:text-amber-500">
