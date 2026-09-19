@@ -7,7 +7,8 @@ import type { StageOutcome, SubjectBreakdown } from "@/supabase/types";
 // One school, one stage, broken down into the reps who produced the number.
 // Rendered inside each role's own section so it keeps that role's sidebar; the
 // access rule and how much of the team is returned both live in
-// get_school_stage_breakdown.
+// get_school_stage_breakdown. Also rendered inline on a results page, where
+// there is nothing to go back to — hence the optional back link.
 
 export interface StageBreakdownRep {
   student_id: string;
@@ -55,7 +56,8 @@ export function SchoolStageBreakdown({
   paperBase,
 }: {
   detail: StageBreakdown;
-  backHref: string;
+  /** Omitted when this is the page rather than a drill-down from one. */
+  backHref?: string;
   /** Where a paper is read for this reader — see PAPER_BASE. */
   paperBase: string;
 }) {
@@ -67,9 +69,11 @@ export function SchoolStageBreakdown({
 
   return (
     <>
-      <Link href={backHref} className="text-xs text-primary hover:underline">
-        ← Back to results
-      </Link>
+      {backHref ? (
+        <Link href={backHref} className="text-xs text-primary hover:underline">
+          ← Back to results
+        </Link>
+      ) : null}
 
       <Card className="p-5 md:p-6">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
