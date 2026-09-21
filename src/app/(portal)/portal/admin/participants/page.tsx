@@ -14,7 +14,7 @@ import { parsePage } from "@/components/portal/list-controls";
 import { chunk } from "@/lib/batch";
 import { pageMetadata } from "@/lib/seo";
 import { paperKey, paperLinksForStudents } from "@/lib/paper-results";
-import { ZONAL_FINALS_OPTIONS } from "@/lib/forms";
+import { examCentre, isKnownCentre, requestedCentre } from "@/lib/exam-centre";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
 import {
@@ -56,37 +56,6 @@ interface CertRow {
 }
 
 const BOOKENDS = new Set(["Registration", "Completed"]);
-
-function detailsValue(details: Record<string, string> | null, key: string) {
-  const value = details?.[key];
-  return typeof value === "string" ? value.trim() : "";
-}
-
-/** Is this zone one of the real exam centres, or a leftover LGA/division? */
-function isKnownCentre(zone: string) {
-  return !zone || (ZONAL_FINALS_OPTIONS as readonly string[]).includes(zone);
-}
-
-type ZoneSource = "allocated" | "requested" | "lga" | "none";
-
-/**
- * Where a school sits the zonal exam, and — crucially — who decided it.
- *
- * Only `qualification_zone` is an admin allocation. Everything after it is a
- * fallback: the school's own answer to the required "Select Location For Zonal
- * Finals" question on the registration form, then its LGA, which is not a centre at
- * all. Collapsing these into one string is what let saveQualificationDecision write
- * an LGA into the centre column on every score entry.
- */
-function zoneInfo(r: ParticipantReg): { value: string; source: ZoneSource } {
-  if (r.qualification_zone) return { value: r.qualification_zone, source: "allocated" };
-  const requested =
-    detailsValue(r.details, "Zonal Finals Location") ||
-    detailsValue(r.details, "Which center do you prefer for the Zonal Final Exam?  ");
-  if (requested) return { value: requested, source: "requested" };
-  if (r.schools?.lga) return { value: r.schools.lga, source: "lga" };
-  return { value: "Unassigned", source: "none" };
-}
 
 function stageTabs(stages: string[]) {
   return stages.filter((s) => !BOOKENDS.has(s));
@@ -309,10 +278,8 @@ export default async function AdminParticipants({
     : "all";
 
   const previewParticipants: PreviewParticipant[] = dataRegs.map((registration) => {
-    const info = zoneInfo(registration);
-    const requested =
-      detailsValue(registration.details, "Zonal Finals Location") ||
-      detailsValue(registration.details, "Which center do you prefer for the Zonal Final Exam?  ");
+    const info = examCentre(registration);
+    const requested = requestedCentre(registration.details);
     const standardRequested = requested && isKnownCentre(requested) ? requested : null;
     return {
       id: registration.id,
