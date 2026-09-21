@@ -351,6 +351,8 @@ export interface PaperExam {
   /** Until this is set, per-item correct answers never leave the server. */
   review_released: boolean;
   status: PaperExamStatus;
+  /** The one exam per edition the centre-lead pages mark against. */
+  attendance_open?: boolean;
   created_at?: string;
 }
 
@@ -408,6 +410,56 @@ export interface PaperExamImport {
   status: "staged" | "committed" | "discarded";
   created_at: string;
   committed_at: string | null;
+}
+
+// ── exam centres and attendance ─────────────────────────────────────────────
+
+export interface ExamCentre {
+  id: string;
+  edition_year: number;
+  /** The host school. */
+  name: string;
+  town: string;
+  /** The ZONAL_FINALS_OPTIONS town this venue serves, or null for a venue no
+   *  stored qualification_zone can reach (Arigbajo, Imeko). */
+  legacy_zone: string | null;
+  is_active: boolean;
+}
+
+export const CENTRE_LEAD_ROLES = ["centre_lead", "invigilator", "materials_officer"] as const;
+export type CentreLeadRole = (typeof CENTRE_LEAD_ROLES)[number];
+
+export const CENTRE_LEAD_ROLE_LABELS: Record<CentreLeadRole, string> = {
+  centre_lead: "Centre Lead",
+  invigilator: "Invigilator",
+  materials_officer: "Registration & Materials Officer",
+};
+
+export interface CentreLead {
+  id: string;
+  edition_year: number;
+  centre_id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  role: CentreLeadRole;
+  is_active: boolean;
+  last_signed_in_at: string | null;
+  created_at?: string;
+}
+
+export type AttendanceStatus = "present" | "absent";
+
+export interface AttendanceRow {
+  id: string;
+  exam_id: string;
+  student_id: string;
+  centre_id: string;
+  status: AttendanceStatus;
+  marked_by_lead: string | null;
+  marked_by_profile: string | null;
+  marked_at: string;
+  note: string | null;
 }
 
 export interface Question {
