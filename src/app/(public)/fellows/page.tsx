@@ -1,6 +1,7 @@
 import Link from "next/link";
 import PageHeader from "@/components/layout/page-header";
 import FellowsApplyButton from "@/components/sections/fellows-apply-button";
+import AttendanceBanner from "@/components/sections/attendance-banner";
 import { ZONAL_CENTRES_2026 } from "@/lib/forms";
 import {
   FELLOWS_APPLICATIONS_CLOSE,
@@ -169,9 +170,15 @@ const FAQS = [
   },
 ];
 
+// Static but for the exam-day banner, which reads whether attendance is open.
+// A minute's lag on a flag flipped once, an hour before the first candidate
+// arrives, is not worth making the whole page dynamic per request.
+export const revalidate = 60;
+
 export default function FellowsPage() {
   return (
     <>
+      <AttendanceBanner />
       <PageHeader
         kicker="Paid · Ogun State · One day"
         title="Adéwálé Fellows Programme"
