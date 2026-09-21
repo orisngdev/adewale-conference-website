@@ -10,6 +10,7 @@ import { attendanceCounts } from "@/lib/attendance";
 import { loadSitting, openAttendanceExam } from "@/lib/attendance-data";
 import { SITE_URL } from "@/lib/site";
 import AttendanceLink from "@/components/portal/attendance-link";
+import SettingsTabs from "@/components/portal/settings-tabs";
 import { CENTRE_LEAD_ROLE_LABELS, type CentreLead, type ExamCentre } from "@/supabase/types";
 import { setAttendanceOpen } from "./actions";
 import CentreLeadsPanel from "@/components/portal/centre-leads-panel";
@@ -73,6 +74,111 @@ export default async function AdminAttendance() {
   const sitting = open ? await loadSitting(open) : null;
   const entries = sitting?.entries ?? [];
   const overall = attendanceCounts(entries.filter((e) => e.centreId !== null));
+
+  const activeLeads = leads.filter((l) => l.is_active);
+  const staffedCentreIds = new Set(activeLeads.map((l) => l.centre_id));
+  const unstaffed = centres.filter((c) => c.is_active && !staffedCentreIds.has(c.id));
+
+  const turnoutTab = (
+    <section className="space-y-3">
+      {/* Staff are what make the register reachable at all, and the admin can
+          only find out by opening the other tab. Say it here instead. */}
+      {unstaffed.length > 0 ? (
+        <Card className="border-primary/30 bg-primary/5 p-4">
+          <p className="text-sm font-bold text-foreground">
+            {activeLeads.length === 0
+              ? "Nobody can mark attendance yet."
+              : `${unstaffed.length} centre${unstaffed.length === 1 ? " has" : "s have"} no staff.`}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            A centre with no registered staff has nobody who can sign in, so its candidates stay
+            unmarked all day: {unstaffed.map((c) => c.town).join(", ")}.
+          </p>
+          <Link
+            href="?tab=staff"
+            scroll={false}
+            className="mt-2 inline-block text-sm font-bold text-gold-ink hover:underline"
+          >
+            Add centre staff →
+          </Link>
+        </Card>
+      ) : null}
+
+      {open ? (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <SectionHeading>Turnout</SectionHeading>
+            <Link
+              href="/portal/admin/attendance/export"
+              className="text-xs font-bold text-gold-ink hover:underline"
+            >
+              Download CSV
+            </Link>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-4">
+            <StatTile label="Present" value={String(overall.present)} />
+            <StatTile label="Absent" value={String(overall.absent)} />
+            <StatTile label="Not marked" value={String(overall.unmarked)} />
+            <StatTile label="Allocated" value={String(overall.total)} />
+          </div>
+
+          <div className="divide-y divide-foreground/5 border border-foreground/10">
+            {centres.map((centre) => {
+              const counts = attendanceCounts(entries.filter((e) => e.centreId === centre.id));
+              const staffed = activeLeads.filter((l) => l.centre_id === centre.id).length;
+              return (
+                <Link
+                  key={centre.id}
+                  href={`/portal/admin/attendance/${centre.id}`}
+                  className="grid gap-1 px-4 py-3 hover:bg-foreground/5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-foreground">
+                      {centre.name}, {centre.town}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {counts.total} allocated ·{" "}
+                      <span className={staffed === 0 ? "font-bold text-destructive" : ""}>
+                        {staffed} staff
+                      </span>
+                      {centre.legacy_zone ? "" : " · no legacy zone — allocate by hand"}
+                    </p>
+                  </div>
+                  <p className="text-sm tabular-nums">
+                    <span className="font-bold text-foreground">{counts.present}</span> present ·{" "}
+                    {counts.absent} absent ·{" "}
+                    <span className={counts.unmarked ? "text-gold-ink" : ""}>
+                      {counts.unmarked} not marked
+                    </span>
+                  </p>
+                </Link>
+              );
+            })}
+            {centres.length === 0 ? (
+              <div className="p-4">
+                <EmptyState title="No centres for this edition">
+                  The venues are seeded by migration 20260921090200. Push it, then reload.
+                </EmptyState>
+              </div>
+            ) : null}
+          </div>
+
+          <UnallocatedSchools
+            entries={entries}
+            centres={centres}
+            canManage={canManage}
+            editionYear={open.edition_year}
+          />
+        </>
+      ) : (
+        <EmptyState title="No sitting is open">
+          Open attendance on the exam being sat, above, and turnout appears here as centre staff
+          mark their registers.
+        </EmptyState>
+      )}
+    </section>
+  );
 
   return (
     <>
@@ -138,82 +244,26 @@ export default async function AdminAttendance() {
           )}
         </section>
 
-        {/* ── the board ─────────────────────────────────────────────────── */}
-        {open ? (
-          <section className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <SectionHeading>Turnout</SectionHeading>
-              <Link
-                href="/portal/admin/attendance/export"
-                className="text-xs font-bold text-gold-ink hover:underline"
-              >
-                Download CSV
-              </Link>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-4">
-              <StatTile label="Present" value={String(overall.present)} />
-              <StatTile label="Absent" value={String(overall.absent)} />
-              <StatTile label="Not marked" value={String(overall.unmarked)} />
-              <StatTile label="Allocated" value={String(overall.total)} />
-            </div>
-
-            <div className="divide-y divide-foreground/5 border border-foreground/10">
-              {centres.map((centre) => {
-                const counts = attendanceCounts(
-                  entries.filter((e) => e.centreId === centre.id),
-                );
-                const staffed = leads.filter((l) => l.centre_id === centre.id && l.is_active).length;
-                return (
-                  <Link
-                    key={centre.id}
-                    href={`/portal/admin/attendance/${centre.id}`}
-                    className="grid gap-1 px-4 py-3 hover:bg-foreground/5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-foreground">
-                        {centre.name}, {centre.town}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {counts.total} allocated · {staffed} staff
-                        {centre.legacy_zone ? "" : " · no legacy zone — allocate by hand"}
-                      </p>
-                    </div>
-                    <p className="text-sm tabular-nums">
-                      <span className="font-bold text-foreground">{counts.present}</span> present ·{" "}
-                      {counts.absent} absent ·{" "}
-                      <span className={counts.unmarked ? "text-gold-ink" : ""}>
-                        {counts.unmarked} not marked
-                      </span>
-                    </p>
-                  </Link>
-                );
-              })}
-              {centres.length === 0 ? (
-                <div className="p-4">
-                  <EmptyState title="No centres for this edition">
-                    The venues are seeded by migration 20260921090200. Push it, then reload.
-                  </EmptyState>
-                </div>
-              ) : null}
-            </div>
-
-            <UnallocatedSchools
-              entries={entries}
-              centres={centres}
-              canManage={canManage}
-              editionYear={open.edition_year}
-            />
-          </section>
-        ) : null}
-
-        {/* ── staff ─────────────────────────────────────────────────────── */}
-        <CentreLeadsPanel
-          centres={centres}
-          leads={leads}
-          canManage={canManage}
-          editionYear={editionYear}
-          roleLabels={CENTRE_LEAD_ROLE_LABELS}
+        <SettingsTabs
+          paramKey="tab"
+          tabs={[
+            { label: "Turnout", slug: "turnout", content: turnoutTab },
+            {
+              // The count is in the label because "0" is the thing the admin
+              // needs to notice before exam morning, not after.
+              label: `Centre staff (${activeLeads.length})`,
+              slug: "staff",
+              content: (
+                <CentreLeadsPanel
+                  centres={centres}
+                  leads={leads}
+                  canManage={canManage}
+                  editionYear={editionYear}
+                  roleLabels={CENTRE_LEAD_ROLE_LABELS}
+                />
+              ),
+            },
+          ]}
         />
       </PortalBody>
     </>
