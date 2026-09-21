@@ -34,6 +34,11 @@ export async function approveInfoChange(id: string) {
   const phoneKey = r.target === "teacher" ? "Teacher Number" : "Principal Number";
   const emailKey = r.target === "teacher" ? "Teacher Email Address" : "Principal Email Address";
 
+  // Keep what is being overwritten. Approving is a one-way write into the
+  // registration, and a wrong one has already cost a school its educator name.
+  const previousName = (details[nameKey] ?? "").trim() || null;
+  const previousPhone = (details[phoneKey] ?? "").trim() || null;
+
   if (r.new_name) details[nameKey] = r.new_name;
   if (r.new_phone) details[phoneKey] = r.new_phone;
 
@@ -57,6 +62,8 @@ export async function approveInfoChange(id: string) {
     .from("info_change_requests")
     .update({
       status: "approved",
+      previous_name: previousName,
+      previous_phone: previousPhone,
       reviewed_by: reviewer?.id ?? null,
       reviewed_at: new Date().toISOString(),
     })

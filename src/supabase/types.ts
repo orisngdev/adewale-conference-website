@@ -271,6 +271,9 @@ export interface InfoChangeRequestRow {
   target: "teacher" | "principal";
   new_name: string | null;
   new_phone: string | null;
+  /** What approval overwrote, so a wrong one can be put back. */
+  previous_name?: string | null;
+  previous_phone?: string | null;
   reason: string;
   status: ReplacementStatus;
   admin_note: string | null;

@@ -67,6 +67,11 @@ export default function RequestInfoChangeButton({
                   admin reviews it before it&apos;s applied. To change an email address,
                   contact the team directly.
                 </p>
+                <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                  Changing a <strong className="text-foreground">representative</strong> is
+                  not done here — use <strong className="text-foreground">Replace</strong>{" "}
+                  beside that student on the Students page.
+                </p>
 
                 <form action={formAction} className="mt-4 space-y-3">
                   <label className="block">

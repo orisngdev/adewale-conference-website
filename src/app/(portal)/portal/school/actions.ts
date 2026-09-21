@@ -6,6 +6,7 @@ import { createClient } from "@/supabase/server";
 import { getSessionUser } from "@/supabase/auth";
 import { createAdminClient } from "@/supabase/admin";
 import { provisionStudent, type ProvisionResult } from "@/lib/provision-student";
+import { personNameProblem } from "@/lib/person-identity";
 import type { InfoChangeResult, Rep, ReplacementResult } from "@/supabase/types";
 
 // Provision a student for the coordinator's school: a Supabase auth user with a
@@ -195,12 +196,30 @@ export async function requestInfoChange(
   if (!newName && !newPhone) return { error: "Enter a new name or phone number." };
   if (!reason) return { error: "Enter the reason for the change." };
 
+  // This box is applied verbatim and ends up on the printed answer sheets, so a
+  // request typed into it ("Change X to Y") is rejected rather than stored.
+  const nameProblem = personNameProblem(newName);
+  if (nameProblem) return { error: nameProblem };
+
   const { data: reg } = await supabase
     .from("registrations")
     .select("school_id")
     .eq("id", registrationId)
     .maybeSingle();
   if (!reg?.school_id) return { error: "Registration not found." };
+
+  // Same guard as requestReplacement: without it the same correction gets filed
+  // and approved several times over.
+  const { data: dupe } = await supabase
+    .from("info_change_requests")
+    .select("id")
+    .eq("registration_id", registrationId)
+    .eq("target", target)
+    .eq("status", "pending")
+    .limit(1);
+  if (dupe && dupe.length) {
+    return { error: "A correction to these details is already awaiting review." };
+  }
 
   // RLS (icr_insert) gates this to members of the school.
   const { error } = await supabase.from("info_change_requests").insert({
