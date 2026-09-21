@@ -44,7 +44,9 @@ export async function GET(
 
   const { data: candidates, error: candErr } = await supabase
     .from("paper_exam_candidates")
-    .select("student_id, exam_no, class_name, students(name, level, school_id, schools(name))")
+    .select(
+      "student_id, exam_no, class_name, students(name, level, school_id, deactivated_at, schools(name))",
+    )
     .eq("exam_id", id)
     .order("exam_no");
   if (candErr) return new NextResponse(candErr.message, { status: 500 });
@@ -57,10 +59,17 @@ export async function GET(
       name: string;
       level: string | null;
       school_id: string | null;
+      deactivated_at: string | null;
       schools: { name: string | null } | null;
     } | null;
   };
-  let rows = (candidates ?? []) as unknown as CandidateRow[];
+  // Allocation is append-only so a printed sheet is never renumbered, which
+  // means a rep replaced after allocation keeps their candidate row while the
+  // replacement gets a new number. Both then printed, putting 6 reps on a
+  // 3-rep school's pack.
+  let rows = ((candidates ?? []) as unknown as CandidateRow[]).filter(
+    (r) => r.students && !r.students.deactivated_at,
+  );
 
   if (scope.startsWith("class:")) {
     const wanted = scope.slice("class:".length).toLowerCase();
