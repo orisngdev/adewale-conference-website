@@ -45,3 +45,21 @@ export function examCentre(r: CentreRegistration): { value: string; source: Cent
   if (r.schools?.lga) return { value: r.schools.lga, source: "lga" };
   return { value: "Unassigned", source: "none" };
 }
+
+/**
+ * Which venue a registration sits at, as an `exam_centres` id.
+ *
+ * Deliberately stricter than examCentre() above: only an explicit allocation
+ * counts, because a lead marking a register needs the students who were sent to
+ * their hall, not the ones whose LGA happens to share a name with it. Null means
+ * "no lead can see this school" and is a thing to fix, not a fallback.
+ */
+export function resolveCentreId(
+  r: { qualification_zone: string | null; exam_centre_id?: string | null },
+  centres: { id: string; legacy_zone: string | null }[],
+): string | null {
+  if (r.exam_centre_id) return r.exam_centre_id;
+  const zone = r.qualification_zone?.trim();
+  if (!zone) return null;
+  return centres.find((c) => c.legacy_zone === zone)?.id ?? null;
+}
