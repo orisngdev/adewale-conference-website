@@ -34,7 +34,7 @@ export default function CentreLeadsPanel({
   return (
     <section className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionHeading>Centre staff</SectionHeading>
+        <SectionHeading>Add staff</SectionHeading>
         {canManage ? (
           <button
             type="button"
@@ -122,11 +122,15 @@ export default function CentreLeadsPanel({
 
       {leads.length === 0 ? (
         <EmptyState title="Nobody can sign in yet">
-          Add the centre leads and invigilators here. They need no account — the email you enter
-          is what they type at <code className="bg-foreground/5 px-1">/attendance</code>.
+          Add the centre leads and invigilators above. They need no account — the email you enter
+          is exactly what they type at <code className="bg-foreground/5 px-1">/attendance</code>,
+          and an email you have not registered here cannot get in.
         </EmptyState>
       ) : (
         <div className="divide-y divide-foreground/5 border border-foreground/10">
+          <p className="bg-foreground/5 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            Registered staff
+          </p>
           {leads.map((lead) => (
             <div
               key={lead.id}
