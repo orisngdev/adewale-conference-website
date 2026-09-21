@@ -81,9 +81,13 @@ export default async function PaperExamDetail({
         .order("version")
         .order("position"),
       supabase
+        // !inner + the null filter drops a rep replaced after allocation: their
+        // number is kept for the sheet already printed, but they are not on the
+        // roster or in the count any more.
         .from("paper_exam_candidates")
-        .select("exam_no, class_name, exported_at")
+        .select("exam_no, class_name, exported_at, students!inner(deactivated_at)")
         .eq("exam_id", id)
+        .is("students.deactivated_at", null)
         .order("exam_no"),
       supabase
         .from("paper_exam_imports")
