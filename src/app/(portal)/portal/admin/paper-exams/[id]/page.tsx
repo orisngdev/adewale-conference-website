@@ -102,7 +102,7 @@ export default async function PaperExamDetail({
   // What the roster SHOULD hold, so a short count is visible rather than
   // discovered at the centre. Reps, not rep slots: a registration that lists
   // one name three times is one candidate.
-  const [{ count: repCount }, { count: regCount }] = await Promise.all([
+  const [{ count: repCount }, { count: regCount }, { count: issuedCount }] = await Promise.all([
     supabase
       .from("students")
       .select("id", { count: "exact", head: true })
@@ -113,6 +113,12 @@ export default async function PaperExamDetail({
       .select("id", { count: "exact", head: true })
       .eq("edition_year", exam.edition_year)
       .neq("status", "declined"),
+    // Every number ever handed out, retired ones included — allocation resumes
+    // from the highest, so this and not the roster is what the 999 is spent on.
+    supabase
+      .from("paper_exam_candidates")
+      .select("exam_no", { count: "exact", head: true })
+      .eq("exam_id", id),
   ]);
 
   type ItemRow = { version: string; position: number; subject: string; correct: string };
@@ -125,6 +131,8 @@ export default async function PaperExamDetail({
     exported_at: string | null;
   }[];
   const paperStatuses = (papers ?? []) as { status: string; published_at: string | null }[];
+  const numbersIssued = Math.max(issuedCount ?? 0, candidateRows.length);
+  const numbersRetired = numbersIssued - candidateRows.length;
 
   // Where this exam has got to. The tabs alone do not say what comes next, and
   // the order is not guessable — a key has to exist before results can be read
@@ -446,11 +454,16 @@ export default async function PaperExamDetail({
                     <SectionHeading>Candidate numbers</SectionHeading>
                     <Card className="p-5 md:p-6 space-y-3">
                       <p className="text-sm text-foreground">
-                        {candidateRows.length} of 999 numbers allocated
+                        {numbersIssued} of 999 numbers used
                         {repCount != null
                           ? `, for ${repCount} rep${repCount === 1 ? "" : "s"} on ${regCount ?? 0} registration${regCount === 1 ? "" : "s"}`
                           : ""}
                         .
+                        {numbersRetired === 0
+                          ? ""
+                          : numbersRetired === 1
+                            ? ` 1 number belongs to a rep who has since left and is never reissued, so the roster below lists ${candidateRows.length}.`
+                            : ` ${numbersRetired} numbers belong to reps who have since left and are never reissued, so the roster below lists ${candidateRows.length}.`}
                         {repCount != null && repCount > candidateRows.length
                           ? ` ${repCount - candidateRows.length} still need one.`
                           : ""}
