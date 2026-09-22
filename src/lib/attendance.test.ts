@@ -14,9 +14,12 @@ import {
 } from "./attendance";
 
 // Fictional fixtures — this is a public repo, no real school or student names.
-const ABEOKUTA = { id: "centre-abk", legacy_zone: "Abeokuta" };
-const ARIGBAJO = { id: "centre-arg", legacy_zone: null };
-const CENTRES = [ABEOKUTA, ARIGBAJO];
+const ABEOKUTA = { id: "centre-abk", town: "Abeokuta", legacy_zone: "Abeokuta" };
+// Iko Gateway replaced Idiroko, so its town and its stored zone differ.
+const IKO = { id: "centre-iko", town: "Iko", legacy_zone: "Idiroko" };
+// New for 2026: no legacy zone names it, but admins type the town by hand.
+const IMEKO = { id: "centre-imeko", town: "Imeko", legacy_zone: null };
+const CENTRES = [ABEOKUTA, IKO, IMEKO];
 
 function candidate(over: Partial<RosterCandidate> = {}): RosterCandidate {
   return {
@@ -65,13 +68,13 @@ describe("schoolCentres", () => {
         {
           school_id: "a",
           qualification_zone: "Abeokuta",
-          exam_centre_id: "centre-arg",
+          exam_centre_id: "centre-imeko",
           created_at: "2026-01-01",
         },
       ],
       CENTRES,
     );
-    assert.equal(map.get("a"), "centre-arg");
+    assert.equal(map.get("a"), "centre-imeko");
   });
 
   it("returns null for a zone no venue claims, so it reads as a gap not a guess", () => {
@@ -80,6 +83,35 @@ describe("schoolCentres", () => {
       CENTRES,
     );
     assert.equal(map.get("a"), null);
+  });
+
+  // The participants screen takes a free-text centre, so the stored string is
+  // whatever an admin typed — for the two 2026 venues no legacy zone names,
+  // that is the town. Six schools and 18 reps sat invisible to their lead.
+  it("matches a venue by its town when no legacy zone names it", () => {
+    const map = schoolCentres(
+      [{ school_id: "a", qualification_zone: "Imeko", created_at: "2026-01-01" }],
+      CENTRES,
+    );
+    assert.equal(map.get("a"), "centre-imeko");
+  });
+
+  it("still prefers the legacy zone, so Idiroko reaches Iko Gateway", () => {
+    const map = schoolCentres(
+      [{ school_id: "a", qualification_zone: "Idiroko", created_at: "2026-01-01" }],
+      CENTRES,
+    );
+    assert.equal(map.get("a"), "centre-iko");
+  });
+
+  it("ignores the case and padding a human typed", () => {
+    for (const typed of ["imeko", " Imeko ", "IMEKO"]) {
+      const map = schoolCentres(
+        [{ school_id: "a", qualification_zone: typed, created_at: "2026-01-01" }],
+        CENTRES,
+      );
+      assert.equal(map.get("a"), "centre-imeko", `failed for ${JSON.stringify(typed)}`);
+    }
   });
 
   it("returns null for an unallocated school", () => {
