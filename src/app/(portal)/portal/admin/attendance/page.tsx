@@ -63,13 +63,16 @@ export default async function AdminAttendance() {
         .order("town"),
       supabase
         .from("centre_leads")
-        .select("id, edition_year, centre_id, name, email, phone, role, is_active, last_signed_in_at")
+        .select(
+          "id, edition_year, centre_id, name, email, phone, role, is_active," +
+            " last_signed_in_at, last_emailed_at",
+        )
         .eq("edition_year", editionYear)
         .order("name"),
     ]);
 
   const centres = (centreRows ?? []) as ExamCentre[];
-  const leads = (leadRows ?? []) as CentreLead[];
+  const leads = (leadRows ?? []) as unknown as CentreLead[];
 
   const sitting = open ? await loadSitting(open) : null;
   const entries = sitting?.entries ?? [];

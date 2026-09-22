@@ -5,7 +5,12 @@ import { createClient } from "@/supabase/server";
 import { requireManage } from "@/supabase/auth";
 import { parseCsvGrid } from "@/lib/csv";
 import { markAttendance } from "@/lib/attendance-data";
-import { CENTRE_LEAD_ROLES, type CentreLeadRole } from "@/supabase/types";
+import { buildCentreStaffEmail, isUndeliverableAddress, sendEmailSafely } from "@/lib/email";
+import {
+  CENTRE_LEAD_ROLES,
+  CENTRE_LEAD_ROLE_LABELS,
+  type CentreLeadRole,
+} from "@/supabase/types";
 
 const MODULE = "participants" as const;
 
@@ -267,4 +272,69 @@ export async function correctMark(
 
   refresh();
   return { ok: true, message: `Recorded as ${status}, under your name.` };
+}
+
+/**
+ * Send one centre lead their register link.
+ *
+ * Deliberately one person at a time rather than a "mail everyone" button: the
+ * roster is assembled over days as Fellows confirm, so the useful question is
+ * "who have I not told yet", which the stamp on each row answers.
+ */
+export async function emailLead(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await requireManage(MODULE))) return denied;
+  const id = String(formData.get("lead_id") ?? "").trim();
+  if (!id) return { ok: false, error: "No lead chosen." };
+
+  const supabase = await createClient();
+  const { data: lead, error } = await supabase
+    .from("centre_leads")
+    .select("id, name, email, role, is_active, exam_centres(name, town)")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) return { ok: false, error: error.message };
+  if (!lead) return { ok: false, error: "That person is no longer on the list." };
+
+  const row = lead as unknown as {
+    name: string;
+    email: string;
+    role: CentreLeadRole;
+    is_active: boolean;
+    exam_centres: { name: string; town: string } | null;
+  };
+  if (!row.is_active) {
+    return { ok: false, error: `${row.name} is deactivated — reactivate them first.` };
+  }
+  // A reserved domain is a guaranteed hard bounce, and bounce rate is the thing
+  // that gets a sending domain blocked.
+  if (isUndeliverableAddress(row.email)) {
+    return { ok: false, error: `${row.email} cannot receive mail.` };
+  }
+  if (!row.exam_centres) {
+    return { ok: false, error: "That person's centre is missing — the email would not say where." };
+  }
+
+  await sendEmailSafely(
+    buildCentreStaffEmail({
+      name: row.name,
+      email: row.email,
+      centre: `${row.exam_centres.name}, ${row.exam_centres.town}`,
+      role: CENTRE_LEAD_ROLE_LABELS[row.role],
+    }),
+  );
+
+  // sendEmailSafely swallows a provider failure by design, so this stamp means
+  // "we tried", not "it arrived". Said plainly in the message rather than
+  // implied by a tick.
+  const { error: stampError } = await supabase
+    .from("centre_leads")
+    .update({ last_emailed_at: new Date().toISOString() })
+    .eq("id", id);
+  if (stampError) return { ok: false, error: stampError.message };
+
+  refresh();
+  return { ok: true, message: `Sent to ${row.email}.` };
 }

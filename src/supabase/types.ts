@@ -445,6 +445,7 @@ export interface CentreLead {
   role: CentreLeadRole;
   is_active: boolean;
   last_signed_in_at: string | null;
+  last_emailed_at?: string | null;
   created_at?: string;
 }
 

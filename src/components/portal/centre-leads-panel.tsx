@@ -5,7 +5,14 @@ import { Card, EmptyState, SectionHeading } from "@/components/portal/ui";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import ActionForm from "@/components/portal/action-form";
 import { SubmitButton } from "@/components/portal/submit-button";
-import { addLead, addLeadsBulk, setLeadActive } from "@/app/(portal)/portal/admin/attendance/actions";
+import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
+import { Mail } from "lucide-react";
+import {
+  addLead,
+  addLeadsBulk,
+  emailLead,
+  setLeadActive,
+} from "@/app/(portal)/portal/admin/attendance/actions";
 import { CENTRE_LEAD_ROLES, type CentreLead, type CentreLeadRole, type ExamCentre } from "@/supabase/types";
 
 const field =
@@ -148,16 +155,37 @@ export default function CentreLeadsPanel({
                   {lead.last_signed_in_at
                     ? `Last signed in ${new Date(lead.last_signed_in_at).toLocaleString("en-GB")}`
                     : "Never signed in"}
+                  {" · "}
+                  <span className={lead.last_emailed_at ? "" : "font-bold text-gold-ink"}>
+                    {lead.last_emailed_at
+                      ? `emailed ${new Date(lead.last_emailed_at).toLocaleString("en-GB")}`
+                      : "not emailed yet"}
+                  </span>
                 </p>
               </div>
               {canManage ? (
-                <ActionForm action={setLeadActive}>
-                  <input type="hidden" name="lead_id" value={lead.id} />
-                  <input type="hidden" name="active" value={lead.is_active ? "false" : "true"} />
-                  <SubmitButton size="sm" variant="outline" pendingText="Saving…">
-                    {lead.is_active ? "Deactivate" : "Reactivate"}
-                  </SubmitButton>
-                </ActionForm>
+                <div className="flex gap-2">
+                  <ActionForm action={emailLead}>
+                    <input type="hidden" name="lead_id" value={lead.id} />
+                    <ConfirmSubmitButton
+                      size="sm"
+                      variant="outline"
+                      title={`Email ${lead.name}?`}
+                      description={`Sends ${lead.email} their centre, the link, and the address they must sign in with. Safe to send again — it replaces nothing.`}
+                      confirmLabel="Send it"
+                    >
+                      <Mail className="size-3.5" aria-hidden="true" />
+                      {lead.last_emailed_at ? "Resend" : "Send link"}
+                    </ConfirmSubmitButton>
+                  </ActionForm>
+                  <ActionForm action={setLeadActive}>
+                    <input type="hidden" name="lead_id" value={lead.id} />
+                    <input type="hidden" name="active" value={lead.is_active ? "false" : "true"} />
+                    <SubmitButton size="sm" variant="outline" pendingText="Saving…">
+                      {lead.is_active ? "Deactivate" : "Reactivate"}
+                    </SubmitButton>
+                  </ActionForm>
+                </div>
               ) : null}
             </div>
           ))}
