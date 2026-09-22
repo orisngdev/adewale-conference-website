@@ -13,6 +13,7 @@ import { Card } from "@/components/portal/ui";
 import { Button } from "@/components/ui/button";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { ZONAL_FINALS_OPTIONS } from "@/lib/forms";
+import { centreForZone } from "@/lib/exam-centre";
 import type { CentreSaveState } from "@/components/portal/centre-save-state";
 import type { PreviewParticipant } from "@/components/portal/participants-preview-types";
 import { Select } from "@/components/ui/select";
@@ -61,10 +62,14 @@ export function ParticipantCentresPreview({
   canManage,
   focus,
   action,
+  venues = [],
 }: {
   participants: PreviewParticipant[];
   canManage: boolean;
   focus?: string;
+  /** The 2026 venues, so a stored town can be labelled with the hall it means.
+   *  Display only — allocation still stores and reads the town string. */
+  venues?: { id: string; name: string; town: string; legacy_zone: string | null }[];
   action: (
     state: CentreSaveState,
     formData: FormData,
@@ -81,6 +86,9 @@ export function ParticipantCentresPreview({
   // unmounts: every row is a field in one whole-edition form, so dropping a card
   // from the DOM would quietly drop those schools from the save.
   const [centreFilter, setCentreFilter] = useState<string | null>(null);
+  // The hall a town name means, matched the same way the register matches it.
+  const venueFor = (centre: string) =>
+    centre === UNASSIGNED ? null : (centreForZone(centre, venues)?.name ?? null);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [choices, setChoices] = useState<Record<string, Choice>>(() =>
     Object.fromEntries(
@@ -250,18 +258,25 @@ export function ParticipantCentresPreview({
                     type="button"
                     aria-pressed={active}
                     onClick={() => setCentreFilter(active ? null : centre)}
-                    className={`grid w-full cursor-pointer grid-cols-[7rem_minmax(2px,1fr)_auto] items-center gap-3 rounded-md px-2 py-1 text-left text-sm transition-colors ${
+                    className={`grid w-full cursor-pointer grid-cols-[10rem_minmax(2px,1fr)_auto] items-center gap-3 rounded-md px-2 py-1 text-left text-sm transition-colors ${
                       active ? "bg-primary/10" : "hover:bg-foreground/5"
                     }`}
                   >
-                    <span
-                      className={
-                        centre === UNASSIGNED
-                          ? "font-medium text-amber-700"
-                          : "text-foreground"
-                      }
-                    >
-                      {centre}
+                    <span className="min-w-0">
+                      <span
+                        className={`block truncate ${
+                          centre === UNASSIGNED
+                            ? "font-medium text-amber-700"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {centre}
+                      </span>
+                      {venueFor(centre) ? (
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {venueFor(centre)}
+                        </span>
+                      ) : null}
                     </span>
                     <span className="h-2 overflow-hidden rounded-full bg-foreground/5">
                       <span

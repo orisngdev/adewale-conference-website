@@ -741,6 +741,7 @@ export function ParticipantsPreview({
   matches,
   students,
   awards,
+  venues,
 }: {
   years: number[];
   activeYear: number | null;
@@ -756,6 +757,7 @@ export function ParticipantsPreview({
   groups: PreviewGroup[];
   matches: PreviewMatch[];
   students: PreviewStudent[];
+  venues?: { id: string; name: string; town: string; legacy_zone: string | null }[];
   awards: PreviewAward[];
 }) {
   const allocated = participants.filter((participant) => participant.centre.allocated).length;
@@ -788,7 +790,7 @@ export function ParticipantsPreview({
 
           <main>
             {view === "overview" ? <OverviewWorkspace participants={participants} groups={groups} matches={matches} activeYear={activeYear} currentStage={currentStage} /> : null}
-            {view === "centres" ? <ParticipantCentresPreview participants={participants} canManage={canEditCompetition} focus={focus} action={allocateQualificationZonesBulk} /> : null}
+            {view === "centres" ? <ParticipantCentresPreview participants={participants} canManage={canEditCompetition} focus={focus} action={allocateQualificationZonesBulk} venues={venues} /> : null}
             {view === "qualifications" ? <QualificationsWorkspace participants={participants} matches={matches} activeYear={activeYear} q={q} status={status} page={page} canManage={canEditCompetition} /> : null}
             {view === "groups" ? <GroupsWorkspace participants={participants} groups={groups} matches={matches} activeYear={activeYear} canManage={canEditCompetition} /> : null}
             {view === "knockouts" ? <KnockoutsWorkspace participants={participants} matches={matches} stages={stages} activeYear={activeYear} canManage={canEditCompetition} pendingOnly={status === "pending"} /> : null}
