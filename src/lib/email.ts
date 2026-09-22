@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import sendgrid, { type MailDataRequired } from "@sendgrid/mail";
 import { SITE_URL } from "./site";
+import { FELLOWS_EVENT_DATE, FELLOWS_EVENT_HOURS } from "./fellows-programme";
 import {
   ANNOUNCEMENT_TARGET_EMAIL_LABEL,
   type AnnouncementTargetRole,
@@ -836,4 +837,30 @@ export function buildAdminNewFellowEmail(
   });
 
   return { to: data.recipients, subject, html };
+}
+
+/**
+ * Their centre, their link, and the address they must type to get in.
+ *
+ * Centre staff hold no account, so this email IS their credential handover —
+ * which is why it repeats the address back rather than just saying "sign in":
+ * a lead who types a different one of their addresses is refused, and on exam
+ * morning nobody has time to work out why.
+ */
+export function buildCentreStaffEmail(data: {
+  name: string;
+  email: string;
+  centre: string;
+  role: string;
+}): SendEmailInput {
+  const subject = `Your centre register — ${data.centre}`;
+  const html = render("centre-staff", `Hello ${data.name}`, {
+    centre: data.centre,
+    role: data.role,
+    email: data.email,
+    attendanceUrl: `${SITE_URL}/attendance`,
+    eventDate: FELLOWS_EVENT_DATE,
+    eventHours: FELLOWS_EVENT_HOURS,
+  });
+  return { to: [{ email: data.email, name: data.name }], subject, html };
 }
