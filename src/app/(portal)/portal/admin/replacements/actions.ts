@@ -7,39 +7,53 @@ import { createAdminClient } from "@/supabase/admin";
 import {
   provisionStudent,
   deactivateStudent,
+  reactivateStudent,
 } from "@/lib/provision-student";
 import { personNameKey } from "@/lib/person-identity";
-import {
-  getParticipantsTableId,
-  isAirtableConfigured,
-  updateAirtableRecord,
-} from "@/lib/airtable";
+import type { ActionResult } from "@/app/(portal)/portal/admin/paper-exams/actions";
 import type { Rep, StudentReplacementRow } from "@/supabase/types";
 
-// Approve a student replacement: deactivate the outgoing student, provision the
-// incoming one, update the registration, and write the swap back to Airtable so
-// the one-way sync doesn't revert it. Service-role work, so admin is verified
-// explicitly (createAdminClient bypasses RLS).
-export async function approveReplacement(id: string) {
-  if (!(await canManageModule("registrations"))) return;
+// Approve a student replacement: retire the outgoing student, provision the
+// incoming one (who may be a rep this edition already retired), and update the
+// registration. Service-role work, so admin is verified explicitly
+// (createAdminClient bypasses RLS).
+export async function approveReplacement(
+  id: string,
+  _prev: ActionResult | null,
+  _formData: FormData,
+): Promise<ActionResult> {
+  if (!(await canManageModule("registrations"))) {
+    return { ok: false, error: "You have read-only access to registrations." };
+  }
   const reviewer = await getSessionUser();
   const admin = createAdminClient();
-  if (!admin) return;
+  if (!admin) {
+    return { ok: false, error: "Student access isn't configured on the server." };
+  }
 
-  const { data: rRow } = await admin
+  const { data: rRow, error: rErr } = await admin
     .from("student_replacements")
     .select("*")
     .eq("id", id)
     .maybeSingle();
+  if (rErr) return { ok: false, error: `Could not read the request: ${rErr.message}` };
   const r = rRow as StudentReplacementRow | null;
-  if (!r || r.status !== "pending") return;
+  if (!r) return { ok: false, error: "That replacement request no longer exists." };
+  if (r.status !== "pending") {
+    return { ok: false, error: `This request was already ${r.status}.` };
+  }
 
-  const { data: reg } = await admin
+  const { data: reg, error: regErr } = await admin
     .from("registrations")
-    .select("id, school_id, edition_year, reps, details, airtable_id")
+    .select("id, school_id, edition_year, reps, details")
     .eq("id", r.registration_id)
     .maybeSingle();
-  if (!reg?.school_id) return;
+  if (regErr) {
+    return { ok: false, error: `Could not read the registration: ${regErr.message}` };
+  }
+  if (!reg?.school_id) {
+    return { ok: false, error: "That request's registration has no school." };
+  }
   const schoolId = reg.school_id as string;
   const editionYear = (reg.edition_year as number | null) ?? null;
 
@@ -49,11 +63,14 @@ export async function approveReplacement(id: string) {
   if (!oldStudentId) {
     // By person key, not `ilike`: a miss here leaves the outgoing student active
     // and the incoming one is provisioned beside them, which is a fourth rep.
-    const { data: found } = await admin
+    const { data: found, error: fErr } = await admin
       .from("students")
       .select("id, name")
       .eq("school_id", schoolId)
       .is("deactivated_at", null);
+    if (fErr) {
+      return { ok: false, error: `Could not read the school's roster: ${fErr.message}` };
+    }
     const key = personNameKey(r.old_name);
     oldStudentId =
       ((found ?? []) as { id: string; name: string }[]).find(
@@ -64,20 +81,35 @@ export async function approveReplacement(id: string) {
     const res = await deactivateStudent(admin, oldStudentId);
     if (!res.ok) {
       console.error("approveReplacement: deactivate failed:", res.error);
-      return;
+      return { ok: false, error: `Could not retire ${r.old_name}: ${res.error}` };
     }
   }
 
-  // 2. Provision the incoming student (new name → new access code).
+  // 2. Provision the incoming student. allowReturn because a school may swap a
+  //    rep back in — that retired row is the same child, and reviving it keeps
+  //    her candidate number and results. Retiring first keeps us under the cap.
   const provision = await provisionStudent(admin, {
     schoolId,
     editionYear: editionYear ?? (Number(process.env.ASC_EDITION_YEAR) || 2026),
     name: r.new_name,
     level: r.new_level,
+    allowReturn: true,
   });
   if (provision.error) {
+    // The retirement above is already committed. Put it back, or the school is
+    // left a rep short with the request still pending and nothing to retry.
+    if (oldStudentId) {
+      const undo = await reactivateStudent(admin, oldStudentId);
+      if (!undo.ok) {
+        console.error("approveReplacement: rollback failed:", undo.error);
+        return {
+          ok: false,
+          error: `${provision.error} ${r.old_name} could not be put back either (${undo.error}) — fix this before retrying.`,
+        };
+      }
+    }
     console.error("approveReplacement: provision failed:", provision.error);
-    return;
+    return { ok: false, error: provision.error };
   }
 
   // 3. Swap the rep in registrations.reps (match by name, fall back to slot).
@@ -91,37 +123,26 @@ export async function approveReplacement(id: string) {
   if (idx >= 0 && idx < reps.length) reps[idx] = newRep;
   else reps.push(newRep);
 
-  // 4. Patch registrations.details "Student Rep N …" fields so the mirror stays
-  //    internally consistent (and matches what we push to Airtable).
+  // 4. Patch the "Student Rep N …" fields in registrations.details, which is
+  //    what the registration page renders, so it agrees with reps.
   const details = { ...((reg.details ?? {}) as Record<string, string>) };
   const slotFields = repSlotFields(r);
   Object.assign(details, slotFields);
 
-  await admin
+  const { error: regUpdErr } = await admin
     .from("registrations")
     .update({ reps, details })
     .eq("id", reg.id);
-
-  // 5. Write the swap back to Airtable (source of truth) so the next sync keeps
-  //    it. Best-effort — a failure here leaves the portal correct; the admin can
-  //    re-run the sync after fixing Airtable.
-  if (reg.airtable_id && r.rep_slot && isAirtableConfigured()) {
-    try {
-      await updateAirtableRecord(
-        getParticipantsTableId(),
-        reg.airtable_id as string,
-        slotFields,
-      );
-    } catch (error) {
-      console.error(
-        "approveReplacement: Airtable write-back failed:",
-        error instanceof Error ? error.message : String(error),
-      );
-    }
+  if (regUpdErr) {
+    console.error("approveReplacement: registration update failed:", regUpdErr.message);
+    return {
+      ok: false,
+      error: `${r.new_name} was provisioned, but the registration still lists ${r.old_name}: ${regUpdErr.message}`,
+    };
   }
 
-  // 6. Mark approved.
-  await admin
+  // 5. Mark approved.
+  const { error: markErr } = await admin
     .from("student_replacements")
     .update({
       status: "approved",
@@ -129,13 +150,21 @@ export async function approveReplacement(id: string) {
       reviewed_at: new Date().toISOString(),
     })
     .eq("id", id);
+  if (markErr) {
+    console.error("approveReplacement: mark approved failed:", markErr.message);
+    return {
+      ok: false,
+      error: `The swap was applied but the request is still pending: ${markErr.message}`,
+    };
+  }
 
-  // 7. Notify the coordinator who requested it.
+  // 7. Notify the coordinator who requested it. A returning rep keeps the code
+  //    they already had, so don't promise a new one.
   if (r.requested_by) {
     await admin.from("notifications").insert({
       profile_id: r.requested_by,
       title: "Student replacement approved",
-      body: `${r.new_name} now replaces ${r.old_name}. Their new access code is on the Students page.`,
+      body: `${r.new_name} now replaces ${r.old_name}. Their access code is on the Students page.`,
       link: "/portal/school/students",
     });
   }
@@ -143,17 +172,29 @@ export async function approveReplacement(id: string) {
   revalidatePath("/portal/admin/replacements");
   revalidatePath("/portal/school/students");
   revalidatePath("/portal/school");
+  return {
+    ok: true,
+    message: provision.created
+      ? `${r.new_name} replaces ${r.old_name}, with a new access code.`
+      : `${r.new_name} replaces ${r.old_name}, and keeps the access code they already had.`,
+  };
 }
 
-export async function declineReplacement(id: string, formData: FormData) {
-  if (!(await canManageModule("registrations"))) return;
+export async function declineReplacement(
+  id: string,
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
+  if (!(await canManageModule("registrations"))) {
+    return { ok: false, error: "You have read-only access to registrations." };
+  }
   const reviewer = await getSessionUser();
   const supabase = await createClient();
 
   const note = String(formData.get("note") ?? "").trim() || null;
 
   // RLS (sr_admin_update) restricts this to admins; no student changes.
-  const { data: r } = await supabase
+  const { data: r, error } = await supabase
     .from("student_replacements")
     .update({
       status: "declined",
@@ -165,8 +206,10 @@ export async function declineReplacement(id: string, formData: FormData) {
     .eq("status", "pending")
     .select("requested_by, old_name, new_name")
     .maybeSingle();
+  if (error) return { ok: false, error: `Could not decline: ${error.message}` };
+  if (!r) return { ok: false, error: "That request is no longer pending." };
 
-  if (r?.requested_by) {
+  if (r.requested_by) {
     await supabase.from("notifications").insert({
       profile_id: r.requested_by as string,
       title: "Student replacement declined",
@@ -176,10 +219,12 @@ export async function declineReplacement(id: string, formData: FormData) {
   }
 
   revalidatePath("/portal/admin/replacements");
+  return { ok: true, message: `Declined. ${r.old_name} stays.` };
 }
 
-// Map the incoming rep's details onto the Airtable "Student Rep N …" field keys
-// for the resolved slot (same field names the registration form pushes).
+// Map the incoming rep's details onto the "Student Rep N …" keys for the
+// resolved slot. The names are Airtable's, kept because registrations.details
+// mirrors the original form payload and the registration page reads it.
 function repSlotFields(r: StudentReplacementRow): Record<string, string> {
   const n = r.rep_slot;
   if (!n) return {};

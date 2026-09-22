@@ -4,7 +4,7 @@
 import { randomBytes } from "crypto";
 import { createAdminClient } from "@/supabase/admin";
 import { studentAuthEmail } from "@/lib/student-accounts";
-import { personNameKey } from "@/lib/person-identity";
+import { matchRoster, type RosterRow } from "@/lib/roster-match";
 
 // Core student-provisioning shared by the coordinator's Students page and the
 // public-registration onboarding: a Supabase auth user with a synthetic email +
@@ -32,53 +32,62 @@ export async function provisionStudent(
     editionYear,
     name,
     level,
-  }: { schoolId: string; editionYear: number; name: string; level: string | null },
+    allowReturn = false,
+  }: {
+    schoolId: string;
+    editionYear: number;
+    name: string;
+    level: string | null;
+    /** Bring back a rep this edition already retired. The replacement flow
+     *  passes it; nowhere else may, or a swapped-out rep silently reappears. */
+    allowReturn?: boolean;
+  },
 ): Promise<ProvisionResult> {
   const trimmed = name.trim();
   if (!trimmed) return { error: "Enter the student's name." };
 
-  // Returning student (same person, same school): keep the code, re-tag to the
-  // current edition. Matched on personNameKey, not `ilike` — that only caught
-  // case, so a re-ordered name provisioned a second row for the same child.
-  // The whole roster is read (a few rows) since the key has no SQL counterpart.
-  const key = personNameKey(trimmed);
-  const { data: rosterRows } = await admin
+  // The whole roster is read (a few rows) since personNameKey has no SQL
+  // counterpart. A failed read here would look like an empty roster and
+  // provision a duplicate, so it is not allowed to pass as one.
+  const { data: rosterRows, error: rosterErr } = await admin
     .from("students")
     .select("id, name, access_code, auth_user_id, edition_year, deactivated_at")
     .eq("school_id", schoolId);
-  const roster = (rosterRows ?? []) as {
-    id: string;
-    name: string;
-    access_code: string | null;
-    auth_user_id: string | null;
-    edition_year: number | null;
-    deactivated_at: string | null;
-  }[];
-  const sameName = roster.filter((s) => personNameKey(s.name) === key);
-  const existing = sameName.find((s) => !s.deactivated_at);
+  if (rosterErr) {
+    console.error("provisionStudent: roster read failed:", rosterErr.message);
+    return { error: `Could not read the school's roster: ${rosterErr.message}` };
+  }
+  const roster = (rosterRows ?? []) as RosterRow[];
+  const match = matchRoster(roster, trimmed, editionYear);
 
-  // A rep retired in THIS edition was replaced; re-provisioning the name used
-  // to mint a parallel active row beside them. Retired in an earlier edition is
-  // a returning student, and falls through to normal provisioning.
-  if (!existing) {
-    const replaced = sameName.find(
-      (s) => s.deactivated_at && s.edition_year === editionYear,
-    );
-    if (replaced) {
+  let existing: RosterRow | null =
+    match.kind === "reuse" || match.kind === "adopt" ? match.row : null;
+
+  if (match.kind === "returning") {
+    if (!allowReturn) {
       return {
-        error: `${replaced.name} was replaced and retired for ${editionYear}. Use the replacement flow to bring them back.`,
+        error: `${match.row.name} was replaced and retired for ${editionYear}. Ask the school to file a replacement bringing them back.`,
       };
     }
+    const back = await reactivateStudent(admin, match.row.id);
+    if (back.error) return { error: back.error };
+    existing = match.row;
   }
-  // Only a row that can actually sign in counts as a returning student. A
-  // history-only row (imported for the record, no auth user) matches by name
-  // too, and handing back its code would mint a login that never works.
+
+  // A matched row with no working login falls past this to the adopt branch:
+  // handing back a code with no auth user mints a login that never works.
   if (existing?.access_code && existing.auth_user_id) {
     // Carry the current spelling onto the row: a re-ordered name is a rename.
-    await admin
+    // The edition re-tag trips students_roster_cap on a full roster, and
+    // swallowing that returned a code for a student who was never enrolled.
+    const { error: tagErr } = await admin
       .from("students")
       .update({ name: trimmed, edition_year: editionYear, level: level || null })
       .eq("id", existing.id);
+    if (tagErr) {
+      console.error("provisionStudent: re-tag failed:", tagErr.message);
+      return { error: `Could not save student: ${tagErr.message}` };
+    }
     return { code: existing.access_code as string, created: false };
   }
 
@@ -138,11 +147,10 @@ export async function provisionStudent(
     if (sErr.code === "23505") {
       const { data: winnerRows } = await admin
         .from("students")
-        .select("id, name, access_code, deactivated_at")
+        .select("id, name, access_code, auth_user_id, edition_year, deactivated_at")
         .eq("school_id", schoolId);
-      const winner = ((winnerRows ?? []) as typeof roster).find(
-        (s) => !s.deactivated_at && personNameKey(s.name) === key,
-      );
+      const raced = matchRoster((winnerRows ?? []) as RosterRow[], trimmed, editionYear);
+      const winner = raced.kind === "reuse" ? raced.row : null;
       if (winner?.access_code) {
         await admin
           .from("students")
@@ -192,6 +200,47 @@ export async function deactivateStudent(
     .update({ deactivated_at: new Date().toISOString() })
     .eq("id", studentId);
   if (updErr) return { ok: false, error: updErr.message };
+
+  return { ok: true };
+}
+
+// Undo deactivateStudent: the rep is named again, so their own row — and with
+// it their candidate number and past results — comes back rather than a second
+// row beside it. Their existing access code starts working again.
+export async function reactivateStudent(
+  admin: AdminClient,
+  studentId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const { data: student, error: readErr } = await admin
+    .from("students")
+    .select("id, auth_user_id")
+    .eq("id", studentId)
+    .maybeSingle();
+  if (readErr) return { ok: false, error: readErr.message };
+  if (!student) return { ok: false, error: "Student not found." };
+
+  // Clear the retirement first: students_roster_cap watches this update and
+  // rejects a fourth rep, and unbanning ahead of it would hand back a live
+  // login for a student who stayed retired.
+  const { error: updErr } = await admin
+    .from("students")
+    .update({ deactivated_at: null })
+    .eq("id", studentId);
+  if (updErr) {
+    console.error("reactivateStudent: clear failed:", updErr.message);
+    return { ok: false, error: updErr.message };
+  }
+
+  if (student.auth_user_id) {
+    const { error: banErr } = await admin.auth.admin.updateUserById(
+      student.auth_user_id as string,
+      { ban_duration: "none" },
+    );
+    if (banErr) {
+      console.error("reactivateStudent: unban failed:", banErr.message);
+      return { ok: false, error: `Could not restore access: ${banErr.message}` };
+    }
+  }
 
   return { ok: true };
 }
