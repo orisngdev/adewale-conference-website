@@ -12,6 +12,7 @@ import {
   type AttendanceMark,
   type RosterCandidate,
 } from "./attendance";
+import { centreForZone } from "./exam-centre";
 
 // Fictional fixtures — this is a public repo, no real school or student names.
 const ABEOKUTA = { id: "centre-abk", town: "Abeokuta", legacy_zone: "Abeokuta" };
@@ -120,6 +121,19 @@ describe("schoolCentres", () => {
       CENTRES,
     );
     assert.equal(map.get("a"), null);
+  });
+});
+
+describe("centreForZone", () => {
+  it("returns the venue row, so a label can name the hall a town means", () => {
+    assert.equal(centreForZone("Imeko", CENTRES)?.id, "centre-imeko");
+    assert.equal(centreForZone("Idiroko", CENTRES)?.id, "centre-iko");
+  });
+
+  it("returns null for a string no venue answers to", () => {
+    assert.equal(centreForZone("Ipokia", CENTRES), null);
+    assert.equal(centreForZone("  ", CENTRES), null);
+    assert.equal(centreForZone(null, CENTRES), null);
   });
 });
 

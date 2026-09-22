@@ -65,10 +65,21 @@ export function resolveCentreId(
   centres: { id: string; town?: string | null; legacy_zone: string | null }[],
 ): string | null {
   if (r.exam_centre_id) return r.exam_centre_id;
-  const zone = r.qualification_zone?.trim().toLowerCase();
-  if (!zone) return null;
-  const same = (value: string | null | undefined) => value?.trim().toLowerCase() === zone;
-  return (
-    centres.find((c) => same(c.legacy_zone))?.id ?? centres.find((c) => same(c.town))?.id ?? null
-  );
+  return centreForZone(r.qualification_zone, centres)?.id ?? null;
+}
+
+/**
+ * The venue a stored centre string names, or null.
+ *
+ * The one place a zone string is matched to a venue, so the register and the
+ * allocation screen's labels cannot disagree about which hall "Imeko" is.
+ */
+export function centreForZone<T extends { town?: string | null; legacy_zone: string | null }>(
+  zone: string | null | undefined,
+  centres: T[],
+): T | null {
+  const wanted = zone?.trim().toLowerCase();
+  if (!wanted) return null;
+  const same = (value: string | null | undefined) => value?.trim().toLowerCase() === wanted;
+  return centres.find((c) => same(c.legacy_zone)) ?? centres.find((c) => same(c.town)) ?? null;
 }

@@ -132,6 +132,19 @@ export default async function AdminParticipants({
         .order("created_at", { ascending: false })
     : { data: [] };
 
+  // Labels only: the distribution names a hall beside each stored town, so this
+  // screen and the attendance register describe the same place the same way.
+  // Allocation still writes and reads qualification_zone.
+  const { data: venueRows, error: venuesError } = activeYear
+    ? await supabase
+        .from("exam_centres")
+        .select("id, name, town, legacy_zone")
+        .eq("edition_year", activeYear)
+        .eq("is_active", true)
+    : { data: [], error: null };
+  if (venuesError) console.error("exam centres not loaded:", venuesError.message);
+  const venues = (venueRows ?? []) as { id: string; name: string; town: string; legacy_zone: string | null }[];
+
   const inEdition = (regRows ?? []) as unknown as ParticipantReg[];
   const canEditCompetition = canManage && activeYear != null && activeYear === currentYear;
   const activeEdition = activeYear ? editions.find((e) => e.year === activeYear) ?? null : null;
@@ -356,6 +369,7 @@ export default async function AdminParticipants({
       matches={previewMatches}
       students={previewStudents}
       awards={previewAwards}
+      venues={venues}
     />
   );
 }
