@@ -53,13 +53,22 @@ export function examCentre(r: CentreRegistration): { value: string; source: Cent
  * counts, because a lead marking a register needs the students who were sent to
  * their hall, not the ones whose LGA happens to share a name with it. Null means
  * "no lead can see this school" and is a thing to fix, not a fallback.
+ *
+ * The zone is free text an admin typed, so it is matched case-insensitively
+ * against the legacy zone FIRST and the town second. Order matters: Iko Gateway
+ * replaced Idiroko, so it stores 'Idiroko' and sits in the town of Iko, and only
+ * the legacy zone must win for it. The town rung is what reaches Arigbajo and
+ * Imeko, which are new for 2026 and have no legacy zone at all.
  */
 export function resolveCentreId(
   r: { qualification_zone: string | null; exam_centre_id?: string | null },
-  centres: { id: string; legacy_zone: string | null }[],
+  centres: { id: string; town?: string | null; legacy_zone: string | null }[],
 ): string | null {
   if (r.exam_centre_id) return r.exam_centre_id;
-  const zone = r.qualification_zone?.trim();
+  const zone = r.qualification_zone?.trim().toLowerCase();
   if (!zone) return null;
-  return centres.find((c) => c.legacy_zone === zone)?.id ?? null;
+  const same = (value: string | null | undefined) => value?.trim().toLowerCase() === zone;
+  return (
+    centres.find((c) => same(c.legacy_zone))?.id ?? centres.find((c) => same(c.town))?.id ?? null
+  );
 }

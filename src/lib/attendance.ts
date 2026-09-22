@@ -31,7 +31,7 @@ export type RosterEntry = RosterCandidate & {
   markedAtCentreId: string | null;
 };
 
-type CentreRef = { id: string; legacy_zone: string | null };
+type CentreRef = { id: string; town?: string | null; legacy_zone: string | null };
 type RegistrationRef = {
   school_id: string | null;
   qualification_zone: string | null;
