@@ -220,6 +220,15 @@ export default async function PaperExamDetail({
             : { kind: "min_score", min: Number.isFinite(cutMin) ? cutMin : 0 },
         )
       : null;
+  // What finishing would actually do. "Not yet decided" and "decided against"
+  // are different things, and Finish sweeps both into not-advancing — so the
+  // count of the first is the number worth reading before clicking.
+  const recordedAdvanced =
+    preview?.standings.filter((x) => x.committedOutcome === "advanced").length ?? 0;
+  const recordedOut =
+    preview?.standings.filter((x) => x.committedOutcome === "eliminated").length ?? 0;
+  const undecided =
+    preview?.standings.filter((x) => x.committedOutcome == null).length ?? 0;
 
   return (
     <>
@@ -700,8 +709,19 @@ export default async function PaperExamDetail({
                               size="sm"
                               variant="outline"
                               title="Finish and publish?"
-                              description="Every school not yet advanced is marked not advancing, and the exam is published so students can see their results. Schools already advanced keep the reason their batch recorded."
-                              confirmLabel="Finish and publish"
+                              description={
+                                `${recordedAdvanced} school${recordedAdvanced === 1 ? "" : "s"} stay advanced and keep the reason their batch recorded. ` +
+                                `${recordedOut + undecided} are marked not advancing` +
+                                (undecided > 0
+                                  ? ` — and ${undecided} of those have NO decision recorded yet. If you have a route still to commit, cancel and commit it first.`
+                                  : ".") +
+                                " The exam is then published and students can see their results."
+                              }
+                              confirmLabel={
+                                undecided > 0
+                                  ? `Yes, publish and drop ${undecided} undecided`
+                                  : "Finish and publish"
+                              }
                             >
                               Finish &amp; publish
                             </ConfirmDecisionButton>
@@ -756,6 +776,25 @@ export default async function PaperExamDetail({
                                   preview.cutScore !== null ? `, cut at ${preview.cutScore}` : ""
                                 }`
                               : "tick the schools that advance, or preview a rule to pre-tick them"}
+                          </p>
+
+                          <p className="text-sm">
+                            <span className="text-green-700">{recordedAdvanced} advanced</span>
+                            {" · "}
+                            <span className="text-muted-foreground">
+                              {recordedOut} not advancing
+                            </span>
+                            {" · "}
+                            <span className={undecided > 0 ? "text-amber-700" : "text-muted-foreground"}>
+                              {undecided} no decision yet
+                            </span>
+                            {undecided > 0 ? (
+                              <span className="text-muted-foreground">
+                                {" "}
+                                — filter to “Not yet decided” to see them. Finishing marks them
+                                not advancing.
+                              </span>
+                            ) : null}
                           </p>
 
                           {ruleApplied && preview.tied.length > 0 ? (
@@ -831,6 +870,16 @@ export default async function PaperExamDetail({
                                     data-cut-row={CUT_FORM_ID}
                                     data-lga={group.lga}
                                     data-division={divisionOf(s.lga) ?? ""}
+                                    // What is on record, as one string the filter
+                                    // can match: the reason if there is one, else
+                                    // the bare outcome, else empty for undecided.
+                                    data-recorded={
+                                      s.committedOutcome === "advanced"
+                                        ? (s.committedReason ?? "Advanced")
+                                        : s.committedOutcome === "eliminated"
+                                          ? "Not advancing"
+                                          : ""
+                                    }
                                     data-lga-rank={s.lgaRank}
                                     data-rank={s.rank}
                                     // Searched client-side so filtering only HIDES rows: a

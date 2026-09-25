@@ -18,12 +18,18 @@ import { Button } from "@/components/ui/button";
 const STATEWIDE_DEFAULT = 20;
 const DIVISIONAL_DEFAULT = 4;
 
+/** Sentinel for "nothing recorded yet" — an empty <option> value already means
+ *  "no filter", so undecided needs a value of its own. */
+const UNDECIDED = "\u0000undecided";
+
 export function CutSelectionControls({ formId }: { formId: string }) {
   const [checked, setChecked] = useState<number | null>(null);
   const [total, setTotal] = useState<number | null>(null);
   const [shown, setShown] = useState<number | null>(null);
   const [champions, setChampions] = useState<number | null>(null);
   const [query, setQuery] = useState("");
+  const [recorded, setRecorded] = useState("");
+  const [recordedOptions, setRecordedOptions] = useState<string[]>([]);
   const [statewide, setStatewide] = useState(String(STATEWIDE_DEFAULT));
   const [divisional, setDivisional] = useState(String(DIVISIONAL_DEFAULT));
 
@@ -41,6 +47,10 @@ export function CutSelectionControls({ formId }: { formId: string }) {
     setChecked(all.filter((r) => boxOf(r)?.checked).length);
     setShown(all.filter((r) => !r.hidden).length);
     setChampions(all.filter((r) => r.dataset.lgaRank === "1").length);
+    // Only offer reasons that some school actually carries.
+    setRecordedOptions(
+      [...new Set(all.map((r) => r.dataset.recorded).filter((v): v is string => Boolean(v)))].sort(),
+    );
   }
 
   // The rule pre-ticks the rows on the server, so the first count has to be
@@ -56,11 +66,18 @@ export function CutSelectionControls({ formId }: { formId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formId]);
 
-  function search(value: string) {
-    setQuery(value);
-    const needle = value.trim().toLowerCase();
+  /** Search text and recorded state are ANDed. Both only HIDE rows — a hidden
+   *  checkbox still submits, so a filtered table still commits what it holds. */
+  function applyFilters(nextQuery: string, nextRecorded: string) {
+    const needle = nextQuery.trim().toLowerCase();
     for (const row of rows()) {
-      row.hidden = needle !== "" && !(row.dataset.search ?? "").includes(needle);
+      const matchesText = needle === "" || (row.dataset.search ?? "").includes(needle);
+      const matchesRecorded =
+        nextRecorded === "" ||
+        (nextRecorded === UNDECIDED
+          ? !row.dataset.recorded
+          : row.dataset.recorded === nextRecorded);
+      row.hidden = !(matchesText && matchesRecorded);
     }
     // An LGA heading with nothing left under it is noise, so it goes too.
     for (const header of document.querySelectorAll<HTMLTableRowElement>("tr[data-lga-header]")) {
@@ -129,7 +146,7 @@ export function CutSelectionControls({ formId }: { formId: string }) {
     recount();
   }
 
-  const filtering = query.trim() !== "";
+  const filtering = query.trim() !== "" || recorded !== "";
   const statewideN = Number(statewide);
   const divisionalN = Number(divisional);
 
@@ -139,11 +156,31 @@ export function CutSelectionControls({ formId }: { formId: string }) {
         <input
           type="search"
           value={query}
-          onChange={(e) => search(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            applyFilters(e.target.value, recorded);
+          }}
           placeholder="Search school or LGA…"
           aria-label="Search the standings by school or LGA"
           className="rounded-md border border-foreground/15 bg-card px-2.5 py-1.5 text-sm outline-none focus:border-primary"
         />
+        <select
+          value={recorded}
+          onChange={(e) => {
+            setRecorded(e.target.value);
+            applyFilters(query, e.target.value);
+          }}
+          aria-label="Filter by what is already recorded"
+          className="rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary"
+        >
+          <option value="">Any recorded state</option>
+          {recordedOptions.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+          <option value={UNDECIDED}>Not yet decided</option>
+        </select>
         <Button type="button" size="sm" variant="outline" onClick={() => apply(() => true)}>
           {filtering ? "Select shown" : "Select all"}
         </Button>
