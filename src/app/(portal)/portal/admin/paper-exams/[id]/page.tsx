@@ -11,6 +11,7 @@ import { Card, PortalBody, PortalHeader, SectionHeading } from "@/components/por
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { pageMetadata } from "@/lib/seo";
 import ActionForm from "@/components/portal/action-form";
+import { CutSelectionControls } from "@/components/portal/cut-selection-controls";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
 import {
@@ -31,6 +32,9 @@ import {
   updatePaperExam,
 } from "../actions";
 import { Select } from "@/components/ui/select";
+
+// The cut table's checkboxes sit above the commit form, so they reach it by id.
+const CUT_FORM_ID = "paper-cut-commit";
 
 export const metadata = pageMetadata("Paper exam", "Key, sheets, imports and ranking.");
 export const dynamic = "force-dynamic";
@@ -200,9 +204,12 @@ export default async function PaperExamDetail({
   const cutKind = sp.cut_kind === "min_score" ? "min_score" : "top_n";
   const cutN = Number(sp.cut_n ?? 100);
   const cutMin = Number(sp.cut_min ?? 50);
-  const wantsPreview = sp.cut_kind !== undefined;
+  // The standings render as soon as there are papers — hiding them behind
+  // "Preview" also hid the per-school tick boxes, which is where manual
+  // advancement lives. A rule is now only a way to PRE-TICK the table.
+  const ruleApplied = sp.cut_kind !== undefined;
   const preview =
-    wantsPreview && canManage
+    canManage
       ? await previewCut(
           id,
           cutKind === "top_n"
@@ -689,11 +696,15 @@ export default async function PaperExamDetail({
                           <p className="text-sm text-muted-foreground">
                             {SCHOOL_SCORE_RULE_LABELS[preview.rule]}
                             {preview.rule === "sum_top_n" ? ` (N=${preview.topN})` : ""} ·{" "}
-                            {preview.advanced} advancing · {preview.eliminated} not ·{" "}
-                            {preview.cutScore !== null ? `cut at ${preview.cutScore}` : "no cut"}
+                            {preview.standings.length} schools ranked ·{" "}
+                            {ruleApplied
+                              ? `rule pre-ticks ${preview.advanced}${
+                                  preview.cutScore !== null ? `, cut at ${preview.cutScore}` : ""
+                                }`
+                              : "tick the schools that advance, or preview a rule to pre-tick them"}
                           </p>
 
-                          {preview.tied.length > 0 ? (
+                          {ruleApplied && preview.tied.length > 0 ? (
                             <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
                               <p className="text-sm text-foreground">
                                 Face-off needed — {preview.tied.length} schools are tied on{" "}
@@ -701,30 +712,73 @@ export default async function PaperExamDetail({
                               </p>
                               <p className="mt-1 text-xs text-muted-foreground">
                                 {preview.tied.map((t) => t.schoolName).join(", ")}. Widen N to
-                                include all of them, or settle it with a face-off — committing
-                                would otherwise decide a national tie by sort order.
+                                include all of them, tick the ones that advance, or settle it
+                                with a face-off — committing the rule as it stands would decide
+                                a national tie by sort order.
                               </p>
                             </div>
+                          ) : null}
+
+                          {canManage ? (
+                            <CutSelectionControls formId={CUT_FORM_ID} />
                           ) : null}
 
                           <div className="overflow-x-auto">
                             <table className="w-full text-left text-xs">
                               <thead className="text-muted-foreground">
                                 <tr>
+                                  {canManage ? (
+                                    <th className="py-1 pr-3 font-normal">Advance</th>
+                                  ) : null}
                                   <th className="py-1 pr-3 font-normal">#</th>
                                   <th className="py-1 pr-3 font-normal">School</th>
                                   <th className="py-1 pr-3 font-normal">LGA</th>
+                                  {/* Already computed and already committed as
+                                      lga_rank — surfaced because the top school
+                                      in each LGA is its own qualifying route. */}
+                                  <th className="py-1 pr-3 font-normal">In LGA</th>
                                   <th className="py-1 pr-3 font-normal">Reps</th>
                                   <th className="py-1 pr-3 font-normal">Score</th>
-                                  <th className="py-1 font-normal">Outcome</th>
+                                  <th className="py-1 font-normal">Rule says</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {preview.standings.map((s) => (
-                                  <tr key={s.registrationId} className="border-t border-foreground/5">
+                                  <tr
+                                    key={s.registrationId}
+                                    className="border-t border-foreground/5"
+                                    data-cut-row={CUT_FORM_ID}
+                                    // Searched client-side so filtering only HIDES rows: a
+                                    // hidden checkbox still submits, and a server-side filter
+                                    // would silently commit every unlisted school as not
+                                    // advancing.
+                                    data-search={`${s.schoolName} ${s.lga ?? ""}`.toLowerCase()}
+                                  >
+                                    {canManage ? (
+                                      <td className="py-1 pr-3">
+                                        <input
+                                          type="checkbox"
+                                          form={CUT_FORM_ID}
+                                          name="advance_ids"
+                                          value={s.registrationId}
+                                          defaultChecked={ruleApplied && s.outcome === "advanced"}
+                                          aria-label={`Advance ${s.schoolName}`}
+                                          className="size-4 accent-primary"
+                                        />
+                                      </td>
+                                    ) : null}
                                     <td className="py-1 pr-3 tabular-nums">{s.rank}</td>
                                     <td className="py-1 pr-3">{s.schoolName}</td>
                                     <td className="py-1 pr-3">{s.lga ?? "—"}</td>
+                                    <td className="py-1 pr-3 tabular-nums">
+                                      {s.lgaRank ? (
+                                        <span className={s.lgaRank === 1 ? "font-bold text-foreground" : ""}>
+                                          {s.lgaRank}
+                                        </span>
+                                      ) : (
+                                        "—"
+                                      )}
+                                    </td>
                                     <td className="py-1 pr-3 tabular-nums">{s.reps}</td>
                                     <td className="py-1 pr-3 tabular-nums">
                                       {s.score}
@@ -735,8 +789,12 @@ export default async function PaperExamDetail({
                                         </span>
                                       ) : null}
                                     </td>
-                                    <td className="py-1">
-                                      {s.outcome === "advanced" ? "Advancing" : "Not advancing"}
+                                    <td className="py-1 text-muted-foreground">
+                                      {!ruleApplied
+                                        ? "—"
+                                        : s.outcome === "advanced"
+                                          ? "Advancing"
+                                          : "Not advancing"}
                                     </td>
                                   </tr>
                                 ))}
@@ -745,10 +803,18 @@ export default async function PaperExamDetail({
                           </div>
 
                           {canManage ? (
-                            <ActionForm action={commitCut.bind(null, id)} className="flex flex-wrap items-end gap-2">
+                            <ActionForm
+                              id={CUT_FORM_ID}
+                              action={commitCut.bind(null, id)}
+                              className="flex flex-wrap items-end gap-2"
+                            >
                               <input type="hidden" name="cut_kind" value={cutKind} />
                               <input type="hidden" name="cut_n" value={cutN} />
                               <input type="hidden" name="cut_min" value={cutMin} />
+                              {/* Tells the action the table was rendered, so an
+                                  empty tick set means "nobody advances" rather
+                                  than "no checkboxes existed". */}
+                              <input type="hidden" name="selection" value="1" />
                               <label className="text-sm text-muted-foreground">
                                 Reason
                                 <Select name="reason" defaultValue="" className="ml-2">
@@ -760,22 +826,23 @@ export default async function PaperExamDetail({
                                   ))}
                                 </Select>
                               </label>
+                              {/* Not disabled on a tie any more: ticking the
+                                  schools that advance IS how a tie gets settled.
+                                  commitCut still refuses an untouched table. */}
                               <ConfirmSubmitButton
-                                disabled={preview.tied.length > 0}
                                 title="Commit this cut?"
-                                description={`${preview.advanced} schools advance and ${preview.eliminated} do not. Rep scores and subject breakdowns are left untouched — only the outcome changes.`}
+                                description="Every school ticked above advances; every school left unticked does not. Rep scores and subject breakdowns are left untouched — only the outcome changes."
                                 confirmLabel="Commit"
                               >
-                                {preview.tied.length > 0
-                                  ? "Resolve the tie first"
-                                  : `Commit — ${preview.advanced} advance`}
+                                Commit the ticked schools
                               </ConfirmSubmitButton>
                             </ActionForm>
                           ) : null}
                         </>
                       ) : (
                         <p className="text-sm text-muted-foreground">
-                          Choose a rule and preview it. Nothing is written until you commit.
+                          No standings yet — schools appear here once their papers are
+                          matched and committed.
                         </p>
                       )}
                     </Card>

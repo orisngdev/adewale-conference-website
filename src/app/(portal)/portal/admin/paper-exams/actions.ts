@@ -1233,11 +1233,29 @@ export async function commitCut(
   if (!rule) return { ok: false, error: "Choose a cutoff rule and its number first." };
   const preview = await previewCut(examId, rule);
   if (!preview) return { ok: false, error: "Could not read the standings for this exam." };
-  // A tie across the cut is never broken by sort order.
-  if (preview.tied.length > 0) {
+
+  // The rule only pre-ticks the table; what commits is what the operator left
+  // ticked. `selection` distinguishes "nobody ticked" from "the checkboxes were
+  // never rendered" — without it an empty set would silently eliminate everyone.
+  const hasSelection = formData.get("selection") === "1";
+  const ticked = new Set(formData.getAll("advance_ids").map(String).filter(Boolean));
+  // A cut that advances nobody is a misclick, not a decision.
+  if (hasSelection && ticked.size === 0) {
+    return { ok: false, error: "No school is ticked — tick the ones that advance first." };
+  }
+  const advances = (registrationId: string, ruleOutcome: "advanced" | "eliminated") =>
+    hasSelection ? ticked.has(registrationId) : ruleOutcome === "advanced";
+
+  // Untouched, the table is the rule's own answer, so the tie guard still holds:
+  // sort order must not decide a national tie. Once the operator has changed the
+  // selection, splitting a tie IS the human decision the guard was asking for.
+  const untouched = preview.standings.every(
+    (s) => advances(s.registrationId, s.outcome) === (s.outcome === "advanced"),
+  );
+  if (preview.tied.length > 0 && untouched) {
     return {
       ok: false,
-      error: `${preview.tied.length} schools are tied across the cut. Widen the count or record a face-off — a national tie is not settled by sort order.`,
+      error: `${preview.tied.length} schools are tied across the cut. Widen the count, tick the ones that advance, or record a face-off — a national tie is not settled by sort order.`,
     };
   }
 
@@ -1246,16 +1264,19 @@ export async function commitCut(
     ? reasonRaw
     : null;
 
-  const rows = preview.standings.map((s) => ({
-    registration_id: s.registrationId,
-    outcome: s.outcome,
-    score: s.score,
-    score_max: s.scoreMax,
-    reason: s.outcome === "advanced" ? reason : null,
-    lga_rank: s.lgaRank,
-    state_rank: s.rank,
-    note: null,
-  }));
+  const rows = preview.standings.map((s) => {
+    const outcome = advances(s.registrationId, s.outcome) ? "advanced" : "eliminated";
+    return {
+      registration_id: s.registrationId,
+      outcome,
+      score: s.score,
+      score_max: s.scoreMax,
+      reason: outcome === "advanced" ? reason : null,
+      lga_rank: s.lgaRank,
+      state_rank: s.rank,
+      note: null,
+    };
+  });
 
   const { error } = await supabase.rpc("commit_paper_cut", { p_exam_id: examId, p_rows: rows });
   if (error) return { ok: false, error: describe(error, "commit the cut") };
