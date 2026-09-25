@@ -6,12 +6,14 @@ import {
   compareKeys,
   formatCandidateNumber,
   gradePaper,
+  groupByLga,
   groupItemsBySubject,
   paperItemState,
   paperExamPhase,
   parseAnswerKey,
   percent,
   rankBy,
+  UNPLACED_LGA,
   type PaperExamFacts,
   type PaperItem,
   type Ranked,
@@ -720,5 +722,46 @@ describe("the ASC 2026 paper", () => {
     assert.equal(r.invalid, 1);
     assert.equal(r.subscores.Chemistry.correct, 19);
     assert.equal(r.subscores.Physics.correct, 20);
+  });
+});
+
+describe("groupByLga", () => {
+  const row = (rank: number, lgaRank: number, lga: string | null, school = `S${rank}`) => ({
+    rank,
+    lgaRank,
+    lga,
+    school,
+  });
+
+  it("buckets by LGA and names each bucket's champion", () => {
+    const groups = groupByLga([
+      row(1, 1, "Ado-Odo/Ota"),
+      row(2, 2, "Ado-Odo/Ota"),
+      row(3, 1, "Sagamu"),
+    ]);
+    assert.deepEqual(groups.map((g) => g.lga), ["Ado-Odo/Ota", "Sagamu"]);
+    assert.equal(groups[0].champion?.rank, 1);
+    assert.equal(groups[1].champion?.rank, 3);
+  });
+
+  it("puts the LGA holding the best-placed school first", () => {
+    const groups = groupByLga([row(9, 1, "Odeda"), row(2, 1, "Ifo"), row(5, 2, "Odeda")]);
+    assert.deepEqual(groups.map((g) => g.lga), ["Ifo", "Odeda"]);
+  });
+
+  it("orders schools within an LGA by their rank in that LGA", () => {
+    const groups = groupByLga([row(8, 3, "Ifo"), row(2, 1, "Ifo"), row(5, 2, "Ifo")]);
+    assert.deepEqual(groups[0].rows.map((r) => r.rank), [2, 5, 8]);
+  });
+
+  it("collects unplaced schools last and crowns no champion there", () => {
+    const groups = groupByLga([row(1, 1, null), row(4, 1, "Ifo"), row(2, 2, "   ")]);
+    assert.deepEqual(groups.map((g) => g.lga), ["Ifo", UNPLACED_LGA]);
+    assert.equal(groups[1].champion, null);
+    assert.equal(groups[1].rows.length, 2);
+  });
+
+  it("returns no groups for no standings", () => {
+    assert.deepEqual(groupByLga([]), []);
   });
 });

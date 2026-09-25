@@ -645,3 +645,50 @@ export function applyCutoff<T>(
     tiedAtCut,
   };
 }
+
+// ── qualifying routes ───────────────────────────────────────────────────────
+// Schools qualify by three routes, not one flat cut: the top school in each
+// LGA, then the highest-scoring schools left over statewide, then the strongest
+// left in each division. Only the first two are computable — a division is a
+// grouping of LGAs that the schema does not carry.
+
+export interface LgaGroup<T> {
+  lga: string;
+  rows: T[];
+  /** Rank 1 within the LGA — the school that qualifies by Route One. */
+  champion: T | null;
+}
+
+/** Bucket ranked standings by LGA, strongest LGA first (the one holding the
+ *  best-placed school). Rows keep their order within a bucket. Schools with no
+ *  LGA are collected last, under `UNPLACED_LGA`, and never crown a champion —
+ *  "top of the schools we could not place" is not a qualifying route. */
+export const UNPLACED_LGA = "No LGA recorded";
+
+export function groupByLga<
+  T extends { lga: string | null; rank: number; lgaRank: number },
+>(rows: readonly T[]): LgaGroup<T>[] {
+  const byLga = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = row.lga?.trim() || UNPLACED_LGA;
+    const bucket = byLga.get(key);
+    if (bucket) bucket.push(row);
+    else byLga.set(key, [row]);
+  }
+
+  return [...byLga.entries()]
+    .map(([lga, list]) => {
+      const sorted = [...list].sort((a, b) => a.lgaRank - b.lgaRank || a.rank - b.rank);
+      return {
+        lga,
+        rows: sorted,
+        champion:
+          lga === UNPLACED_LGA ? null : (sorted.find((r) => r.lgaRank === 1) ?? null),
+      };
+    })
+    .sort((a, b) => {
+      if (a.lga === UNPLACED_LGA) return 1;
+      if (b.lga === UNPLACED_LGA) return -1;
+      return Math.min(...a.rows.map((r) => r.rank)) - Math.min(...b.rows.map((r) => r.rank));
+    });
+}
