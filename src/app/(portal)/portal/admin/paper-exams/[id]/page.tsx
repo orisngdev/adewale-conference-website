@@ -658,7 +658,51 @@ export default async function PaperExamDetail({
                   </div>
 
                   <div>
-                    <SectionHeading>Rank and cut ({matchedPapers} papers)</SectionHeading>
+                    {/* The commit lives in the section heading: it is this
+                        section's action, and putting it above the standings read
+                        as "do this first". */}
+                    <SectionHeading
+                      actions={
+                        canManage && preview ? (
+                          <ActionForm
+                            id={CUT_FORM_ID}
+                            action={commitCut.bind(null, id)}
+                            className="flex flex-wrap items-center gap-2"
+                          >
+                            <input type="hidden" name="cut_kind" value={cutKind} />
+                            <input type="hidden" name="cut_n" value={cutN} />
+                            <input type="hidden" name="cut_min" value={cutMin} />
+                            {/* Tells the action the table was rendered, so an empty
+                                tick set means "nobody advances" rather than "no
+                                checkboxes existed". */}
+                            <input type="hidden" name="selection" value="1" />
+                            <label className="text-sm text-muted-foreground">
+                              Reason
+                              <Select name="reason" defaultValue="" className="ml-2">
+                                <option value="">—</option>
+                                {QUALIFICATION_REASONS.map((r) => (
+                                  <option key={r} value={r}>
+                                    {r}
+                                  </option>
+                                ))}
+                              </Select>
+                            </label>
+                            {/* Not disabled on a tie: ticking the schools that
+                                advance IS how a tie gets settled, and commitCut
+                                still refuses an untouched table. */}
+                            <ConfirmSubmitButton
+                              title="Commit this cut?"
+                              description="Every school ticked below advances; every school left unticked does not. Rep scores and subject breakdowns are left untouched — only the outcome changes."
+                              confirmLabel="Commit"
+                            >
+                              Commit the ticked schools
+                            </ConfirmSubmitButton>
+                          </ActionForm>
+                        ) : null
+                      }
+                    >
+                      Rank and cut ({matchedPapers} papers)
+                    </SectionHeading>
                     <Card className="p-5 md:p-6 space-y-4">
                       <form method="get" className="flex flex-wrap items-end gap-2">
                         <input type="hidden" name="tab" value="results" />
@@ -836,44 +880,6 @@ export default async function PaperExamDetail({
                             </table>
                           </div>
 
-                          {/* Below the table on purpose: the decision is the last
-                              thing you make, after reading what you are deciding. */}
-                          {canManage ? (
-                            <ActionForm
-                              id={CUT_FORM_ID}
-                              action={commitCut.bind(null, id)}
-                              className="flex flex-wrap items-end gap-2"
-                            >
-                              <input type="hidden" name="cut_kind" value={cutKind} />
-                              <input type="hidden" name="cut_n" value={cutN} />
-                              <input type="hidden" name="cut_min" value={cutMin} />
-                              {/* Tells the action the table was rendered, so an
-                                  empty tick set means "nobody advances" rather
-                                  than "no checkboxes existed". */}
-                              <input type="hidden" name="selection" value="1" />
-                              <label className="text-sm text-muted-foreground">
-                                Reason
-                                <Select name="reason" defaultValue="" className="ml-2">
-                                  <option value="">—</option>
-                                  {QUALIFICATION_REASONS.map((r) => (
-                                    <option key={r} value={r}>
-                                      {r}
-                                    </option>
-                                  ))}
-                                </Select>
-                              </label>
-                              {/* Not disabled on a tie any more: ticking the
-                                  schools that advance IS how a tie gets settled.
-                                  commitCut still refuses an untouched table. */}
-                              <ConfirmSubmitButton
-                                title="Commit this cut?"
-                                description="Every school ticked above advances; every school left unticked does not. Rep scores and subject breakdowns are left untouched — only the outcome changes."
-                                confirmLabel="Commit"
-                              >
-                                Commit the ticked schools
-                              </ConfirmSubmitButton>
-                            </ActionForm>
-                          ) : null}
                         </>
                       ) : (
                         <p className="text-sm text-muted-foreground">
