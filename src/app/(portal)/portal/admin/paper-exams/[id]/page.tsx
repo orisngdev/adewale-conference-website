@@ -16,6 +16,7 @@ import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
 import {
   SCHOOL_SCORE_RULE_LABELS,
+  groupByLga,
   paperExamPhase,
   percent,
   type SchoolScoreRule,
@@ -743,11 +744,39 @@ export default async function PaperExamDetail({
                                 </tr>
                               </thead>
                               <tbody>
-                                {preview.standings.map((s) => (
+                                {groupByLga(preview.standings).flatMap((group) => [
+                                  <tr
+                                    key={`lga:${group.lga}`}
+                                    data-lga-header={group.lga}
+                                    className="border-t border-foreground/10 bg-foreground/[0.03]"
+                                  >
+                                    <td
+                                      colSpan={canManage ? 8 : 7}
+                                      className="px-1 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground"
+                                    >
+                                      {group.lga}
+                                      <span className="ml-2 font-normal normal-case tracking-normal">
+                                        {group.rows.length} school
+                                        {group.rows.length === 1 ? "" : "s"}
+                                        {group.champion ? (
+                                          <>
+                                            {" · champion "}
+                                            <span className="font-semibold text-foreground">
+                                              {group.champion.schoolName}
+                                            </span>
+                                          </>
+                                        ) : null}
+                                      </span>
+                                    </td>
+                                  </tr>,
+                                  ...group.rows.map((s) => (
                                   <tr
                                     key={s.registrationId}
                                     className="border-t border-foreground/5"
                                     data-cut-row={CUT_FORM_ID}
+                                    data-lga={group.lga}
+                                    data-lga-rank={s.lgaRank}
+                                    data-rank={s.rank}
                                     // Searched client-side so filtering only HIDES rows: a
                                     // hidden checkbox still submits, and a server-side filter
                                     // would silently commit every unlisted school as not
@@ -797,7 +826,8 @@ export default async function PaperExamDetail({
                                           : "Not advancing"}
                                     </td>
                                   </tr>
-                                ))}
+                                  )),
+                                ])}
                               </tbody>
                             </table>
                           </div>
