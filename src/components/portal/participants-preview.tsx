@@ -761,10 +761,9 @@ export function ParticipantsPreview({
   awards: PreviewAward[];
 }) {
   const allocated = participants.filter((participant) => participant.centre.allocated).length;
-  const qualificationPending = participants.filter((participant) => {
-    const outcome = resultAt(participant, "Qualifications")?.outcome;
-    return !outcome || outcome === "pending";
-  }).length;
+  const qualificationAdvanced = participants.filter(
+    (participant) => resultAt(participant, "Qualifications")?.outcome === "advanced",
+  ).length;
   const unresolvedMatches = matches.filter((match) => match.kind !== "face_off" && isUnresolved(match)).length;
   return (
     <>
@@ -786,7 +785,7 @@ export function ParticipantsPreview({
 
           {!canEditCompetition ? <Card className="border border-foreground/10 bg-foreground/5 p-4 text-sm text-muted-foreground">This Edition is read-only. Competition results, allocations, groups, matches, awards, and certificates cannot be changed.</Card> : null}
 
-          <PreviewNav activeYear={activeYear} view={view} counts={{ centres: `${allocated}/${participants.length}`, qualifications: qualificationPending, groups: groups.reduce((sum, group) => sum + group.entries.length, 0), knockouts: unresolvedMatches }} />
+          <PreviewNav activeYear={activeYear} view={view} counts={{ centres: `${allocated}/${participants.length}`, qualifications: `${qualificationAdvanced}/${participants.length}`, groups: groups.reduce((sum, group) => sum + group.entries.length, 0), knockouts: unresolvedMatches }} />
 
           <main>
             {view === "overview" ? <OverviewWorkspace participants={participants} groups={groups} matches={matches} activeYear={activeYear} currentStage={currentStage} /> : null}
