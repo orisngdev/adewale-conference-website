@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/portal/submit-button";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
+import { ConfirmDecisionButton } from "@/components/portal/confirm-decision-button";
 import SettingsTabs from "@/components/portal/settings-tabs";
 import PaperExamImport from "@/components/portal/paper-exam-import";
 import PaperKeyEditor from "@/components/portal/paper-key-editor";
@@ -672,10 +673,6 @@ export default async function PaperExamDetail({
                             <input type="hidden" name="cut_kind" value={cutKind} />
                             <input type="hidden" name="cut_n" value={cutN} />
                             <input type="hidden" name="cut_min" value={cutMin} />
-                            {/* Tells the action the table was rendered, so an empty
-                                tick set means "nobody advances" rather than "no
-                                checkboxes existed". */}
-                            <input type="hidden" name="selection" value="1" />
                             <label className="text-sm text-muted-foreground">
                               Reason
                               <Select name="reason" defaultValue="" className="ml-2">
@@ -687,16 +684,27 @@ export default async function PaperExamDetail({
                                 ))}
                               </Select>
                             </label>
-                            {/* Not disabled on a tie: ticking the schools that
-                                advance IS how a tie gets settled, and commitCut
-                                still refuses an untouched table. */}
-                            <ConfirmSubmitButton
-                              title="Commit this cut?"
-                              description="Every school ticked below advances; every school left unticked does not. Rep scores and subject breakdowns are left untouched — only the outcome changes."
-                              confirmLabel="Commit"
+                            <ConfirmDecisionButton
+                              name="mode"
+                              value="advance"
+                              size="sm"
+                              title="Advance the ticked schools?"
+                              description="Only the ticked schools are written, as advanced, under the reason chosen here. Every other school is left exactly as it is, so you can commit each route under its own reason."
+                              confirmLabel="Advance them"
                             >
-                              Commit the ticked schools
-                            </ConfirmSubmitButton>
+                              Advance ticked
+                            </ConfirmDecisionButton>
+                            <ConfirmDecisionButton
+                              name="mode"
+                              value="finish"
+                              size="sm"
+                              variant="outline"
+                              title="Finish and publish?"
+                              description="Every school not yet advanced is marked not advancing, and the exam is published so students can see their results. Schools already advanced keep the reason their batch recorded."
+                              confirmLabel="Finish and publish"
+                            >
+                              Finish &amp; publish
+                            </ConfirmDecisionButton>
                           </ActionForm>
                         ) : null
                       }
@@ -786,7 +794,8 @@ export default async function PaperExamDetail({
                                   <th className="py-1 pr-3 font-normal">In LGA</th>
                                   <th className="py-1 pr-3 font-normal">Reps</th>
                                   <th className="py-1 pr-3 font-normal">Score</th>
-                                  <th className="py-1 font-normal">Rule says</th>
+                                  <th className="py-1 pr-3 font-normal">Rule says</th>
+                                  <th className="py-1 font-normal">Recorded</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -797,7 +806,7 @@ export default async function PaperExamDetail({
                                     className="border-t border-foreground/10 bg-foreground/[0.03]"
                                   >
                                     <td
-                                      colSpan={canManage ? 9 : 8}
+                                      colSpan={canManage ? 10 : 9}
                                       className="px-1 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground"
                                     >
                                       {group.lga}
@@ -866,12 +875,23 @@ export default async function PaperExamDetail({
                                         </span>
                                       ) : null}
                                     </td>
-                                    <td className="py-1 text-muted-foreground">
+                                    <td className="py-1 pr-3 text-muted-foreground">
                                       {!ruleApplied
                                         ? "—"
                                         : s.outcome === "advanced"
                                           ? "Advancing"
                                           : "Not advancing"}
+                                    </td>
+                                    <td className="py-1">
+                                      {s.committedOutcome === "advanced" ? (
+                                        <span className="text-green-700">
+                                          ✓ {s.committedReason ?? "Advanced"}
+                                        </span>
+                                      ) : s.committedOutcome === "eliminated" ? (
+                                        <span className="text-muted-foreground">Not advancing</span>
+                                      ) : (
+                                        <span className="text-muted-foreground">—</span>
+                                      )}
                                     </td>
                                   </tr>
                                   )),

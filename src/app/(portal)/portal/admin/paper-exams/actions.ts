@@ -1111,6 +1111,10 @@ export interface SchoolStanding {
   rank: number;
   lgaRank: number;
   outcome: "advanced" | "eliminated";
+  /** What is already recorded for this school at this stage, so the operator can
+   *  see which routes they have already committed and under what reason. */
+  committedOutcome: "advanced" | "eliminated" | "pending" | null;
+  committedReason: string | null;
 }
 
 export interface CutPreview {
@@ -1134,7 +1138,7 @@ export async function previewCut(
   const supabase = await createClient();
   const { data: exam } = await supabase
     .from("paper_exams")
-    .select("school_score_rule, school_score_top_n")
+    .select("stage, school_score_rule, school_score_top_n")
     .eq("id", examId)
     .maybeSingle();
   if (!exam) return null;
@@ -1184,11 +1188,33 @@ export async function previewCut(
   );
   const cut = applyCutoff(overall, (s) => s.score, rule);
 
+  // Chunked: PostgREST puts an .in() list in the URL, and a few hundred UUIDs
+  // does not survive the round trip.
+  const committed = new Map<string, { outcome: string; reason: string | null }>();
+  for (const batch of chunk(schools.map((s) => s.registrationId), 100)) {
+    const { data: rows, error: readError } = await supabase
+      .from("registration_stage_results")
+      .select("registration_id, outcome, reason")
+      .eq("stage", exam.stage as string)
+      .in("registration_id", batch);
+    if (readError) return null;
+    for (const row of (rows ?? []) as {
+      registration_id: string;
+      outcome: string;
+      reason: string | null;
+    }[]) {
+      committed.set(row.registration_id, { outcome: row.outcome, reason: row.reason });
+    }
+  }
+
   const standings: SchoolStanding[] = cut.decisions.map((d) => ({
     ...d.row,
     rank: d.rank,
     lgaRank: perLga.get(d.row.registrationId) ?? 0,
     outcome: d.outcome,
+    committedOutcome:
+      (committed.get(d.row.registrationId)?.outcome as SchoolStanding["committedOutcome"]) ?? null,
+    committedReason: committed.get(d.row.registrationId)?.reason ?? null,
   }));
 
   return {
@@ -1219,6 +1245,17 @@ function cutoffFromForm(formData: FormData): CutoffRule | null {
   return null;
 }
 
+/** Commit in batches, one qualifying route at a time.
+ *
+ *  `advance` writes ONLY the ticked schools, as advanced, under the reason
+ *  chosen for that batch, and leaves every other school untouched — so the 18
+ *  LGA champions can be recorded as champions before the 20 statewide qualifiers
+ *  are recorded as statewide. `finish` then marks everything still undecided as
+ *  eliminated and publishes, without rewriting a reason already recorded.
+ *
+ *  A tie across the rule's cut no longer blocks: every commit is now an explicit
+ *  tick, so sort order decides nothing. The preview still names the tied schools.
+ */
 export async function commitCut(
   examId: string,
   _prev: ActionResult | null,
@@ -1229,76 +1266,83 @@ export async function commitCut(
   const editable = await loadEditableExam(supabase, examId);
   if (!editable.ok) return notEditable(editable.reason);
 
+  const mode = String(formData.get("mode") ?? "advance") === "finish" ? "finish" : "advance";
   const rule = cutoffFromForm(formData);
   if (!rule) return { ok: false, error: "Choose a cutoff rule and its number first." };
   const preview = await previewCut(examId, rule);
   if (!preview) return { ok: false, error: "Could not read the standings for this exam." };
-
-  // The rule only pre-ticks the table; what commits is what the operator left
-  // ticked. `selection` distinguishes "nobody ticked" from "the checkboxes were
-  // never rendered" — without it an empty set would silently eliminate everyone.
-  const hasSelection = formData.get("selection") === "1";
-  const ticked = new Set(formData.getAll("advance_ids").map(String).filter(Boolean));
-  // A cut that advances nobody is a misclick, not a decision.
-  if (hasSelection && ticked.size === 0) {
-    return { ok: false, error: "No school is ticked — tick the ones that advance first." };
-  }
-  const advances = (registrationId: string, ruleOutcome: "advanced" | "eliminated") =>
-    hasSelection ? ticked.has(registrationId) : ruleOutcome === "advanced";
-
-  // Untouched, the table is the rule's own answer, so the tie guard still holds:
-  // sort order must not decide a national tie. Once the operator has changed the
-  // selection, splitting a tie IS the human decision the guard was asking for.
-  const untouched = preview.standings.every(
-    (s) => advances(s.registrationId, s.outcome) === (s.outcome === "advanced"),
-  );
-  if (preview.tied.length > 0 && untouched) {
-    return {
-      ok: false,
-      error: `${preview.tied.length} schools are tied across the cut. Widen the count, tick the ones that advance, or record a face-off — a national tie is not settled by sort order.`,
-    };
-  }
 
   const reasonRaw = String(formData.get("reason") ?? "").trim();
   const reason = (QUALIFICATION_REASONS as readonly string[]).includes(reasonRaw)
     ? reasonRaw
     : null;
 
-  const rows = preview.standings.map((s) => {
-    const outcome = advances(s.registrationId, s.outcome) ? "advanced" : "eliminated";
-    return {
-      registration_id: s.registrationId,
-      outcome,
-      score: s.score,
-      score_max: s.scoreMax,
-      reason: outcome === "advanced" ? reason : null,
-      lga_rank: s.lgaRank,
-      state_rank: s.rank,
-      note: null,
-    };
+  const row = (s: SchoolStanding, outcome: "advanced" | "eliminated", why: string | null) => ({
+    registration_id: s.registrationId,
+    outcome,
+    score: s.score,
+    score_max: s.scoreMax,
+    reason: why,
+    lga_rank: s.lgaRank,
+    state_rank: s.rank,
+    note: null,
   });
 
-  const { error } = await supabase.rpc("commit_paper_cut", { p_exam_id: examId, p_rows: rows });
-  if (error) return { ok: false, error: describe(error, "commit the cut") };
+  let rows: ReturnType<typeof row>[];
+  let message: string;
 
-  const { error: statusError } = await supabase
-    .from("paper_exams")
-    .update({ status: "published", updated_at: new Date().toISOString() })
-    .eq("id", examId);
-  if (statusError) {
-    return {
-      ok: false,
-      error: `The outcomes were committed, but marking the exam published failed: ${statusError.message}`,
-    };
+  if (mode === "advance") {
+    const ticked = new Set(formData.getAll("advance_ids").map(String).filter(Boolean));
+    if (ticked.size === 0) {
+      return { ok: false, error: "No school is ticked — tick the ones this reason applies to." };
+    }
+    if (!reason) {
+      return {
+        ok: false,
+        error: "Choose the reason these schools advanced, so the batch is recorded under its route.",
+      };
+    }
+    rows = preview.standings
+      .filter((s) => ticked.has(s.registrationId))
+      .map((s) => row(s, "advanced", reason));
+    message = `Advanced ${rows.length} school${rows.length === 1 ? "" : "s"} as ${reason}.`;
+  } else {
+    // Only the undecided. Re-writing a school already advanced would replace the
+    // reason its own batch recorded.
+    rows = preview.standings
+      .filter((s) => s.committedOutcome !== "advanced")
+      .map((s) => row(s, "eliminated", null));
+    const advanced = preview.standings.filter((s) => s.committedOutcome === "advanced").length;
+    if (advanced === 0) {
+      return {
+        ok: false,
+        error: "No school has been advanced yet — commit at least one route before finishing.",
+      };
+    }
+    message = `Published. ${advanced} advancing, ${rows.length} not.`;
+  }
+
+  if (rows.length > 0) {
+    const { error } = await supabase.rpc("commit_paper_cut", { p_exam_id: examId, p_rows: rows });
+    if (error) return { ok: false, error: describe(error, "commit the cut") };
+  }
+
+  if (mode === "finish") {
+    const { error: statusError } = await supabase
+      .from("paper_exams")
+      .update({ status: "published", updated_at: new Date().toISOString() })
+      .eq("id", examId);
+    if (statusError) {
+      return {
+        ok: false,
+        error: `The outcomes were committed, but marking the exam published failed: ${statusError.message}`,
+      };
+    }
   }
 
   revalidatePath(`${BASE}/${examId}`);
   revalidatePath("/portal/admin/participants");
   revalidatePath("/portal/school");
   revalidatePath("/portal/student");
-  const advanced = rows.filter((r) => r.outcome === "advanced").length;
-  return {
-    ok: true,
-    message: `Committed ${rows.length} school decisions — ${advanced} advanced.`,
-  };
+  return { ok: true, message };
 }
