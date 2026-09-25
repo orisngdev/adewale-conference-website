@@ -76,15 +76,20 @@ export function StatTile({
 export function SectionHeading({
   children,
   action,
+  actions,
 }: {
   children: React.ReactNode;
   action?: { href: string; label: string };
+  /** Controls rather than a link. Centred on its own so the heading row keeps
+   *  the baseline alignment every other caller renders against. */
+  actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-baseline justify-between mb-5 border-b border-border pb-3">
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2 mb-5 border-b border-border pb-3">
       <h2 className="font-bebas text-2xl md:text-3xl text-foreground tracking-wide">
         {children}
       </h2>
+      {actions ? <div className="self-center">{actions}</div> : null}
       {action ? (
         <Link
           href={action.href}
