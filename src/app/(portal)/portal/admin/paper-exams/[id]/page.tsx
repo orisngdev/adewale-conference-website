@@ -33,6 +33,7 @@ import {
   updatePaperExam,
 } from "../actions";
 import { Select } from "@/components/ui/select";
+import { divisionOf } from "@/lib/ogun-division";
 
 // The cut table's checkboxes sit above the commit form, so they reach it by id.
 const CUT_FORM_ID = "paper-cut-commit";
@@ -734,6 +735,7 @@ export default async function PaperExamDetail({
                                   <th className="py-1 pr-3 font-normal">#</th>
                                   <th className="py-1 pr-3 font-normal">School</th>
                                   <th className="py-1 pr-3 font-normal">LGA</th>
+                                  <th className="py-1 pr-3 font-normal">Division</th>
                                   {/* Already computed and already committed as
                                       lga_rank — surfaced because the top school
                                       in each LGA is its own qualifying route. */}
@@ -751,7 +753,7 @@ export default async function PaperExamDetail({
                                     className="border-t border-foreground/10 bg-foreground/[0.03]"
                                   >
                                     <td
-                                      colSpan={canManage ? 8 : 7}
+                                      colSpan={canManage ? 9 : 8}
                                       className="px-1 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground"
                                     >
                                       {group.lga}
@@ -775,6 +777,7 @@ export default async function PaperExamDetail({
                                     className="border-t border-foreground/5"
                                     data-cut-row={CUT_FORM_ID}
                                     data-lga={group.lga}
+                                    data-division={divisionOf(s.lga) ?? ""}
                                     data-lga-rank={s.lgaRank}
                                     data-rank={s.rank}
                                     // Searched client-side so filtering only HIDES rows: a
@@ -799,6 +802,7 @@ export default async function PaperExamDetail({
                                     <td className="py-1 pr-3 tabular-nums">{s.rank}</td>
                                     <td className="py-1 pr-3">{s.schoolName}</td>
                                     <td className="py-1 pr-3">{s.lga ?? "—"}</td>
+                                    <td className="py-1 pr-3">{divisionOf(s.lga) ?? "—"}</td>
                                     <td className="py-1 pr-3 tabular-nums">
                                       {s.lgaRank ? (
                                         <span className={s.lgaRank === 1 ? "font-bold text-foreground" : ""}>
@@ -832,6 +836,8 @@ export default async function PaperExamDetail({
                             </table>
                           </div>
 
+                          {/* Below the table on purpose: the decision is the last
+                              thing you make, after reading what you are deciding. */}
                           {canManage ? (
                             <ActionForm
                               id={CUT_FORM_ID}

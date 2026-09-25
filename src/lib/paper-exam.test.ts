@@ -12,6 +12,7 @@ import {
   paperExamPhase,
   parseAnswerKey,
   percent,
+  publicQualificationLabel,
   rankBy,
   UNPLACED_LGA,
   type PaperExamFacts,
@@ -763,5 +764,25 @@ describe("groupByLga", () => {
 
   it("returns no groups for no standings", () => {
     assert.deepEqual(groupByLga([]), []);
+  });
+});
+
+describe("publicQualificationLabel", () => {
+  it("rewords the routes a reader can understand", () => {
+    assert.equal(publicQualificationLabel("State-wide Qualification"), "Statewide qualifier");
+    assert.equal(publicQualificationLabel("Divisional Qualification"), "Divisional qualifier");
+    assert.equal(publicQualificationLabel("Top 10"), "Top 10 in the state");
+    assert.equal(publicQualificationLabel("Zonal Champion"), "Zonal Champion");
+  });
+
+  it("shows no badge for internal bookkeeping", () => {
+    assert.equal(publicQualificationLabel("Manual Selection"), null);
+  });
+
+  it("shows no badge for an unknown, empty or missing reason", () => {
+    assert.equal(publicQualificationLabel("Something else"), null);
+    assert.equal(publicQualificationLabel(""), null);
+    assert.equal(publicQualificationLabel(null), null);
+    assert.equal(publicQualificationLabel(undefined), null);
   });
 });
