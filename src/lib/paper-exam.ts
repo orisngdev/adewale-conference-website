@@ -692,3 +692,23 @@ export function groupByLga<
       return Math.min(...a.rows.map((r) => r.rank)) - Math.min(...b.rows.map((r) => r.rank));
     });
 }
+
+/** How a qualifying route is named to the public. `reason` is admin vocabulary:
+ *  "Manual Selection" says nothing to a reader, so it — and anything
+ *  unrecognised — renders no badge rather than a confusing one. */
+export function publicQualificationLabel(reason: string | null | undefined): string | null {
+  switch (reason?.trim()) {
+    case "Zonal Champion":
+      return "Zonal Champion";
+    case "Top 10":
+      return "Top 10 in the state";
+    case "State-wide Qualification":
+      return "Statewide qualifier";
+    case "Divisional Qualification":
+      return "Divisional qualifier";
+    case "Wildcard":
+      return "Wildcard";
+    default:
+      return null;
+  }
+}

@@ -13,8 +13,10 @@ import { Button } from "@/components/ui/button";
 // a filtered table still commits the whole cohort. Filtering server-side would
 // quietly mark every school you had scrolled past as not advancing.
 
-/** How many schools the statewide route takes, per the published rules. */
+/** What each route took in 2026, per the published rules. Both are editable —
+ *  these are only the starting numbers in the boxes. */
 const STATEWIDE_DEFAULT = 20;
+const DIVISIONAL_DEFAULT = 4;
 
 export function CutSelectionControls({ formId }: { formId: string }) {
   const [checked, setChecked] = useState<number | null>(null);
@@ -23,6 +25,7 @@ export function CutSelectionControls({ formId }: { formId: string }) {
   const [champions, setChampions] = useState<number | null>(null);
   const [query, setQuery] = useState("");
   const [statewide, setStatewide] = useState(String(STATEWIDE_DEFAULT));
+  const [divisional, setDivisional] = useState(String(DIVISIONAL_DEFAULT));
 
   function rows() {
     return [...document.querySelectorAll<HTMLTableRowElement>(`tr[data-cut-row="${formId}"]`)];
@@ -102,8 +105,33 @@ export function CutSelectionControls({ formId }: { formId: string }) {
     recount();
   }
 
+  /** Route Three: the strongest `n` schools left in each division. A row whose
+   *  LGA did not resolve to a division is skipped rather than guessed at — it
+   *  must not take a place from a school that genuinely belongs there. */
+  function tickDivisional(n: number) {
+    const byDivision = new Map<string, HTMLTableRowElement[]>();
+    for (const row of rows()) {
+      const division = row.dataset.division;
+      if (!division || boxOf(row)?.checked) continue;
+      const list = byDivision.get(division) ?? [];
+      list.push(row);
+      byDivision.set(division, list);
+    }
+    for (const list of byDivision.values()) {
+      const ordered = list.sort(
+        (a, b) => Number(a.dataset.rank ?? 0) - Number(b.dataset.rank ?? 0),
+      );
+      for (const row of ordered.slice(0, Math.max(0, n))) {
+        const box = boxOf(row);
+        if (box) box.checked = true;
+      }
+    }
+    recount();
+  }
+
   const filtering = query.trim() !== "";
   const statewideN = Number(statewide);
+  const divisionalN = Number(divisional);
 
   return (
     <div className="space-y-2">
@@ -133,37 +161,74 @@ export function CutSelectionControls({ formId }: { formId: string }) {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-foreground/10 pt-2">
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-          Routes
-        </span>
-        <Button type="button" size="sm" variant="outline" onClick={tickChampions}>
-          Tick LGA champions{champions ? ` (${champions})` : ""}
-        </Button>
-        <span className="flex items-center gap-1.5">
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => tickStatewide(Number.isFinite(statewideN) ? statewideN : 0)}
-          >
-            Tick next
-          </Button>
-          <input
-            type="number"
-            min={1}
-            value={statewide}
-            onChange={(e) => setStatewide(e.target.value)}
-            aria-label="How many statewide qualifiers to add"
-            className="w-16 rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary"
-          />
-          <span className="text-sm text-muted-foreground">by score</span>
-        </span>
-        <p className="text-xs text-muted-foreground">
-          Both add to what is already ticked. Divisional qualifiers stay manual — the
-          schema has no LGA-to-division mapping.
+      {/* Each control is captioned with the route it fills, because "Tick next
+          20 by score" does not say WHY you would, and the operator is working
+          from published rules that name these three routes. */}
+      <div className="border-t border-foreground/10 pt-3">
+        <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+          <Route caption="Route one · LGA champions">
+            <Button type="button" size="sm" variant="outline" onClick={tickChampions}>
+              Tick LGA champions{champions ? ` (${champions})` : ""}
+            </Button>
+          </Route>
+
+          <Route caption="Route two · Statewide qualifiers">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => tickStatewide(Number.isFinite(statewideN) ? statewideN : 0)}
+            >
+              Tick next
+            </Button>
+            <input
+              type="number"
+              min={1}
+              value={statewide}
+              onChange={(e) => setStatewide(e.target.value)}
+              aria-label="How many statewide qualifiers to add"
+              className="w-16 rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary"
+            />
+            <span className="text-sm text-muted-foreground">by score</span>
+          </Route>
+
+          <Route caption="Route three · Divisional qualifiers">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => tickDivisional(Number.isFinite(divisionalN) ? divisionalN : 0)}
+            >
+              Tick top
+            </Button>
+            <input
+              type="number"
+              min={1}
+              value={divisional}
+              onChange={(e) => setDivisional(e.target.value)}
+              aria-label="How many schools to take from each division"
+              className="w-16 rounded-md border border-foreground/15 bg-card px-2 py-1.5 text-sm outline-none focus:border-primary"
+            />
+            <span className="text-sm text-muted-foreground">per division</span>
+          </Route>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Each route adds to what is already ticked, so run them in order: champions,
+          then statewide, then divisional.
         </p>
       </div>
+    </div>
+  );
+}
+
+/** One route control with the route it fills named underneath it. */
+function Route({ caption, children }: { caption: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5">{children}</div>
+      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        {caption}
+      </p>
     </div>
   );
 }
