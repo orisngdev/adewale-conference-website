@@ -11,11 +11,15 @@ export default function ActionForm({
   className,
   children,
   successClassName,
+  id,
 }: {
   action: (prev: ActionResult | null, formData: FormData) => Promise<ActionResult>;
   className?: string;
   children: ReactNode | ((pending: boolean) => ReactNode);
   successClassName?: string;
+  /** Lets inputs rendered outside this form submit into it via `form={id}` —
+   *  the cut table's checkboxes sit above the commit controls. */
+  id?: string;
 }) {
   const [state, formAction, pending] = useActionState<ActionResult | null, FormData>(
     action,
@@ -24,7 +28,7 @@ export default function ActionForm({
 
   return (
     <div className="space-y-2">
-      <form action={formAction} className={className}>
+      <form id={id} action={formAction} className={className}>
         {typeof children === "function" ? children(pending) : children}
       </form>
       {state && !state.ok ? (
