@@ -9,6 +9,7 @@ import {
 } from "@/components/portal/ui";
 import { SubmitButton } from "@/components/portal/submit-button";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
+import { AnnouncementAudienceSelect } from "@/components/portal/announcement-audience-select";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
@@ -21,6 +22,7 @@ import {
   ANNOUNCEMENT_TARGET_LABEL,
   ANNOUNCEMENT_TARGET_OPTIONS,
   MAX_ATTACHMENT_BYTES,
+  audienceLabel,
   formatFileSize,
   mapAnnouncement,
   type AnnouncementRow,
@@ -42,10 +44,11 @@ export default async function AdminAnnouncements() {
   const canManage = await canManageModule("announcements");
   const supabase = await createClient();
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("announcements")
     .select(ANNOUNCEMENT_COLUMNS)
     .order("created_at", { ascending: false });
+  if (error) throw new Error(`Could not load announcements: ${error.message}`);
   const announcements = ((data ?? []) as unknown as AnnouncementRow[]).map(mapAnnouncement);
 
   const drafts = announcements.filter((a) => a.status === "draft").length;
@@ -169,6 +172,20 @@ export default async function AdminAnnouncements() {
 
                 <label className="space-y-1 block">
                   <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    Schools
+                  </span>
+                  <AnnouncementAudienceSelect defaultValue="" />
+                  <span className="text-[11px] text-muted-foreground">
+                    Narrowing by stage uses the results recorded on the participant
+                    hub, and also hides the announcement from schools outside the
+                    audience in their portal. With &ldquo;All editions&rdquo; a school
+                    counts if it reached that stage in <em>any</em> year — pick a
+                    year to mean this season&rsquo;s.
+                  </span>
+                </label>
+
+                <label className="space-y-1 block">
+                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                     Attachments (optional)
                   </span>
                   <input
@@ -244,6 +261,11 @@ export default async function AdminAnnouncements() {
                       {[
                         ANNOUNCEMENT_CHANNEL_LABEL[a.channels],
                         ANNOUNCEMENT_TARGET_LABEL[a.targetRole],
+                        // Only when narrowed — "all registered schools" is the
+                        // assumption already, and every row would carry it.
+                        a.audienceStage
+                          ? audienceLabel(a.audienceStage, a.audienceOutcome)
+                          : null,
                         a.editionYear ? `${a.editionYear} only` : "All editions",
                         a.attachments.length
                           ? `${a.attachments.length} file${a.attachments.length === 1 ? "" : "s"}`

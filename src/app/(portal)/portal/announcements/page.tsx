@@ -23,12 +23,13 @@ export default async function AnnouncementsPage() {
   // No profile filter: RLS (announcements_educator_read → can_read_announcement)
   // returns only the sent announcements aimed at this educator's school(s).
   // Students hold no school membership, so they see nothing here.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("announcements")
     .select(ANNOUNCEMENT_COLUMNS)
     .eq("status", "sent")
     .order("sent_at", { ascending: false })
     .limit(100);
+  if (error) throw new Error(`Could not load announcements: ${error.message}`);
   const announcements = ((data ?? []) as unknown as AnnouncementRow[]).map(mapAnnouncement);
 
   return (

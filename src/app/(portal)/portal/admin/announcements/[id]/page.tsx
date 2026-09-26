@@ -5,6 +5,7 @@ import { SubmitButton } from "@/components/portal/submit-button";
 import { ConfirmSubmitButton } from "@/components/ui/confirm-submit-button";
 import { ReadOnlyBadge } from "@/components/portal/read-only-badge";
 import { AnnouncementSendForm } from "@/components/portal/announcement-send-form";
+import { AnnouncementAudienceSelect } from "@/components/portal/announcement-audience-select";
 import { pageMetadata } from "@/lib/seo";
 import { createClient } from "@/supabase/server";
 import { canManageModule, requireModuleView } from "@/supabase/auth";
@@ -18,6 +19,8 @@ import {
   ANNOUNCEMENT_TARGET_LABEL,
   ANNOUNCEMENT_TARGET_OPTIONS,
   MAX_ATTACHMENT_BYTES,
+  audienceLabel,
+  audienceValue,
   formatFileSize,
   mapAnnouncement,
   selectInlineAttachments,
@@ -47,11 +50,12 @@ export default async function AdminAnnouncementDetail({
   const canManage = await canManageModule("announcements");
   const supabase = await createClient();
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("announcements")
     .select(ANNOUNCEMENT_COLUMNS)
     .eq("id", id)
     .maybeSingle();
+  if (error) throw new Error(`Could not load this announcement: ${error.message}`);
   if (!data) notFound();
   const announcement = mapAnnouncement(data as unknown as AnnouncementRow);
 
@@ -65,8 +69,12 @@ export default async function AdminAnnouncementDetail({
     ? await resolveEducatorRecipients(supabase, {
         editionYear: announcement.editionYear,
         targetRole: announcement.targetRole,
+        audienceStage: announcement.audienceStage,
+        audienceOutcome: announcement.audienceOutcome,
       })
     : null;
+
+  const audience = audienceLabel(announcement.audienceStage, announcement.audienceOutcome);
 
   const { data: editionData } = await supabase
     .from("editions")
@@ -111,8 +119,9 @@ export default async function AdminAnnouncementDetail({
           <div>
             <SectionHeading>Recipients</SectionHeading>
             <Card className="p-5 space-y-3">
-              <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
+              <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
                 <StatTile label="Will be reached" value={preview?.recipientCount ?? 0} />
+                <StatTile label="Schools reached" value={preview?.schoolCount ?? 0} />
                 <StatTile label="Get the email" value={preview?.emails.length ?? 0} />
                 <StatTile
                   label="Get the portal alert"
@@ -120,7 +129,7 @@ export default async function AdminAnnouncementDetail({
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                {ANNOUNCEMENT_TARGET_LABEL[announcement.targetRole]} ·{" "}
+                {ANNOUNCEMENT_TARGET_LABEL[announcement.targetRole]} · {audience} ·{" "}
                 {announcement.editionYear
                   ? `${announcement.editionYear} edition only`
                   : "all editions"}{" "}
@@ -229,6 +238,21 @@ export default async function AdminAnnouncementDetail({
                     </label>
                   </div>
 
+                  <label className="space-y-1 block">
+                    <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                      Schools
+                    </span>
+                    <AnnouncementAudienceSelect
+                      defaultValue={audienceValue(
+                        announcement.audienceStage,
+                        announcement.audienceOutcome,
+                      )}
+                    />
+                    <span className="text-[11px] text-muted-foreground">
+                      Save the draft to see the recipient count for a new audience.
+                    </span>
+                  </label>
+
                   <SubmitButton size="sm" variant="outline" pendingText="Saving…">
                     Save draft
                   </SubmitButton>
@@ -258,7 +282,7 @@ export default async function AdminAnnouncementDetail({
                 </p>
               ) : null}
               <p className="text-xs text-muted-foreground">
-                {ANNOUNCEMENT_TARGET_LABEL[announcement.targetRole]} ·{" "}
+                {ANNOUNCEMENT_TARGET_LABEL[announcement.targetRole]} · {audience} ·{" "}
                 {announcement.editionYear
                   ? `${announcement.editionYear} edition only`
                   : "all editions"}{" "}
@@ -376,7 +400,9 @@ export default async function AdminAnnouncementDetail({
               This will reach{" "}
               <span className="font-medium text-foreground">
                 {preview?.recipientCount ?? 0} educator
-                {(preview?.recipientCount ?? 0) === 1 ? "" : "s"}
+                {(preview?.recipientCount ?? 0) === 1 ? "" : "s"} at{" "}
+                {preview?.schoolCount ?? 0} school
+                {(preview?.schoolCount ?? 0) === 1 ? "" : "s"}
               </span>
               {inline.length
                 ? `, with ${inline.length} file${inline.length === 1 ? "" : "s"} attached to the email`
@@ -390,7 +416,9 @@ export default async function AdminAnnouncementDetail({
               disabled={(preview?.recipientCount ?? 0) === 0}
               disabledReason={
                 (preview?.recipientCount ?? 0) === 0
-                  ? "No educators match this audience yet — widen the edition or recipient filter."
+                  ? announcement.audienceStage
+                    ? `No school is recorded as ${announcement.audienceOutcome} at ${announcement.audienceStage} yet — mark the stage results, or widen the audience.`
+                    : "No educators match this audience yet — widen the edition or recipient filter."
                   : undefined
               }
             />

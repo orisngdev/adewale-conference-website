@@ -572,6 +572,8 @@ export function buildAnnouncementEmail(data: {
   announcementPath: string;
   editionYear: number | null;
   targetRole: AnnouncementTargetRole;
+  /** Stage audience, already rendered; null when it went to every school. */
+  audience: string | null;
   sentAt: Date;
   inlineNames: string[];
   linkOnlyNames: string[];
@@ -619,6 +621,9 @@ export function buildAnnouncementEmail(data: {
     ["Edition", data.editionYear ? String(data.editionYear) : "All editions"],
     ["For", ANNOUNCEMENT_TARGET_EMAIL_LABEL[data.targetRole]],
   ];
+  if (data.audience) {
+    rows.push(["Schools", data.audience]);
+  }
   if (files.length) {
     rows.push(["Files", `${files.length} attached`]);
   }

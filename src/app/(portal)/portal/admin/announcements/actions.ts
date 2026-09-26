@@ -13,8 +13,10 @@ import {
   ANNOUNCEMENT_COLUMNS,
   MAX_ATTACHMENT_BYTES,
   announcementPath,
+  audienceLabel,
   isAllowedAnnouncementFile,
   mapAnnouncement,
+  parseAudienceValue,
   selectInlineAttachments,
   type AnnouncementRow,
 } from "@/lib/announcements";
@@ -47,6 +49,11 @@ function readChannels(formData: FormData) {
 function readTargetRole(formData: FormData) {
   const raw = String(formData.get("target_role") ?? "all").trim();
   return ["all", "teacher", "principal"].includes(raw) ? raw : "all";
+}
+
+function readAudience(formData: FormData) {
+  const { stage, outcome } = parseAudienceValue(String(formData.get("audience") ?? ""));
+  return { audience_stage: stage, audience_outcome: outcome };
 }
 
 function readEditionYear(formData: FormData) {
@@ -195,6 +202,7 @@ export async function createAnnouncementDraft(formData: FormData) {
       body,
       channels: readChannels(formData),
       target_role: readTargetRole(formData),
+      ...readAudience(formData),
       edition_year: readEditionYear(formData),
       created_by: admin.user.id,
     })
@@ -233,6 +241,7 @@ export async function updateAnnouncementDraft(id: string, formData: FormData) {
       body,
       channels: readChannels(formData),
       target_role: readTargetRole(formData),
+      ...readAudience(formData),
       edition_year: readEditionYear(formData),
       updated_at: new Date().toISOString(),
     })
@@ -319,12 +328,17 @@ export async function sendAnnouncement(
   const supabase = await createClient();
 
   // ── 1. Recipients, while it's still a draft ───────────────────────────────
-  const { data: draftRow } = await supabase
+  const { data: draftRow, error: draftError } = await supabase
     .from("announcements")
     .select(ANNOUNCEMENT_COLUMNS)
     .eq("id", id)
     .eq("status", "draft")
     .maybeSingle();
+  // A failed read is NOT "already sent" — reporting it as such would send an
+  // admin hunting for a send that never happened.
+  if (draftError) {
+    return { ok: false, message: `Could not read this announcement: ${draftError.message}` };
+  }
   if (!draftRow) {
     return { ok: false, message: "This announcement has already been sent." };
   }
@@ -333,13 +347,18 @@ export async function sendAnnouncement(
   let recipients = await resolveEducatorRecipients(supabase, {
     editionYear: draft.editionYear,
     targetRole: draft.targetRole,
+    audienceStage: draft.audienceStage,
+    audienceOutcome: draft.audienceOutcome,
   });
 
   if (recipients.recipientCount === 0) {
     return {
       ok: false,
-      message:
-        "No educators match this audience, so nothing was sent. Widen the edition or recipient filter and try again.",
+      message: draft.audienceStage
+        ? `No school is recorded as ${draft.audienceOutcome} at ${draft.audienceStage}${
+            draft.editionYear ? ` for ${draft.editionYear}` : ""
+          }, so nothing was sent. Mark the stage results first, or widen the audience.`
+        : "No educators match this audience, so nothing was sent. Widen the edition or recipient filter and try again.",
     };
   }
 
@@ -354,7 +373,7 @@ export async function sendAnnouncement(
   // Compare-and-swap: zero rows back means it was already claimed. The state
   // lives on the row, so unlike a time-window guard there is no gap in which a
   // duplicate send can slip through.
-  const { data: claimedRow } = await supabase
+  const { data: claimedRow, error: claimError } = await supabase
     .from("announcements")
     .update({
       status: "sent",
@@ -367,6 +386,11 @@ export async function sendAnnouncement(
     .select(ANNOUNCEMENT_COLUMNS)
     .maybeSingle();
 
+  // Zero rows means someone else claimed it; an error means the claim never ran,
+  // and the two must not share a message.
+  if (claimError) {
+    return { ok: false, message: `Could not start the send: ${claimError.message}` };
+  }
   if (!claimedRow) {
     return { ok: false, message: "This announcement has already been sent." };
   }
@@ -375,11 +399,15 @@ export async function sendAnnouncement(
   const announcement = mapAnnouncement(claimedRow as unknown as AnnouncementRow);
   if (
     announcement.editionYear !== draft.editionYear ||
-    announcement.targetRole !== draft.targetRole
+    announcement.targetRole !== draft.targetRole ||
+    announcement.audienceStage !== draft.audienceStage ||
+    announcement.audienceOutcome !== draft.audienceOutcome
   ) {
     recipients = await resolveEducatorRecipients(supabase, {
       editionYear: announcement.editionYear,
       targetRole: announcement.targetRole,
+      audienceStage: announcement.audienceStage,
+      audienceOutcome: announcement.audienceOutcome,
     });
   }
 
@@ -460,6 +488,9 @@ export async function sendAnnouncement(
       announcementPath: announcementPath(id),
       editionYear: announcement.editionYear,
       targetRole: announcement.targetRole,
+      audience: announcement.audienceStage
+        ? audienceLabel(announcement.audienceStage, announcement.audienceOutcome)
+        : null,
       // Set by the claim above, so this is the real send time.
       sentAt: announcement.sentAt ? new Date(announcement.sentAt) : new Date(),
       inlineNames,

@@ -4,6 +4,7 @@ import {
   classifyRole,
   dedupeRecipients,
   isEducatorEmail,
+  matchesStageAudience,
   matchesTargetRole,
   type EducatorRecipient,
 } from "./announcement-recipients";
@@ -187,5 +188,147 @@ describe("dedupeRecipients", () => {
       "count must not exceed both channels combined",
     );
     assert.equal(resolved.recipientCount, 3);
+  });
+});
+
+describe("matchesStageAudience", () => {
+  const school = (
+    status: string | null,
+    results: { stage: string; outcome: string | null }[] = [],
+  ) => ({ status, registration_stage_results: results });
+
+  const advanced = { stage: "Qualifications", outcome: "advanced" };
+
+  it("lets every registered school through when no stage is named", () => {
+    assert.equal(
+      matchesStageAudience(school("verified"), { stage: null, outcome: "advanced" }),
+      true,
+    );
+    // Even a declined entry: an unfiltered send is not a stage decision.
+    assert.equal(
+      matchesStageAudience(school("declined"), { stage: null, outcome: "advanced" }),
+      true,
+    );
+  });
+
+  it("matches a school holding that outcome at that stage", () => {
+    assert.equal(matchesStageAudience(school("verified", [advanced]), advanced), true);
+  });
+
+  it("excludes a school with the other outcome, or none recorded", () => {
+    assert.equal(
+      matchesStageAudience(
+        school("verified", [{ stage: "Qualifications", outcome: "eliminated" }]),
+        advanced,
+      ),
+      false,
+    );
+    assert.equal(
+      matchesStageAudience(
+        school("verified", [{ stage: "Qualifications", outcome: "pending" }]),
+        advanced,
+      ),
+      false,
+    );
+    assert.equal(matchesStageAudience(school("verified", []), advanced), false);
+  });
+
+  it("excludes a school whose entry was never accepted", () => {
+    // Mirrors tierRank: a declined entry with a stray result row is not a
+    // participant, so it must not receive a participants-only announcement.
+    assert.equal(matchesStageAudience(school("declined", [advanced]), advanced), false);
+    assert.equal(matchesStageAudience(school("submitted", [advanced]), advanced), false);
+    assert.equal(matchesStageAudience(school(null, [advanced]), advanced), false);
+  });
+
+  it("treats 'Zonal Stage' and 'Qualifications' as the same milestone", () => {
+    // Older editions recorded the qualifying stage under the pre-rename name;
+    // picking either spelling must reach both.
+    const zonal = school("verified", [{ stage: "Zonal Stage", outcome: "advanced" }]);
+    assert.equal(matchesStageAudience(zonal, advanced), true);
+    assert.equal(
+      matchesStageAudience(school("verified", [advanced]), {
+        stage: "Zonal Stage",
+        outcome: "advanced",
+      }),
+      true,
+    );
+  });
+
+  it("does not alias any other stage", () => {
+    assert.equal(
+      matchesStageAudience(school("verified", [{ stage: "Finals", outcome: "advanced" }]), {
+        stage: "Semi Finals",
+        outcome: "advanced",
+      }),
+      false,
+    );
+  });
+
+  it("copes with a registration whose results were never embedded", () => {
+    assert.equal(matchesStageAudience({ status: "verified" }, advanced), false);
+    assert.equal(
+      matchesStageAudience({ status: "verified", registration_stage_results: null }, advanced),
+      false,
+    );
+  });
+});
+
+describe("dedupeRecipients — schoolCount", () => {
+  it("counts a school once however many of its educators are reached", () => {
+    const resolved = dedupeRecipients([
+      candidate({ email: "head@a.test", schoolId: "a" }),
+      candidate({ email: "teacher@a.test", schoolId: "a" }),
+      candidate({ email: "head@b.test", schoolId: "b" }),
+    ]);
+    assert.equal(resolved.recipientCount, 3);
+    assert.equal(resolved.schoolCount, 2);
+  });
+
+  it("does not count a school whose only address is unusable", () => {
+    // Reaching nobody at a school is not reaching the school, so the tile can
+    // never claim more schools than the send actually touches.
+    const resolved = dedupeRecipients([
+      candidate({ email: "not-an-address", profileId: null, schoolId: "a" }),
+      candidate({
+        email: "student.ab12cd@students.adewaleconference.local",
+        profileId: null,
+        schoolId: "b",
+      }),
+      candidate({ email: "head@c.test", schoolId: "c" }),
+    ]);
+    assert.equal(resolved.schoolCount, 1);
+  });
+
+  it("still counts a school reached only by a portal account", () => {
+    const resolved = dedupeRecipients([
+      candidate({ email: null, profileId: "p1", schoolId: "a", source: "owner" }),
+    ]);
+    assert.deepEqual(resolved.emails, []);
+    assert.equal(resolved.schoolCount, 1);
+  });
+
+  it("does not count a dropped contact fallback as its own school", () => {
+    const resolved = dedupeRecipients([
+      candidate({ email: "member@a.test", schoolId: "a", source: "member" }),
+      candidate({ email: "stale@a.test", schoolId: "a", source: "contact" }),
+    ]);
+    assert.equal(resolved.schoolCount, 1);
+    assert.equal(resolved.recipientCount, 1);
+  });
+
+  it("leaves out a recipient with no school to attribute", () => {
+    const resolved = dedupeRecipients([candidate({ email: "who@x.test", schoolId: null })]);
+    assert.equal(resolved.recipientCount, 1);
+    assert.equal(resolved.schoolCount, 0);
+  });
+
+  it("never reports more schools than people", () => {
+    const resolved = dedupeRecipients([
+      candidate({ email: "a@a.test", schoolId: "a" }),
+      candidate({ email: "b@a.test", schoolId: "a" }),
+      candidate({ email: "c@b.test", schoolId: "b" }),
+    ]);
+    assert.ok(resolved.schoolCount <= resolved.recipientCount);
   });
 });

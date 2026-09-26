@@ -39,6 +39,12 @@ export interface EducatorRecipient {
   source: RecipientSource;
 }
 
+/** A registration carrying the stage outcomes an audience filter reads. */
+export interface StageAudienceCandidate {
+  status: string | null;
+  registration_stage_results?: { stage: string; outcome: string | null }[] | null;
+}
+
 export interface ResolvedRecipients {
   /** One entry per address — feeds sendBulkEmail. */
   emails: { email: string; name: string | null }[];
@@ -46,6 +52,12 @@ export interface ResolvedRecipients {
   profileIds: string[];
   /** People, not sends: someone who is both owner and member counts once. */
   recipientCount: number;
+  /**
+   * Schools with at least one reachable educator — so a school whose only
+   * contact bounced off isEducatorEmail is not counted as reached. An entry with
+   * no school_id can't be attributed and is left out.
+   */
+  schoolCount: number;
 }
 
 /**
@@ -84,6 +96,41 @@ export function matchesTargetRole(role: EducatorRole, target: string): boolean {
 }
 
 /**
+ * The same milestone under two spellings: 20260727100000 renamed the edition's
+ * current stage from "Zonal Stage" to "Qualifications" but left the result rows
+ * alone, so older editions still record the qualifying stage the old way.
+ */
+const QUALIFYING_STAGE_SPELLINGS = ["Qualifications", "Zonal Stage"];
+
+function stageSpellings(stage: string): string[] {
+  return QUALIFYING_STAGE_SPELLINGS.includes(stage) ? QUALIFYING_STAGE_SPELLINGS : [stage];
+}
+
+/**
+ * Whether a school belongs to a stage-narrowed audience: its entry was accepted
+ * AND it holds that outcome at that stage. Verified for the same reason tierRank
+ * requires it — a declined entry with a stray result row is not a participant.
+ *
+ * Deliberately NOT tierRank's predicate: that is a cumulative ladder, this asks
+ * about one stage, which is what lets "eliminated at Round of 16" be an audience
+ * at all. The two share only a name — don't fold them together.
+ *
+ * Mirrors public.can_read_announcement in
+ * supabase/migrations/20260926090000_announcement_stage_audience.sql.
+ */
+export function matchesStageAudience(
+  registration: StageAudienceCandidate,
+  audience: { stage: string | null; outcome: string },
+): boolean {
+  if (!audience.stage) return true;
+  if (registration.status !== "verified") return false;
+  const spellings = stageSpellings(audience.stage);
+  return (registration.registration_stage_results ?? []).some(
+    (result) => spellings.includes(result.stage) && result.outcome === audience.outcome,
+  );
+}
+
+/**
  * Collapse candidates into one message per address and one notification per
  * account, counting PEOPLE rather than sends.
  *
@@ -111,6 +158,7 @@ export function dedupeRecipients(rows: EducatorRecipient[]): ResolvedRecipients 
   const profileIds = new Set<string>();
   const recipientKeys = new Set<string>();
   const profiledEmails = new Set<string>();
+  const schools = new Set<string>();
 
   for (const row of rows) {
     if (row.source === "contact" && row.schoolId && schoolsWithMemberEmail.has(row.schoolId)) {
@@ -119,6 +167,9 @@ export function dedupeRecipients(rows: EducatorRecipient[]): ResolvedRecipients 
 
     const usable = isEducatorEmail(row.email);
     const normalized = usable ? (row.email as string).trim().toLowerCase() : null;
+
+    // A candidate reaching neither channel leaves its school unreached.
+    if (row.schoolId && (normalized || row.profileId)) schools.add(row.schoolId);
 
     if (normalized && !emails.has(normalized)) {
       emails.set(normalized, {
@@ -143,6 +194,7 @@ export function dedupeRecipients(rows: EducatorRecipient[]): ResolvedRecipients 
     emails: [...emails.values()],
     profileIds: [...profileIds],
     recipientCount: recipientKeys.size,
+    schoolCount: schools.size,
   };
 }
 
@@ -159,7 +211,7 @@ function detailsValue(details: unknown, key: string): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-interface RegistrationCandidate {
+interface RegistrationCandidate extends StageAudienceCandidate {
   school_id: string | null;
   owner_id: string | null;
   contact_email: string | null;
@@ -167,6 +219,12 @@ interface RegistrationCandidate {
   details: unknown;
   profiles: { email: string | null; full_name: string | null } | null;
 }
+
+const REGISTRATION_COLUMNS =
+  "school_id, owner_id, contact_email, contact_name, details, status, " +
+  "profiles(email, full_name)";
+/** Embedded only for a stage-narrowed send — otherwise it's rows nobody reads. */
+const STAGE_RESULTS_EMBED = ", registration_stage_results(stage, outcome)";
 
 interface MemberCandidate {
   school_id: string;
@@ -178,12 +236,13 @@ interface MemberCandidate {
 async function fetchAllRegistrations(
   supabase: ServerClient,
   editionYear: number | null,
+  withStageResults: boolean,
 ): Promise<RegistrationCandidate[]> {
   const rows: RegistrationCandidate[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
     let query = supabase
       .from("registrations")
-      .select("school_id, owner_id, contact_email, contact_name, details, profiles(email, full_name)")
+      .select(REGISTRATION_COLUMNS + (withStageResults ? STAGE_RESULTS_EMBED : ""))
       .order("id", { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
     if (editionYear != null) query = query.eq("edition_year", editionYear);
@@ -238,16 +297,35 @@ async function fetchApprovedMembers(
  *
  * `editionYear: null` means every edition — every approved educator. A year
  * narrows to the schools that registered that year, then to their approved
- * members plus each entry's owner and contact address.
+ * members plus each entry's owner and contact address. `audienceStage` narrows
+ * further, to the schools holding that outcome at that stage.
+ *
+ * Stage results hang off the registration, so they are edition-scoped through
+ * it: with `editionYear: null` a school joins the audience if it held that
+ * outcome in ANY edition. Pick a year to mean this year's qualifiers.
  *
  * Mirrors public.can_read_announcement in
- * supabase/migrations/20260904090000_announcements.sql — keep the two in step.
+ * supabase/migrations/20260926090000_announcement_stage_audience.sql — keep the
+ * two in step.
  */
 export async function resolveEducatorRecipients(
   supabase: ServerClient,
-  scope: { editionYear: number | null; targetRole: string },
+  scope: {
+    editionYear: number | null;
+    targetRole: string;
+    audienceStage?: string | null;
+    audienceOutcome?: string;
+  },
 ): Promise<ResolvedRecipients> {
-  const registrations = await fetchAllRegistrations(supabase, scope.editionYear);
+  const audienceStage = scope.audienceStage?.trim() || null;
+  const audience = {
+    stage: audienceStage,
+    outcome: scope.audienceOutcome === "eliminated" ? "eliminated" : "advanced",
+  };
+
+  const registrations = (
+    await fetchAllRegistrations(supabase, scope.editionYear, audienceStage != null)
+  ).filter((registration) => matchesStageAudience(registration, audience));
 
   const teacherEmails = new Set<string>();
   const principalEmails = new Set<string>();
@@ -265,9 +343,11 @@ export async function resolveEducatorRecipients(
       registrations.map((r) => r.school_id).filter((id): id is string => Boolean(id)),
     ),
   ];
+  // Only a wholly unnarrowed send may sweep every approved member — otherwise
+  // this query would quietly put back the schools the filters just removed.
   const members = await fetchApprovedMembers(
     supabase,
-    scope.editionYear == null ? null : schoolIds,
+    scope.editionYear == null && audienceStage == null ? null : schoolIds,
   );
 
   const candidates: EducatorRecipient[] = [];
