@@ -1,10 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  ANNOUNCEMENT_STAGE_OPTIONS,
   MAX_INLINE_ATTACHMENT_BYTES,
   announcementPath,
+  audienceLabel,
+  audienceValue,
   isAllowedAnnouncementFile,
   mapAnnouncement,
+  parseAudienceValue,
   selectInlineAttachments,
   type AnnouncementRow,
 } from "./announcements";
@@ -130,6 +134,8 @@ describe("mapAnnouncement", () => {
       body: "The zonal finals have moved.",
       channels: "both",
       target_role: "all",
+      audience_stage: null,
+      audience_outcome: "advanced",
       edition_year: 2026,
       status: "sent",
       sent_at: "2026-09-01T10:00:00Z",
@@ -190,5 +196,77 @@ describe("mapAnnouncement", () => {
     assert.deepEqual(mapped.attachments, [
       { id: "f1", fileName: "guide.pdf", contentType: "application/pdf", sizeBytes: 0 },
     ]);
+  });
+});
+
+describe("parseAudienceValue", () => {
+  it("round-trips every option the picker can offer", () => {
+    for (const stage of ANNOUNCEMENT_STAGE_OPTIONS) {
+      for (const outcome of ["advanced", "eliminated"] as const) {
+        assert.deepEqual(parseAudienceValue(audienceValue(stage, outcome)), {
+          stage,
+          outcome,
+        });
+      }
+    }
+  });
+
+  it("reads an empty value as every registered school", () => {
+    assert.deepEqual(parseAudienceValue(""), { stage: null, outcome: "advanced" });
+    assert.deepEqual(parseAudienceValue(null), { stage: null, outcome: "advanced" });
+    assert.equal(audienceValue(null, "eliminated"), "");
+  });
+
+  it("falls back to every school rather than silently targeting nobody", () => {
+    // A stage that is not on the list would match no results at all, which reads
+    // in the portal as "the send reached no one" with no explanation.
+    assert.deepEqual(parseAudienceValue("advanced:Zonal Stage"), {
+      stage: null,
+      outcome: "advanced",
+    });
+    assert.deepEqual(parseAudienceValue("advanced:'; drop table --"), {
+      stage: null,
+      outcome: "advanced",
+    });
+    assert.deepEqual(parseAudienceValue("Qualifications"), {
+      stage: null,
+      outcome: "advanced",
+    });
+  });
+
+  it("treats an unknown outcome as advanced", () => {
+    assert.deepEqual(parseAudienceValue("pending:Qualifications"), {
+      stage: "Qualifications",
+      outcome: "advanced",
+    });
+  });
+});
+
+describe("audienceLabel", () => {
+  it("calls the qualifying milestone what the rest of the portal calls it", () => {
+    assert.equal(audienceLabel("Qualifications", "advanced"), "Qualified schools");
+  });
+
+  it("names the stage and the outcome for every other audience", () => {
+    assert.equal(audienceLabel(null, "advanced"), "All registered schools");
+    assert.equal(
+      audienceLabel("Round of 16", "advanced"),
+      "Schools that advanced from Round of 16",
+    );
+    assert.equal(
+      audienceLabel("Qualifications", "eliminated"),
+      "Schools eliminated at Qualifications",
+    );
+  });
+});
+
+describe("ANNOUNCEMENT_STAGE_OPTIONS", () => {
+  it("offers the optional Round of 24 in tournament order", () => {
+    const stages = [...ANNOUNCEMENT_STAGE_OPTIONS];
+    assert.equal(
+      stages.indexOf("Round of 24"),
+      stages.indexOf("Grand Finale Group Stage") + 1,
+    );
+    assert.equal(stages.indexOf("Round of 16"), stages.indexOf("Round of 24") + 1);
   });
 });

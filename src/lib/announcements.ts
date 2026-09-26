@@ -6,6 +6,7 @@
 // Types, constants and the pure helpers live here; the recipient resolution lives
 // in ./announcement-recipients, and the send flow in the module's actions.ts.
 
+import { COMPETITION_STAGES, OPTIONAL_COMPETITION_STAGES } from "@/supabase/types";
 import { RESOURCE_DOC_EXTENSIONS } from "./resources";
 
 /** How an announcement goes out. */
@@ -57,6 +58,73 @@ export const ANNOUNCEMENT_TARGET_EMAIL_LABEL: Record<AnnouncementTargetRole, str
   teacher: "Coordinating teachers",
   principal: "Principals",
 };
+
+/**
+ * Which schools to reach, by how they fared at ONE stage. A null stage is every
+ * registered school.
+ *
+ * Unlike target_role this also gates READING: can_read_announcement hides a
+ * stage-narrowed announcement from the schools outside it. Role narrowing is
+ * best-effort and only decides who gets mailed; a school at the wrong stage was
+ * never the audience.
+ */
+export type AnnouncementOutcome = "advanced" | "eliminated";
+
+export const ANNOUNCEMENT_OUTCOME_OPTIONS: {
+  value: AnnouncementOutcome;
+  label: string;
+}[] = [
+  { value: "advanced", label: "Advanced from" },
+  { value: "eliminated", label: "Eliminated at" },
+];
+
+// Round of 24 is optional on an edition, and sits after the group stage. Always
+// offering it is harmless: a stage nobody holds a result at matches no schools.
+export const ANNOUNCEMENT_STAGE_OPTIONS: readonly string[] = COMPETITION_STAGES.flatMap(
+  (stage) =>
+    stage === "Grand Finale Group Stage" ? [stage, ...OPTIONAL_COMPETITION_STAGES] : [stage],
+);
+
+/**
+ * The audience travels the form as ONE value, so a stage and an outcome can
+ * never be submitted as an incoherent pair: "" is every registered school,
+ * otherwise "<outcome>:<stage>". The database keeps them as two columns.
+ */
+export function audienceValue(
+  stage: string | null,
+  outcome: AnnouncementOutcome,
+): string {
+  return stage ? `${outcome}:${stage}` : "";
+}
+
+export function parseAudienceValue(raw: string | null | undefined): {
+  stage: string | null;
+  outcome: AnnouncementOutcome;
+} {
+  const [outcome, ...rest] = String(raw ?? "").split(":");
+  const stage = rest.join(":").trim();
+  // An unknown stage would silently target nobody, so fall back to every school.
+  if (!ANNOUNCEMENT_STAGE_OPTIONS.includes(stage)) {
+    return { stage: null, outcome: "advanced" };
+  }
+  return { stage, outcome: outcome === "eliminated" ? "eliminated" : "advanced" };
+}
+
+/**
+ * How an audience reads in a summary line. Qualifications + advanced is spelled
+ * "Qualified schools" because that is what the rest of the portal calls that
+ * milestone (ACCESS_LABEL in ./resource-access).
+ */
+export function audienceLabel(
+  stage: string | null,
+  outcome: AnnouncementOutcome,
+): string {
+  if (!stage) return "All registered schools";
+  if (stage === "Qualifications" && outcome === "advanced") return "Qualified schools";
+  return outcome === "advanced"
+    ? `Schools that advanced from ${stage}`
+    : `Schools eliminated at ${stage}`;
+}
 
 export type AnnouncementStatus = "draft" | "sent";
 
@@ -126,6 +194,8 @@ export interface AnnouncementRow {
   body: string;
   channels: string | null;
   target_role: string | null;
+  audience_stage: string | null;
+  audience_outcome: string | null;
   edition_year: number | null;
   status: string | null;
   sent_at: string | null;
@@ -141,7 +211,8 @@ export interface AnnouncementRow {
 
 /** Columns selected for an announcement everywhere in the app. */
 export const ANNOUNCEMENT_COLUMNS =
-  "id, title, body, channels, target_role, edition_year, status, sent_at, sent_by, " +
+  "id, title, body, channels, target_role, audience_stage, audience_outcome, " +
+  "edition_year, status, sent_at, sent_by, " +
   "recipient_count, email_sent_count, email_failed_count, notified_count, " +
   "created_at, updated_at, " +
   "announcement_attachments(id, file_name, content_type, size_bytes)";
@@ -159,6 +230,9 @@ export interface PortalAnnouncement {
   body: string;
   channels: AnnouncementChannels;
   targetRole: AnnouncementTargetRole;
+  /** null = every registered school. */
+  audienceStage: string | null;
+  audienceOutcome: AnnouncementOutcome;
   editionYear: number | null;
   status: AnnouncementStatus;
   sentAt: string | null;
@@ -185,6 +259,8 @@ export function mapAnnouncement(row: AnnouncementRow): PortalAnnouncement {
     body: row.body,
     channels: asChannels(row.channels),
     targetRole: asTargetRole(row.target_role),
+    audienceStage: row.audience_stage?.trim() || null,
+    audienceOutcome: row.audience_outcome === "eliminated" ? "eliminated" : "advanced",
     // A missing year means "every edition" — never coerce it to 0.
     editionYear: row.edition_year ?? null,
     status: row.status === "sent" ? "sent" : "draft",

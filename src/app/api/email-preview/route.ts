@@ -47,6 +47,8 @@ export async function GET(request: Request) {
           announcementPath: "/portal/announcements/preview",
           editionYear: 2026,
           targetRole: "all",
+          // Previews the stage-narrowed variant — the row an all-schools send omits.
+          audience: "Qualified schools",
           sentAt: new Date(),
           inlineNames: ["revised-directions.pdf"],
           linkOnlyNames: ["centre-map-hi-res.png"],

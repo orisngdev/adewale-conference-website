@@ -30,12 +30,15 @@ export default async function AnnouncementDetailPage({
   // RLS decides visibility. Nothing back means: not sent, not aimed at this
   // educator's school(s), or no such announcement — all of which are a 404 here,
   // so we never confirm the existence of something they may not read.
-  const { data } = await supabase
+  // A failed query is not one of them: that would hide a missing column behind
+  // a page that looks deliberately unavailable.
+  const { data, error } = await supabase
     .from("announcements")
     .select(ANNOUNCEMENT_COLUMNS)
     .eq("id", id)
     .eq("status", "sent")
     .maybeSingle();
+  if (error) throw new Error(`Could not load this announcement: ${error.message}`);
   if (!data) notFound();
   const announcement = mapAnnouncement(data as unknown as AnnouncementRow);
 
